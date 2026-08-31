@@ -171,6 +171,55 @@ jobs:
           npm pack --dry-run --workspace @ninsho/server
           echo "Package contents verified."
 
+      # A dual-format package can type-check inside its own workspace and still
+      # fail for an actual consumer: wrong `exports` conditions, a missing
+      # .d.cts, an ESM-only construct in the CJS build. The only way to know is
+      # to install the tarballs the way npm would and load them both ways.
+      - name: Assert the packed tarballs work for a real consumer
+        run: |
+          set -e
+          WORK="$(mktemp -d)"
+          npm pack --workspace @ninsho/core   --pack-destination "$WORK"
+          npm pack --workspace @ninsho/server --pack-destination "$WORK"
+
+          cd "$WORK"
+          cat > package.json <<'JSON'
+          {
+            "name": "consumer-check", "version": "1.0.0", "type": "module", "private": true,
+            "dependencies": {
+              "@ninsho/core": "file:./ninsho-core-0.1.0.tgz",
+              "@ninsho/server": "file:./ninsho-server-0.1.0.tgz"
+            }
+          }
+          JSON
+          npm install --no-audit --no-fund
+
+          cat > esm.mjs <<'JS'
+          import { Ninsho, MemoryStore } from '@ninsho/server';
+          import { generateId } from '@ninsho/core';
+          const auth = new Ninsho({ store: new MemoryStore() });
+          const pair = await auth.createSession({ userId: 'u', roles: [], scopes: [] });
+          const ctx = await auth.engine.verify(pair.accessToken);
+          if (ctx.userId !== 'u' || generateId().length !== 22) process.exit(1);
+          await auth.close();
+          JS
+
+          cat > cjs.cjs <<'JS'
+          const { Ninsho, MemoryStore } = require('@ninsho/server');
+          const { generateId } = require('@ninsho/core');
+          (async () => {
+            const auth = new Ninsho({ store: new MemoryStore() });
+            const pair = await auth.createSession({ userId: 'u', roles: [], scopes: [] });
+            const ctx = await auth.engine.verify(pair.accessToken);
+            if (ctx.userId !== 'u' || generateId().length !== 22) process.exit(1);
+            await auth.close();
+          })().catch((e) => { console.error(e); process.exit(1); });
+          JS
+
+          node esm.mjs
+          node cjs.cjs
+          echo "Both ESM and CJS consumers load the published surface."
+
       - name: Assert core has no third-party runtime dependencies
         run: |
           set -e
