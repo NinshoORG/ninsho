@@ -153,6 +153,24 @@ jobs:
           npm run typecheck --workspace @ninsho/example-express-api
           echo "Example type-checks against the built packages."
 
+      # A package that declares files it does not have publishes a blank page
+      # on npm, or ships without the licence it claims. Both were live defects
+      # here until this gate was added.
+      - name: Assert every declared package file exists
+        run: |
+          set -e
+          for pkg in packages/core packages/server; do
+            for required in README.md LICENSE; do
+              if [ ! -f "$pkg/$required" ]; then
+                echo "::error::$pkg declares $required in package.json files but it does not exist."
+                exit 1
+              fi
+            done
+          done
+          npm pack --dry-run --workspace @ninsho/core
+          npm pack --dry-run --workspace @ninsho/server
+          echo "Package contents verified."
+
       - name: Assert core has no third-party runtime dependencies
         run: |
           set -e

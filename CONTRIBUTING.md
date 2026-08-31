@@ -100,7 +100,15 @@ Before a first public release:
 
 - [ ] Fill in the reporting section of `SECURITY.md`; test the channel end to end
 - [ ] Add `.well-known/security.txt` per RFC 9116
-- [ ] Claim the `@ninsho` scope
+- [ ] **Replace the placeholder `github.com/ninsho/ninsho` URLs** in
+      `packages/*/README.md` with the real repository. These are the package
+      pages npm renders; a dead link there is the same failure the predecessor
+      shipped in its security policy
+- [ ] Claim the `@ninsho` scope — it was unclaimed as of 2026-08-31, which is
+      not guaranteed to last
 - [ ] `npm publish --dry-run` and check the file list
 - [ ] Verify `npm ci && npm run build && npm run test` on a clean checkout
 - [ ] Confirm CI is green — not assumed green
+- [ ] Decide the version. `0.1.0` is honest for an unaudited pre-release; `1.0.0`
+      is a promise about stability that should be earned, not defaulted to. The
+      predecessor reached "1.0.0" in three days
