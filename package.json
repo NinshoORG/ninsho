@@ -2,10 +2,11 @@
   "name": "ninsho",
   "version": "0.1.0",
   "private": true,
-  "description": "Ninsho — authentication engine for Node.js. Monorepo root.",
+  "description": "Ninsho \u2014 authentication engine for Node.js. Monorepo root.",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/*"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",

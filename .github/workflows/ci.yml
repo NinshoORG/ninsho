@@ -147,6 +147,12 @@ jobs:
           done
           echo "Build output is clean."
 
+      - name: Assert the example builds against the published surface
+        run: |
+          set -e
+          npm run typecheck --workspace @ninsho/example-express-api
+          echo "Example type-checks against the built packages."
+
       - name: Assert core has no third-party runtime dependencies
         run: |
           set -e

@@ -1,0 +1,22 @@
+{
+  "name": "@ninsho/example-express-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference Express API built on Ninsho.",
+  "type": "module",
+  "scripts": {
+    "dev": "node --experimental-strip-types src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ninsho/server": "0.1.0",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
