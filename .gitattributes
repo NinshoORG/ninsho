@@ -1,0 +1,7 @@
+# Normalize line endings so the lockfile-drift gate and diffs behave
+# identically on Windows, macOS and CI.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary

@@ -1,0 +1,158 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The audit that predecessor project shipped never ran, because `npm ci` failed
+# on a desynced lockfile and every later step was skipped. Each job below is
+# therefore independent: a failure in one does not silently disable the others.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+
+    # A real Redis, not a mock library. The store contract suite runs the same
+    # assertions against MemoryStore and RedisStore, so the two cannot drift
+    # apart — if they did, local test runs would stop predicting production
+    # behaviour, which is how a revocation bug hides until it matters.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # REGRESSION GATE (audit finding C1)
+      # `npm ci` refuses to run against a lockfile that disagrees with the
+      # manifests. Keeping it as the first step means a desync fails loudly
+      # here instead of silently disabling every gate that follows.
+      - name: Install (clean, lockfile-enforced)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # @ninsho/core must be built before the server package's tests can
+      # resolve it through the workspace link.
+      - name: Build
+        run: npm run build
+
+      - name: Test (with real Redis)
+        run: npm run test
+        env:
+          REDIS_URL: redis://localhost:6379
+
+      # Guards against the RedisStore contract silently skipping. The suite is
+      # designed to skip without REDIS_URL so it stays runnable locally; that
+      # convenience must not quietly turn into "Redis is never tested in CI".
+      - name: Assert the Redis contract suite actually ran
+        run: |
+          npm run test --workspace @ninsho/server -- --reporter=verbose 2>&1 \
+            | tee /tmp/test-output.txt
+          if ! grep -q "RedisStore" /tmp/test-output.txt; then
+            echo "::error::The RedisStore contract suite did not run."
+            exit 1
+          fi
+        env:
+          REDIS_URL: redis://localhost:6379
+
+  lockfile:
+    name: Lockfile is in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # Catches the case where a manifest changed but the lockfile was not
+      # regenerated — the exact mistake that shipped a broken release before.
+      - name: Regenerate lockfile and assert no drift
+        run: |
+          npm install --package-lock-only
+          git diff --exit-code package-lock.json \
+            || (echo "::error::package-lock.json is out of sync. Run 'npm install' and commit the result." && exit 1)
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+
+      # Gated at moderate. One low advisory is currently accepted and tracked:
+      # GHSA-g7r4-m6w7-qqqr in esbuild, reachable only through `esbuild serve`,
+      # which nothing in this repo invokes — tsup uses esbuild as a bundler API.
+      - name: Audit
+        run: npm audit --audit-level=moderate
+
+  bundle:
+    name: Bundle purity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # REGRESSION GATE (audit finding C2)
+      # The predecessor bundled `ioredis-mock` — a devDependency — into its
+      # published artifact, and gated the real store behind a USE_REDIS_MOCK
+      # environment variable that shipped to production. Both are banned here,
+      # and the ban is enforced rather than documented.
+      #
+      # `MemoryStore` is deliberately NOT on this list. It is a supported
+      # export that belongs in the bundle; what made the old mock dangerous was
+      # that an environment variable selected it silently. MemoryStore must be
+      # named explicitly by the caller and refuses to construct under
+      # NODE_ENV=production — enforced by unit test, not by this grep.
+      - name: Assert no test doubles or env kill-switches in dist
+        run: |
+          set -e
+          for forbidden in "ioredis-mock" "USE_REDIS_MOCK" "vitest"; do
+            if grep -rqF "$forbidden" packages/*/dist/*.js packages/*/dist/*.cjs 2>/dev/null; then
+              echo "::error::Forbidden token '$forbidden' found in build output."
+              grep -rlF "$forbidden" packages/*/dist/ || true
+              exit 1
+            fi
+          done
+          echo "Build output is clean."
+
+      - name: Assert core has no third-party runtime dependencies
+        run: |
+          set -e
+          EXTERNAL=$(grep -oE "require\('[^.][^']*'\)" packages/core/dist/index.cjs | sort -u || true)
+          echo "External requires: ${EXTERNAL:-none}"
+          if echo "$EXTERNAL" | grep -vqE "^(require\('(node:)?crypto'\))?$"; then
+            echo "::error::@ninsho/core must depend only on node:crypto."
+            exit 1
+          fi

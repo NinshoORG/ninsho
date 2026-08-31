@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Secrets — never commit real key material or environment files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
