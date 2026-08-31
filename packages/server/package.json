@@ -1,7 +1,7 @@
 {
   "name": "@ninsho/server",
   "version": "0.1.0",
-  "description": "Ninsho authentication engine for Node.js — opaque or PASETO tokens, injected session store, secure by default.",
+  "description": "Ninsho authentication engine for Node.js \u2014 opaque or PASETO tokens, injected session store, secure by default.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -26,7 +26,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench": "node --experimental-strip-types bench/bench.ts"
   },
   "dependencies": {
     "@ninsho/core": "0.1.0",
