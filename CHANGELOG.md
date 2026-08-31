@@ -20,6 +20,22 @@ This project uses [Semantic Versioning](https://semver.org/).
   operation touched the index first. Found by the new concurrency suite; no
   sequential test could have surfaced it.
 
+- **`revokeAllForUser` and `listSessions` were latency-bound.** Both walked
+  their sessions serially — around 4,500 store round trips for a user with 500
+  sessions, never more than one in flight, which is seconds against a real
+  store. "Sign out everywhere" is what gets invoked during an incident, and one
+  that slow risks timing out partway and leaving sessions live.
+
+  Both now use bounded parallelism (pool of 16): ~282 effective serial steps
+  instead of ~4,500, with fan-out capped so a user with very many sessions
+  cannot exhaust the connection pool. A failure on one session no longer
+  abandons the rest of the sweep.
+
+- **Token lifetimes were off by up to a millisecond.** `issuedAt` and
+  `expiresAt` were derived from two separate clock readings, so a tick between
+  them made the recorded lifetime differ from the configured TTL. Both now
+  derive from one captured instant.
+
 ## [0.1.0] — 2026-09-01
 
 First release of Ninsho. **Not published to npm.** Pre-release: the API may

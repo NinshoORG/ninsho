@@ -9,6 +9,7 @@ import {
   generateToken,
   hashToken,
   isExpired,
+  isoFrom,
   isoIn,
   isoToMs,
   nowIso,
@@ -17,6 +18,7 @@ import {
 import type { NinshoStore } from '../store/types.js';
 import type { TokenEngine } from '../engine/types.js';
 import { KEYS } from '../keys.js';
+import { mapConcurrent } from '../internal/concurrent.js';
 import type {
   ConsumedRefreshRecord,
   GraceRecord,
@@ -95,10 +97,11 @@ export class SessionManager {
    */
   async create(principal: Principal): Promise<TokenPair> {
     const sessionId = generateId();
-    const now = nowIso();
+    const startedAt = Date.now();
+    const now = isoFrom(startedAt);
     // Fixed here and never extended, so rotation cannot grant a session
-    // unlimited life.
-    const familyExpiresAt = isoIn(this.#options.refreshTokenTtl);
+    // unlimited life. Derived from the same instant as `now`.
+    const familyExpiresAt = isoFrom(startedAt, this.#options.refreshTokenTtl);
 
     const refreshToken = await this.#writeRefreshToken({
       sessionId,
@@ -183,11 +186,36 @@ export class SessionManager {
   ): Promise<void> {
     const sessionIds = await this.#store.sMembers(KEYS.userSessions(userId));
 
-    for (const sessionId of sessionIds) {
-      await this.#revokeFamily(sessionId, reason, { skipUserIndex: true });
-    }
+    // Bounded parallelism. Serially this was one round trip at a time — around
+    // 4,500 for a user with 500 sessions, which is seconds against a real
+    // store. This is the operation invoked during an incident, so it needs to
+    // finish.
+    //
+    // Failures are swallowed per session rather than propagated: one corrupt
+    // record must not abandon the remaining sessions half-revoked, which would
+    // leave the caller believing they had signed out everywhere when they had
+    // not. Each failure is still recorded.
+    const failures = await mapConcurrent(sessionIds, async (sessionId) => {
+      try {
+        await this.#revokeFamily(sessionId, reason, { skipUserIndex: true });
+        return null;
+      } catch (error) {
+        return { sessionId, error };
+      }
+    });
 
     await this.#store.delete(KEYS.userSessions(userId));
+
+    for (const failure of failures) {
+      if (failure === null) continue;
+      this.#options.audit.emit({
+        type: 'session.revoked',
+        at: nowIso(),
+        userId,
+        sessionId: failure.sessionId,
+        reason: 'revocation_failed',
+      });
+    }
 
     this.#options.audit.emit({
       type: 'session.revoked_all',
@@ -206,16 +234,18 @@ export class SessionManager {
    */
   async listSessions(userId: string, currentSessionId?: string): Promise<SessionSummary[]> {
     const sessionIds = await this.#store.sMembers(KEYS.userSessions(userId));
+
+    // Bounded parallelism: one round trip per session, and a user with many
+    // devices should not wait for them in series.
+    const loaded = await mapConcurrent(sessionIds, async (sessionId) => {
+      const raw = await this.#store.get(KEYS.sessionMeta(sessionId));
+      return { sessionId, meta: raw === null ? null : this.#parseMeta(raw) };
+    });
+
     const summaries: SessionSummary[] = [];
     const stale: string[] = [];
 
-    for (const sessionId of sessionIds) {
-      const raw = await this.#store.get(KEYS.sessionMeta(sessionId));
-      if (raw === null) {
-        stale.push(sessionId);
-        continue;
-      }
-      const meta = this.#parseMeta(raw);
+    for (const { sessionId, meta } of loaded) {
       if (meta === null || isExpired(meta.expiresAt)) {
         stale.push(sessionId);
         continue;

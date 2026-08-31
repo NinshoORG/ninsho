@@ -62,6 +62,7 @@ export {
 export {
   nowIso,
   isoIn,
+  isoFrom,
   isoToMs,
   isExpired,
   isNotYetValid,

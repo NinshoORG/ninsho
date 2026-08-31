@@ -28,6 +28,20 @@ export function isoIn(seconds: number): string {
 }
 
 /**
+ * An ISO 8601 timestamp `offsetSeconds` from a captured instant.
+ *
+ * Exists so that a record's `issuedAt` and `expiresAt` derive from *one*
+ * reading of the clock. Calling `nowIso()` and then `isoIn(ttl)` reads it
+ * twice, and a millisecond tick between them makes the recorded lifetime
+ * differ from the configured one — harmless in effect, but it means the
+ * lifetime is not exactly what was asked for, which is the kind of small
+ * imprecision that makes later reasoning about expiry harder than it should be.
+ */
+export function isoFrom(baseMs: number, offsetSeconds = 0): string {
+  return new Date(baseMs + offsetSeconds * 1000).toISOString();
+}
+
+/**
  * Parses an ISO 8601 timestamp to epoch milliseconds.
  * Returns `NaN` for anything unparseable; callers must treat `NaN` as invalid
  * rather than letting it flow into a comparison, where every `>` and `<`

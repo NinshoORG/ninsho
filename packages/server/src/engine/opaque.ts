@@ -9,8 +9,7 @@ import {
   generateToken,
   hashToken,
   isExpired,
-  isoIn,
-  nowIso,
+  isoFrom,
   secondsUntil,
 } from '@ninsho/core';
 import type { NinshoStore } from '../store/types.js';
@@ -87,8 +86,11 @@ export class OpaqueEngine implements TokenEngine {
     const token = generateToken();
     const tokenHash = hashToken(token);
     const tokenId = generateId();
-    const issuedAt = nowIso();
-    const expiresAt = isoIn(this.#options.accessTokenTtl);
+    // One reading of the clock for both, so the recorded lifetime is exactly
+    // the configured TTL rather than a millisecond either side of it.
+    const now = Date.now();
+    const issuedAt = isoFrom(now);
+    const expiresAt = isoFrom(now, this.#options.accessTokenTtl);
 
     const record: AccessRecord = {
       tokenId,

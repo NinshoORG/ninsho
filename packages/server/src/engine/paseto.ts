@@ -6,8 +6,7 @@ import {
   generateId,
   isExpired,
   isNotYetValid,
-  isoIn,
-  nowIso,
+  isoFrom,
   secondsUntil,
   type AuthContext,
   type PasetoClaims,
@@ -87,8 +86,10 @@ export class PasetoEngine implements TokenEngine {
 
   async issue(input: IssueAccessTokenInput): Promise<IssuedAccessToken> {
     const tokenId = generateId();
-    const issuedAt = nowIso();
-    const expiresAt = isoIn(this.#options.accessTokenTtl);
+    // One reading of the clock, so iat/nbf/exp are exactly consistent.
+    const now = Date.now();
+    const issuedAt = isoFrom(now);
+    const expiresAt = isoFrom(now, this.#options.accessTokenTtl);
 
     const claims: PasetoClaims = {
       jti: tokenId,

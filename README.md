@@ -93,9 +93,11 @@ Every claim below links to executable proof.
 | The whole system holds together over real HTTP | assembled app | `examples/express-api` — 43 end-to-end tests |
 | A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
+| Sign-out-everywhere scales, with bounded fan-out | `mapConcurrent` | `concurrent-util.test.ts` › *session operations at scale* |
+| One bad session cannot abandon a sweep half-done | per-session isolation in `revokeAllForUser` | `concurrent-util.test.ts` › *completes the sweep even when one session fails* |
 
 ```
-774 tests passing · typecheck clean · no flaky runs over 5 repeats
+788 tests passing · typecheck clean · no flaky runs over 5 repeats
 core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express dependency
 ```
 
