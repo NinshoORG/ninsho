@@ -5,7 +5,20 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Revocation could lose a race against rotation.** `#revokeFamily` worked by
+  enumerating the family index and deleting what it found. A rotation running
+  concurrently could add its replacement to that index *after* revocation had
+  read it; revocation then deleted the index, leaving a live refresh record
+  that nothing pointed to. No later revocation could find the orphan either, so
+  a refresh token survived a completed logout for its full lifetime — a "sign
+  out this device" button reporting success while a credential stayed usable.
+
+  Fixed with a positive session tombstone written *before* the index is read
+  and consulted by rotation, so the outcome no longer depends on which
+  operation touched the index first. Found by the new concurrency suite; no
+  sequential test could have surfaced it.
 
 ## [0.1.0] — 2026-09-01
 

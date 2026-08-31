@@ -87,6 +87,26 @@ export const KEYS = {
   sessionMeta: (sessionId: string): string => `${NS}:sess:${sessionId}:meta`,
 
   /**
+   * Positive marker that a session has been terminated.
+   *
+   * ─── Why enumeration alone is not enough ────────────────────────────────
+   * Revocation used to work purely by reading the family index and deleting
+   * what it found. That loses a race: a rotation that adds its replacement to
+   * the index *after* revocation has read it leaves a record nothing points
+   * to. The index is then deleted, so no later revocation can find the orphan
+   * either, and a refresh token survives a completed logout for its full
+   * lifetime.
+   *
+   * This marker is written *before* the index is read, and consulted by
+   * refresh, so the outcome no longer depends on which operation touched the
+   * index first.
+   *
+   * TTL: the refresh lifetime — the longest anything in the family can live.
+   * ────────────────────────────────────────────────────────────────────────
+   */
+  sessionRevoked: (sessionId: string): string => `${NS}:sess:${sessionId}:dead`,
+
+  /**
    * Set of session ids belonging to a user, for "sign out everywhere".
    */
   userSessions: (userId: string): string => `${NS}:user:${userId}:sess`,

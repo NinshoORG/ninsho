@@ -446,16 +446,21 @@ describe('revoke', () => {
     expect(events[0]).toMatchObject({ sessionId: pair.sessionId, reason: 'logout' });
   });
 
-  it('leaves no residue in the store', async () => {
+  it('leaves nothing behind but the revocation tombstone', async () => {
     const before = store.size();
     const pair = await sessions.create(ALICE);
     await sessions.refresh(pair.refreshToken);
     await sessions.revoke(pair.sessionId);
 
-    // The user-sessions index entry is the only thing that may remain, and it
-    // is pruned on the next listing.
+    // The user-sessions index entry is pruned on the next listing.
     await sessions.listSessions(ALICE.userId);
-    expect(store.size()).toBe(before);
+
+    // Exactly one key remains: the tombstone proving this session is dead.
+    // It is deliberately retained for the refresh lifetime — it is what stops
+    // a rotation that raced the revocation from leaving a usable orphan, so
+    // cleaning it up eagerly would reintroduce the bug it exists to prevent.
+    expect(store.size()).toBe(before + 1);
+    await expect(store.exists(KEYS.sessionRevoked(pair.sessionId))).resolves.toBe(true);
   });
 });
 
@@ -740,5 +745,85 @@ describe('session layer over the paseto engine', () => {
 
     await expect(pasetoEngine.verify(a.accessToken)).rejects.toThrow(TokenRevokedError);
     await expect(pasetoEngine.verify(b.accessToken)).rejects.toThrow(TokenRevokedError);
+  });
+});
+
+/**
+ * ─── REGRESSION: revocation lost a race against rotation ──────────────────
+ * Found by the concurrency suite, not by any sequential test.
+ *
+ * `#revokeFamily` used to work purely by enumerating the family index and
+ * deleting what it found. A rotation running concurrently could add its
+ * replacement to that index *after* revocation had read it, and revocation
+ * then deleted the index itself — leaving a live refresh record that nothing
+ * pointed to. No later revocation could find the orphan either, so a refresh
+ * token survived a completed logout for its full lifetime.
+ *
+ * A "sign out this device" button reporting success while a credential stays
+ * live is about the worst outcome that button can have.
+ *
+ * The fix is a positive tombstone written *before* the index is read, and
+ * consulted by rotation — so the outcome no longer depends on which operation
+ * touched the index first.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+describe('regression: revocation racing rotation', () => {
+  it('leaves no usable refresh token when a logout races a rotation', async () => {
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      const pair = await sessions.create(ALICE);
+
+      const [rotated] = await Promise.allSettled([
+        sessions.refresh(pair.refreshToken),
+        sessions.revoke(pair.sessionId),
+      ]);
+
+      if (rotated.status === 'fulfilled') {
+        // Whichever operation won, the session is over. The replacement token
+        // must not outlive the logout.
+        await expect(sessions.refresh(rotated.value.refreshToken)).rejects.toThrow(
+          RefreshInvalidError,
+        );
+      }
+    }
+  });
+
+  it('refuses a rotation for an already-revoked session', async () => {
+    const pair = await sessions.create(ALICE);
+    await sessions.revoke(pair.sessionId);
+
+    await expect(sessions.refresh(pair.refreshToken)).rejects.toThrow(RefreshInvalidError);
+  });
+
+  it('refuses the grace path for a revoked session', async () => {
+    // A grace mapping is written outside the family index, so it could
+    // likewise outlive the revocation that should have removed it.
+    const first = await sessions.create(ALICE);
+    await sessions.refresh(first.refreshToken);
+    await sessions.revoke(first.sessionId);
+
+    await expect(sessions.refresh(first.refreshToken)).rejects.toThrow(RefreshInvalidError);
+  });
+
+  it('keeps the tombstone for the full refresh lifetime, not the token lifetime', async () => {
+    // The orphan it guards against can live as long as a refresh token, so the
+    // marker has to outlast it.
+    const pair = await sessions.create(ALICE);
+    await sessions.revoke(pair.sessionId);
+
+    await expect(store.exists(KEYS.sessionRevoked(pair.sessionId))).resolves.toBe(true);
+  });
+
+  it('does not let a revoked session be resurrected by sign-out-everywhere ordering', async () => {
+    const a = await sessions.create(ALICE);
+    const b = await sessions.create(ALICE);
+
+    await Promise.all([
+      sessions.refresh(a.refreshToken).catch(() => undefined),
+      sessions.revokeAllForUser(ALICE.userId),
+      sessions.refresh(b.refreshToken).catch(() => undefined),
+    ]);
+
+    await expect(sessions.refresh(a.refreshToken)).rejects.toThrow();
+    await expect(sessions.refresh(b.refreshToken)).rejects.toThrow();
   });
 });

@@ -91,9 +91,11 @@ Every claim below links to executable proof.
 | Every single-byte mutation of a token is rejected | Ed25519 signature | `fuzz.test.ts` › *rejects every single-byte mutation* |
 | Junk submitted in bulk cannot revoke a live session | tombstone required | `fuzz.test.ts` › *leaves a live session untouched* |
 | The whole system holds together over real HTTP | assembled app | `examples/express-api` — 43 end-to-end tests |
+| A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
+| Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
 
 ```
-751 tests passing · typecheck clean · no flaky runs over 5 repeats
+774 tests passing · typecheck clean · no flaky runs over 5 repeats
 core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express dependency
 ```
 

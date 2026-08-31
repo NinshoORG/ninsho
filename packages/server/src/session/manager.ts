@@ -271,6 +271,14 @@ export class SessionManager {
 
     const { sessionId, principal } = record;
 
+    // The session may have been terminated between this token being issued and
+    // being presented. The marker is authoritative where the family index is
+    // not: revocation writes it before enumerating, so a logout that raced a
+    // rotation is still visible here.
+    if (await this.#store.exists(KEYS.sessionRevoked(sessionId))) {
+      throw new RefreshInvalidError(`session ${sessionId} has been revoked`);
+    }
+
     // A token past its own expiry, or past the family ceiling, is dead. This
     // is not reuse — nothing is revoked beyond the token already consumed.
     if (
@@ -334,6 +342,20 @@ export class SessionManager {
       JSON.stringify(consumed),
       secondsUntil(record.familyExpiresAt),
     );
+
+    // Re-check after publishing. A revocation that began between the check
+    // above and this point has, by now, written its marker — so this is where
+    // that interleaving is caught. Without it, the replacement record would
+    // survive a completed logout with nothing left pointing at it.
+    if (await this.#store.exists(KEYS.sessionRevoked(sessionId))) {
+      await this.#store.delete(
+        KEYS.refreshToken(hashToken(newToken)),
+        KEYS.refreshGrace(oldHash),
+      );
+      throw new RefreshInvalidError(
+        `session ${sessionId} was revoked during rotation`,
+      );
+    }
 
     await this.#touchMeta(sessionId, generation);
 
@@ -448,6 +470,13 @@ export class SessionManager {
     consumed: ConsumedRefreshRecord,
     grace: GraceRecord,
   ): Promise<TokenPair> {
+    // A grace mapping can outlive the revocation that should have removed it,
+    // for the same reason a rotation's output can: both are written outside
+    // the index that revocation enumerates.
+    if (await this.#store.exists(KEYS.sessionRevoked(consumed.sessionId))) {
+      throw new RefreshInvalidError(`session ${consumed.sessionId} has been revoked`);
+    }
+
     const access = await this.#engine.issue({
       principal: consumed.principal,
       sessionId: consumed.sessionId,
@@ -485,6 +514,15 @@ export class SessionManager {
     reason: RevocationReason,
     options: { skipUserIndex?: boolean; silent?: boolean } = {},
   ): Promise<void> {
+    // Written before anything is read. Ordering is the whole point: a rotation
+    // running concurrently will observe this marker even if its own record
+    // reaches the index too late to be enumerated below.
+    await this.#store.set(
+      KEYS.sessionRevoked(sessionId),
+      '1',
+      this.#options.refreshTokenTtl,
+    );
+
     const metaRaw = await this.#store.get(KEYS.sessionMeta(sessionId));
     const meta = metaRaw === null ? null : this.#parseMeta(metaRaw);
 
