@@ -7,6 +7,30 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`@ninsho/client` — the browser half of DPoP.** Zero dependencies, Web APIs
+  only.
+
+  The key is generated **non-extractable**: `crypto.subtle.exportKey` on it
+  throws, and there is no other route to the bytes — including for script an
+  attacker injects. That is the whole reason browser DPoP is worth having. A
+  bearer token is a string an XSS copies and uses indefinitely; a DPoP key
+  cannot leave the browser, so an attacker is reduced to signing proofs while
+  they still have execution. It does not make XSS harmless — it makes stolen
+  credentials non-portable.
+
+  Also handled: the access token held in memory only (never `localStorage`),
+  IndexedDB persistence because it is the only browser storage that can hold a
+  `CryptoKey` handle, a fresh proof per request, and automatic refresh on 401.
+
+  Refresh and key initialisation are both **single-flight**. Six requests
+  hitting an expired token would otherwise start six refreshes, and under
+  rotation five of them present a token another has already rotated — which the
+  server correctly reads as theft. A normal page load would look like an attack.
+
+  Client and server are tested **against each other** rather than each against
+  its own assumptions: thumbprints compared across both implementations, and
+  client-generated proofs verified by the server's real verifier.
+
 - **Proof-of-possession — `binding: 'dpop'` (RFC 9449).** Access and refresh
   tokens can now be bound to a key the client holds privately, with a fresh
   signed proof required on every request. A stolen token alone becomes useless.
@@ -32,6 +56,13 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **Concurrent first requests each generated their own client key.** Ten
+  callers arriving before a key existed each found none, each generated one, and
+  each wrote it — last write wins. Requests already in flight would then sign
+  proofs with a key the store no longer held, and a session bound to a discarded
+  key is broken with nothing in the logs to explain it. Key initialisation is
+  now single-flight, like refresh.
 
 - **Non-canonical base64url was accepted in DPoP proofs.** The segment check
   verified only the character set, not canonicality. Node's decoder ignores the

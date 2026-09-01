@@ -1,0 +1,46 @@
+{
+  "name": "@ninsho/client",
+  "version": "0.1.0",
+  "description": "Browser client for Ninsho \u2014 DPoP proof-of-possession with a non-extractable key, automatic refresh. Zero dependencies.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "ninsho",
+    "dpop",
+    "authentication",
+    "browser",
+    "webcrypto"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "sideEffects": false,
+  "devDependencies": {
+    "@ninsho/server": "0.1.0"
+  }
+}

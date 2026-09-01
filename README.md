@@ -101,9 +101,13 @@ Every claim below links to executable proof.
 | Refresh tokens are bound too | RFC 9449 §5 | `dpop-integration.test.ts` › *refresh tokens are bound too* |
 | A rejected proof cannot destroy a session | binding checked before `take()` | `dpop-integration.test.ts` › *regression: a rejected proof must not consume* |
 | Only one textual spelling of a proof is accepted | canonical base64url on every segment | `dpop-proof.test.ts` › *regression: non-canonical base64url* |
+| **The browser key cannot be exfiltrated** | non-extractable WebCrypto key | `client.test.ts` › *key material cannot be exfiltrated* |
+| Client and server agree on the wire format | tested against each other, not assumptions | `interop.test.ts` — thumbprints and proofs both directions |
+| A refresh stampede cannot look like theft | single-flight refresh | `client.test.ts` › *collapses concurrent refreshes into one* |
+| Concurrent first requests share one key | single-flight key init | `client.test.ts` › *generates a key only once* |
 
 ```
-895 tests passing · typecheck clean · no flaky runs over 5 repeats
+942 tests passing · typecheck clean · no flaky runs over 5 repeats
 core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express dependency
 ```
 
@@ -121,11 +125,10 @@ core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express depe
 
 ### What does not exist yet
 
-No browser client package. DPoP proofs can be generated in Node with
-`createDpopProof`, but a browser should use WebCrypto with a **non-extractable**
-key — which is the property that makes DPoP worth having there, and which no
-Node helper can provide. No WebAuthn/passkey layer (the planned
-`@ninsho/client`).
+No WebAuthn/passkey layer — that is the remaining piece of the original scope
+document. No adapters for Fastify, Hono or Koa: the middleware is
+Express-shaped, and while structural typing means anything matching those
+shapes works, other frameworks differ and are neither adapted nor tested.
 
 ## Quick look
 
@@ -240,6 +243,7 @@ same ergonomics with neither cost.
 
 ```
 packages/
+  client/        @ninsho/client — browser DPoP client. Zero dependencies.
   core/          @ninsho/core — types, errors, primitives. Zero dependencies.
   server/        @ninsho/server — store, engines, config, audit.
     store/       NinshoStore interface · RedisStore · MemoryStore

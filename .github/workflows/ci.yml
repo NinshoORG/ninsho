@@ -159,7 +159,7 @@ jobs:
       - name: Assert every declared package file exists
         run: |
           set -e
-          for pkg in packages/core packages/server; do
+          for pkg in packages/core packages/server packages/client; do
             for required in README.md LICENSE; do
               if [ ! -f "$pkg/$required" ]; then
                 echo "::error::$pkg declares $required in package.json files but it does not exist."
@@ -169,6 +169,7 @@ jobs:
           done
           npm pack --dry-run --workspace @ninsho/core
           npm pack --dry-run --workspace @ninsho/server
+          npm pack --dry-run --workspace @ninsho/client
           echo "Package contents verified."
 
       # A dual-format package can type-check inside its own workspace and still
@@ -219,6 +220,18 @@ jobs:
           node esm.mjs
           node cjs.cjs
           echo "Both ESM and CJS consumers load the published surface."
+
+      # The client ships to browsers, where every kilobyte and every dependency
+      # is the application's problem. It must stay on Web APIs alone.
+      - name: Assert the client has no dependencies at all
+        run: |
+          set -e
+          DEPS=$(node -p "JSON.stringify(require('./packages/client/package.json').dependencies || {})")
+          if [ "$DEPS" != "{}" ]; then
+            echo "::error::@ninsho/client must have no runtime dependencies. Found: $DEPS"
+            exit 1
+          fi
+          echo "Client dependency-free."
 
       - name: Assert core has no third-party runtime dependencies
         run: |
