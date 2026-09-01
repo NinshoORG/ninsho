@@ -55,8 +55,14 @@ whether a caller may do a given thing.
 
 ### What Ninsho is deliberately not responsible for
 
-- **Credential verification.** Passwords, WebAuthn, federated sign-in. Owning
-  these would mean owning your user model.
+- **Passwords and federated sign-in.** Owning these would mean owning your user
+  model.
+
+  WebAuthn is the one exception, and a deliberately narrow one:
+  `@ninsho/webauthn` verifies the ceremony — challenge, origin, RP ID,
+  signature, counter — and returns a `Principal`. It does not store credentials,
+  own a user table, or decide what a user may do. Storage stays in your database
+  next to the user it identifies.
 - **Password hashing.** The example demonstrates scrypt at OWASP parameters;
   the library ships no hashing.
 - **Transport security.** Run behind TLS. Ninsho cannot detect that you have not.
@@ -109,6 +115,15 @@ authorization data inside a `Principal`.
 | Access-token replay by a thief | **Mitigated under `binding: 'dpop'`** | `dpop-integration.test.ts` › *a stolen token is useless without the key* |
 | DPoP proof replay | **Mitigated** | Single-use `jti`, store-backed (RFC 9449 §11.1) |
 | Algorithm confusion in a DPoP proof | **Mitigated** | Allowlist; `dpop-proof.test.ts` › *algorithm confusion* |
+| WebAuthn assertion replay | **Mitigated** | Single-use challenge consumed via atomic `take()`; `challenge.test.ts` › *lets exactly one of many concurrent attempts win* |
+| Registration response replayed as a sign-in | **Mitigated** | `clientData.type` checked, and the ceremony type is part of the challenge key |
+| Algorithm confusion in a COSE key | **Mitigated** | Allowlist, plus key type must match the algorithm; `cose.test.ts` › *algorithm confusion* |
+| Undersized RSA credential key | **Mitigated** | 2048-bit floor measured in significant bits — WebCrypto alone accepts 512 |
+| Credential used at a different origin or RP | **Mitigated** | Exact origin allowlist; RP ID hash compared against `SHA-256(rpId)` |
+| Cloned authenticator | **Detected** | Sign-counter regression rejects by default (WebAuthn §6.1.1) |
+| Ceremony completed against another account | **Mitigated** | Challenge user and credential owner must agree; `server.test.ts` › *binding a ceremony to its user* |
+| Memory-safety bugs in attacker-facing parsers | **Mitigated** | Every length bounds-checked before use; CBOR, DER and authenticator-data parsers each fuzzed |
+| **Authenticator provenance (attestation)** | **Not provided** | Only `none` is accepted. Verifying other formats is not implemented, and no option enables it — see below |
 | **Signing-key compromise** | **Partially** | Rotation is possible without downtime; detection is not provided |
 
 ---
@@ -117,6 +132,26 @@ authorization data inside a `Principal`.
 
 Stated plainly, because a limitation you know about is manageable and one you
 have been reassured about is not.
+
+### WebAuthn attestation is not verified
+
+`@ninsho/webauthn` accepts only the `none` attestation format. It does not
+verify `packed`, `tpm`, `android-key`, `android-safetynet`, `apple` or
+`fido-u2f`, and adding one to `allowedAttestationFormats` does not make it
+verified — the ceremony refuses it regardless. There is deliberately no
+arrangement of options that turns an unverified attestation into a verified
+one.
+
+The reasoning: verifying those formats means X.509 chain validation and
+maintaining authenticator root stores. A verifier that parses an attestation
+statement without checking it is worse than one that refuses it, because it
+looks like a guarantee and is not one.
+
+**What this costs you:** nothing for passkeys. The browser replaces the
+attestation with `none` whenever the relying party requests `none` conveyance,
+which is what this package always requests. What you cannot do is enforce
+"credentials must live on this specific approved hardware model" — an
+enterprise requirement, and one that needs the work above rather than a flag.
 
 ### Bearer tokens can be replayed — unless you enable DPoP
 
@@ -231,6 +266,10 @@ fail an authentication.
 
 ## Standards referenced
 
+- W3C WebAuthn Level 3 (§6.1 authenticator data, §7.1/§7.2 verification, §6.1.1 counters)
+- RFC 9052 — COSE structures and process (key import, algorithm identifiers)
+- RFC 8230 — RSA keys for COSE
+- RFC 8949 — CBOR (decoder verified against Appendix A vectors)
 - RFC 9700 — OAuth 2.0 Security Best Current Practice (§4.14.2, refresh reuse)
 - RFC 9449 — DPoP, proof-of-possession (implemented; `binding: 'dpop'`)
 - RFC 7638 — JWK thumbprint (implemented; verified against the specification's own vector)

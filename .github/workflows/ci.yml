@@ -159,7 +159,7 @@ jobs:
       - name: Assert every declared package file exists
         run: |
           set -e
-          for pkg in packages/core packages/server packages/client; do
+          for pkg in packages/core packages/server packages/client packages/webauthn; do
             for required in README.md LICENSE; do
               if [ ! -f "$pkg/$required" ]; then
                 echo "::error::$pkg declares $required in package.json files but it does not exist."
@@ -170,6 +170,7 @@ jobs:
           npm pack --dry-run --workspace @ninsho/core
           npm pack --dry-run --workspace @ninsho/server
           npm pack --dry-run --workspace @ninsho/client
+          npm pack --dry-run --workspace @ninsho/webauthn
           echo "Package contents verified."
 
       # A dual-format package can type-check inside its own workspace and still
@@ -232,6 +233,18 @@ jobs:
             exit 1
           fi
           echo "Client dependency-free."
+
+      # The verification path for passkeys. A third-party dependency here would
+      # sit directly on the code that decides whether a signature is genuine.
+      - name: Assert webauthn has no third-party dependencies
+        run: |
+          set -e
+          DEPS=$(node -p "Object.keys(require('./packages/webauthn/package.json').dependencies || {}).filter(d => !d.startsWith('@ninsho/')).join(',')")
+          if [ -n "$DEPS" ]; then
+            echo "::error::@ninsho/webauthn must depend only on @ninsho/* packages. Found: $DEPS"
+            exit 1
+          fi
+          echo "WebAuthn dependency-free."
 
       - name: Assert core has no third-party runtime dependencies
         run: |

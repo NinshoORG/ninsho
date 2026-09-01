@@ -7,6 +7,66 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`@ninsho/webauthn` — passkey registration and authentication.** No
+  third-party dependencies; depends only on `@ninsho/core`, which has none
+  either.
+
+  WebAuthn establishes *who someone is* and stops there, so the package
+  produces a `Principal` you hand to `createSession()`. That boundary is what
+  lets a passkey, a password and an OIDC login all end at the same place, with
+  one session implementation behind them rather than three.
+
+  Everything on the untrusted path is parsed here rather than delegated: a CBOR
+  decoder restricted to definite lengths (no tags, no indefinite lengths, no
+  floats — the constructs where CBOR parsers historically grow their
+  vulnerabilities, and which CTAP2 canonical CBOR forbids anyway), a strict DER
+  reader for ECDSA signatures, COSE key import, and WebAuthn §6.1 authenticator
+  data. Each bounds-checks every length before using it, and each is fuzzed to
+  confirm no input escapes its own error type.
+
+  Correctness rests on outside evidence, not self-agreement: the CBOR decoder
+  is checked against **RFC 8949 Appendix A** vectors, and the DER converter
+  differentially against 200 signatures produced by OpenSSL through
+  `node:crypto` and verified by WebCrypto — two implementations that know
+  nothing about this code.
+
+  Three things are worth calling out specifically:
+
+  *Algorithm confusion is closed structurally.* A COSE key states its own type,
+  curve and algorithm, all of it attacker-supplied. The algorithm must be on a
+  relying-party allowlist, and the key type must match it — an EC2 key labelled
+  RS256 is refused rather than coerced. At assertion time the algorithm comes
+  from the stored key, never from the request.
+
+  *WebCrypto's validation is uneven, so the gaps are filled here.* It rejects an
+  off-curve P-256 point but imports a 512-bit RSA modulus without complaint —
+  factorable on a laptop. A 2048-bit floor is enforced, measured in significant
+  bits so a padded short modulus cannot slip through. Both facts are recorded as
+  tests, so if a future Node starts rejecting these on its own, the test says the
+  check became redundant rather than the check quietly protecting nothing.
+
+  *Challenges are single-use and scoped by construction.* Consumption goes
+  through the store's atomic `take()`, and the ceremony type is part of the
+  storage key rather than a field compared afterwards — a registration challenge
+  replayed at an authentication endpoint is not rejected, it is simply not
+  there. A check can be forgotten in a later refactor; a key that does not exist
+  cannot be.
+
+  `WebAuthnServer` wires the two together and consumes the challenge *before*
+  verifying, so a failed attempt still burns it and cannot be ground against.
+  Getting that order wrong in either direction is a real vulnerability, so it is
+  written once rather than in every application.
+
+  **Attestation is not verified, and this is stated rather than implied.** Only
+  the `none` format is accepted, and adding another to
+  `allowedAttestationFormats` does not change that — there is no arrangement of
+  options that turns an unverified attestation into a verified one. Verifying
+  `packed`/`tpm`/`android-key`/`apple` means X.509 chains and root stores, and a
+  verifier that parses an attestation statement without checking it is worse
+  than one that refuses it. Passkeys are unaffected.
+
+  318 tests.
+
 - **`@ninsho/client` — the browser half of DPoP.** Zero dependencies, Web APIs
   only.
 

@@ -105,6 +105,18 @@ Every claim below links to executable proof.
 | Client and server agree on the wire format | tested against each other, not assumptions | `interop.test.ts` — thumbprints and proofs both directions |
 | A refresh stampede cannot look like theft | single-flight refresh | `client.test.ts` › *collapses concurrent refreshes into one* |
 | Concurrent first requests share one key | single-flight key init | `client.test.ts` › *generates a key only once* |
+| **Passkeys: registration and authentication** | `@ninsho/webauthn` — WebAuthn L3 §7.1 / §7.2 | `ceremony.test.ts`, `server.test.ts` |
+| A WebAuthn challenge is single-use | atomic `take()`, never read-then-delete | `challenge.test.ts` › *lets exactly one of many concurrent attempts win* |
+| A registration challenge cannot authenticate | ceremony type is part of the key, not a comparison | `challenge.test.ts` › *ceremony scoping* |
+| A failed ceremony still burns its challenge | consume before verify | `server.test.ts` › *burns the challenge even when verification then fails* |
+| The verification algorithm never comes from the request | it comes from the stored key | `cose.test.ts` › *never lets the verify-time algorithm come from the signature* |
+| An EC2 key cannot claim to be RSA | key type must match the algorithm | `cose.test.ts` › *algorithm confusion* |
+| Undersized RSA keys are refused | 2048-bit floor, measured in significant bits | `cose.test.ts` › *refuses a 512-bit modulus* |
+| A cloned authenticator is detected | counter regression rejects by default | `ceremony.test.ts` › *sign counter* |
+| Lookalike origins are refused | exact allowlist, no suffix matching | `ceremony.test.ts` › *refuses the lookalike origin …* |
+| CBOR decoding matches the specification | RFC 8949 Appendix A vectors | `cbor.test.ts` |
+| DER signature conversion matches OpenSSL | differential: OpenSSL signs, WebCrypto verifies | `der.test.ts` › *converts 200 OpenSSL P-256 signatures* |
+| Attestation is refused rather than rubber-stamped | only `none`; no option widens it | `ceremony.test.ts` › *attestation* |
 
 ```
 942 tests passing · typecheck clean · no flaky runs over 5 repeats
@@ -119,14 +131,23 @@ core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express depe
   the architecture
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — the rule this project runs on, and
   the design constraints that are settled
+- **[packages/webauthn](./packages/webauthn)** — passkeys: what is verified,
+  and what deliberately is not
 - **[examples/express-api](./examples/express-api)** — a complete integration
   meant to be copied
 - **[CHANGELOG.md](./CHANGELOG.md)**
 
 ### What does not exist yet
 
-No WebAuthn/passkey layer — that is the remaining piece of the original scope
-document. No adapters for Fastify, Hono or Koa: the middleware is
+**Attestation verification.** `@ninsho/webauthn` accepts only the `none`
+attestation format. Verifying `packed`, `tpm`, `android-key` or `apple` means
+X.509 chain parsing and root stores; a verifier that reads an attestation
+statement without checking it looks like a guarantee and is not one, so the
+others are refused rather than rubber-stamped. Passkeys are unaffected — the
+browser replaces the attestation with `none` for the conveyance this package
+requests.
+
+**Framework adapters.** None for Fastify, Hono or Koa: the middleware is
 Express-shaped, and while structural typing means anything matching those
 shapes works, other frameworks differ and are neither adapted nor tested.
 
@@ -237,6 +258,12 @@ silently stop working when a route is renamed.
 augmented `express-serve-static-core` globally to add `req.auth`; this gets the
 same ergonomics with neither cost.
 
+To be precise about what that does and does not mean: the shapes are
+**Express-shaped**, not universal. Anything matching them works — Connect,
+Restify, most Express-compatible routers. Fastify's reply uses `send()` rather
+than `json()`, and Hono's model differs more than that, so neither works
+without an adapter. None is written or tested, so neither is claimed.
+
 ---
 
 ## Repository layout
@@ -245,16 +272,22 @@ same ergonomics with neither cost.
 packages/
   client/        @ninsho/client — browser DPoP client. Zero dependencies.
   core/          @ninsho/core — types, errors, primitives. Zero dependencies.
+  webauthn/      @ninsho/webauthn — passkeys. Zero third-party dependencies.
+    cbor.ts      RFC 8949 decoder, definite lengths only
+    der.ts       strict DER → P1363 for ECDSA signatures
+    cose.ts      COSE key import, algorithm allowlist
+    authdata.ts  WebAuthn §6.1 authenticator data
+    challenge.ts single-use challenges, scoped by ceremony
+    ceremony.ts  §7.1 / §7.2 verification
   server/        @ninsho/server — store, engines, config, audit.
     store/       NinshoStore interface · RedisStore · MemoryStore
     engine/      TokenEngine interface · OpaqueEngine · PasetoEngine
     session/     SessionManager — rotation, families, reuse detection
     keys/        KeyRing — kid resolution, rotation overlap
     paseto/      v4.public sign/verify on node:crypto
-    http/        verify + authorization middleware (framework-agnostic)
+    http/        verify + authorization middleware (Express-shaped)
     ratelimit/   sliding-window counter, per-IP and per-account buckets
     dpop/        RFC 9449 proof verification, JWK thumbprints, replay guard
-  client/        @ninsho/client — WebAuthn PRF.         (Layer 2, later)
 ```
 
 ### Testing against Redis
