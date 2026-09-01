@@ -50,6 +50,8 @@ Every claim below links to executable proof.
 | Corrupt store records are rejected, not partially trusted | `#tryParseRecord` | `opaque-engine.test.ts` — 12 malformed-record cases, incl. prototype pollution |
 | Terminating a session kills all its tokens | `revokeSession()` | `opaque-engine.test.ts` › *revokeSession* |
 | Store implementations cannot drift apart | one contract suite, both stores | `store.contract.test.ts` |
+| Engine invariants hold against a real database, not just a Map | 16 invariants × every store | `store-invariants.test.ts` |
+| An unreachable store rejects rather than admits | fail-closed, verified against a dead Redis | `store-invariants.test.ts` › *fail-closed when Redis is unreachable* |
 | Single-use consumption is race-free | `take()` / `setIfAbsent()` | `store.contract.test.ts` — 25 concurrent callers, exactly one wins |
 | In-memory store cannot reach production | `MemoryStore` constructor | `memory-store.test.ts` › *production guard* |
 | Defaults are fail-closed and short-lived | `config.ts` | `config.test.ts` › *secure defaults* |

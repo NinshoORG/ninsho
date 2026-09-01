@@ -7,6 +7,33 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **The security invariants now run against real Redis, not just a Map.**
+  `store.contract.test.ts` already proved the two stores agree about
+  primitives. What was never checked is whether the *engine* invariants built
+  on those primitives survive a store that lives across a socket.
+
+  That gap mattered more than it looks. Against `MemoryStore` every operation
+  completes synchronously inside one tick, so an interleaving production hits
+  constantly can be unreachable locally — and the code most exposed to it is
+  the code where a rotation can slip past a revocation.
+
+  `store-invariants.test.ts` runs sixteen invariants against every available
+  store: single-use refresh consumption, one replacement chain from forty
+  concurrent callers, reuse detection revoking the family, the grace window not
+  raising false alarms, DPoP `jti` replay, rate-limit accuracy under
+  concurrency, and sign-out-everywhere at scale. The most important is the
+  revocation-racing-rotation regression, run twelve times per store, because
+  that one was a real bug.
+
+  Three more run only against Redis, since a Map in the same process cannot be
+  unreachable: an unreachable store must reject rather than read as "under the
+  limit", must refuse a DPoP proof it cannot check for replay, and must report
+  itself unhealthy rather than throwing.
+
+  Every invariant held against Redis 7.4.8 on the first run. No bugs found —
+  which is the result worth having, and one that could not have been claimed
+  before.
+
 - **`@ninsho/webauthn/testing` — a virtual authenticator.** Testing a passkey
   integration otherwise means a physical authenticator and a human finger,
   which is to say it does not get tested. `VirtualAuthenticator` holds a real
