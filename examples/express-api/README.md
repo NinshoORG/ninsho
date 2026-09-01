@@ -25,6 +25,9 @@ Runs on `MemoryStore` by default, which refuses to start under
 | `GET /me` | A plainly protected route |
 | `GET /admin/reports` | Role-gated access |
 | `GET /users/:id/orders` | **Ownership** — the check that is most often missing |
+| `POST /auth/passkey/register/start` · `/finish` | Adding a passkey to an existing account, bound to the signed-in user |
+| `GET /auth/passkeys` | Listing credentials without returning key material |
+| `POST /auth/passkey/login/start` · `/finish` | Usernameless passkey sign-in, ending in an ordinary Ninsho session |
 
 ## The five decisions worth copying
 
@@ -87,14 +90,33 @@ established. Owning credential verification would mean owning your user model.
 npm run test --workspace @ninsho/example-express-api
 ```
 
-43 end-to-end tests over real HTTP. They exist to catch what unit tests
+72 end-to-end tests over real HTTP. They exist to catch what unit tests
 structurally cannot — a middleware mounted in the wrong order, a cookie flag
 that never reaches the wire, an error mapped to the wrong status by the
-framework. One of them found a real bug in this example's error handler, which
-was turning body-parser's 413 into a 500.
+framework.
+
+They have found two real bugs in this example so far. The first was an error
+handler turning body-parser's 413 into a 500. The second was every `async`
+route: Express 4 does not catch a rejected handler, so a failing route produced
+an unhandled rejection and a request that never got a response — the client
+would time out instead of seeing the 400 or 503 that actually happened. Both
+are fixed; the second is why every async handler here is wrapped in `route()`.
+
+The passkey tests drive a `VirtualAuthenticator` from
+`@ninsho/webauthn/testing`, which holds a real key pair and produces real
+signatures. That means the ceremony is verified by the real verifier rather
+than by a stub agreeing with itself, and it is how a passkey integration can be
+tested at all without a physical authenticator and a human finger.
 
 ## Not production-ready as-is
 
-The user directory is an in-memory `Map`. Replace it with your database, keep
-the constant-time login path, and add whatever your application needs —
-email verification, password reset, MFA. Ninsho has no opinion about any of that.
+The user directory and the passkey directory are in-memory `Map`s. Replace them
+with your database, keep the constant-time login path, keep writing the passkey
+`signCount` back after every successful sign-in, and add whatever your
+application needs — email verification, password reset, MFA. Ninsho has no
+opinion about any of that.
+
+The WebAuthn RP ID defaults to `localhost` for local development. Set `rpId`
+and `webauthnOrigin` to your real domain before deploying: credentials are
+scoped to the RP ID, so changing it later invalidates every passkey already
+registered.

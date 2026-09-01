@@ -7,6 +7,38 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`@ninsho/webauthn/testing` — a virtual authenticator.** Testing a passkey
+  integration otherwise means a physical authenticator and a human finger,
+  which is to say it does not get tested. `VirtualAuthenticator` holds a real
+  key pair and produces genuinely signed responses, so an end-to-end test
+  exercises the real verifier against real signatures rather than a stub
+  agreeing with itself.
+
+  It is a separate entry point, so it never reaches an application bundle that
+  only imports the verifier — asserted by test. It also refuses to construct
+  under `NODE_ENV=production`, following the `MemoryStore` precedent: a test
+  double may ship as long as it must be named explicitly and cannot be selected
+  by an environment variable. That guard matters more here than it does for
+  `MemoryStore`, because a virtual authenticator running server-side means the
+  *server* holds the credential's private key — WebAuthn defeated, quietly,
+  while every signature still verifies.
+
+- **Passkeys in the reference API.** `examples/express-api` now demonstrates
+  the whole flow: adding a passkey to an existing account, listing credentials,
+  and usernameless sign-in that ends in an ordinary Ninsho session.
+
+  The points worth copying are the ones easy to get wrong. Registration
+  requires a session and is bound to the signed-in user, because adding a
+  passkey is adding a new way into the account. The sign counter is written
+  back after every success, without which clone detection silently stops
+  working — the check still runs, always against the same stale number. An
+  unknown credential id answers exactly as a bad signature does, so the
+  endpoint does not become an oracle for which credentials exist. And roles
+  come from the directory, never from the passkey: WebAuthn proves who, not
+  what they may do.
+
+  29 new end-to-end tests, 72 in the example overall.
+
 - **`@ninsho/webauthn` — passkey registration and authentication.** No
   third-party dependencies; depends only on `@ninsho/core`, which has none
   either.
@@ -116,6 +148,26 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **Every async route in the reference API dropped its errors.** Express 4 does
+  not catch a rejection from an `async` handler. A failing route — a store
+  outage on `/auth/logout`, a rejected passkey ceremony, a degraded `/health`
+  — produced an unhandled rejection and *no response at all*: the error
+  middleware never ran, and the client waited until it timed out. A monitoring
+  dashboard would show a timeout rather than the 400 or 503 that actually
+  happened, which is the difference between a bug you can diagnose and one you
+  cannot.
+
+  Found by the new passkey tests, which asserted a 400 on a rejected ceremony
+  and got an unhandled rejection instead. It affected `/auth/login`,
+  `/auth/logout`, `/auth/logout-all`, `/auth/sessions` and `/health` as well,
+  all of which had the same shape and none of which had a test that made them
+  throw.
+
+  Fixed with a single `route()` wrapper applied to all eleven async handlers,
+  rather than a `try`/`catch` remembered at each call site — the latter is the
+  version that is correct on the day it is written and wrong after the next
+  route is added.
 
 - **Concurrent first requests each generated their own client key.** Ten
   callers arriving before a key existed each found none, each generated one, and
@@ -240,7 +292,7 @@ package name is different, so there is no upgrade path and none is owed.
 **Project**
 - 600 tests. CI gates `npm ci`, lockfile drift, typecheck, build, tests against
   real Redis, `npm audit`, and bundle purity.
-- Reference Express API with 43 end-to-end tests over real HTTP.
+- Reference Express API with end-to-end tests over real HTTP.
 - Benchmarks, threat model, and security model.
 
 ### Security

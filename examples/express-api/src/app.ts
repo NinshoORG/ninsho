@@ -9,7 +9,15 @@ import {
   toErrorResponse,
   type NinshoStore,
 } from '@ninsho/server';
+import { WebAuthnServer } from '@ninsho/webauthn';
 import { createUser, findById, verifyCredentials } from './users.js';
+import {
+  findByCredentialId,
+  fromBase64Url,
+  listForUser,
+  saveCredential,
+  updateSignCount,
+} from './credentials.js';
 
 /**
  * A complete, working API built on Ninsho.
@@ -33,6 +41,15 @@ export interface AppOptions {
   readonly trustProxy?: false | number | 'all';
   /** Set false when serving over plain HTTP in local development. */
   readonly secureCookies?: boolean;
+  /**
+   * The WebAuthn relying-party id — a registrable domain suffix of the origin.
+   *
+   * Credentials are scoped to it, so changing it invalidates every passkey
+   * already registered. Defaults suit local development.
+   */
+  readonly rpId?: string;
+  /** Exact origin(s) passkey ceremonies may come from. No wildcards. */
+  readonly webauthnOrigin?: string | readonly string[];
 }
 
 /**
@@ -54,6 +71,29 @@ function readCookie(req: Request, name: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Forwards a rejected async handler to the error middleware.
+ *
+ * ─── Why every async route needs this ─────────────────────────────────────
+ * Express 4 does not catch rejections from an `async` handler. A handler that
+ * throws — a store outage, a rejected passkey ceremony — produces an unhandled
+ * rejection, the request hangs until the client times out, and the error
+ * middleware below never runs. The response never arrives, so a monitoring
+ * dashboard sees a timeout rather than the 400 or 503 that actually happened.
+ *
+ * Express 5 does this itself. Until then it is one wrapper, applied to every
+ * async route, which is why it lives here rather than being remembered at each
+ * call site.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+function route(
+  handler: (req: Request, res: Response) => Promise<void>,
+): (req: Request, res: Response, next: express.NextFunction) => void {
+  return (req, res, next) => {
+    handler(req, res).catch(next);
+  };
+}
+
 export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsho } {
   const secureCookies = options.secureCookies ?? process.env['NODE_ENV'] === 'production';
   const trustProxy = options.trustProxy ?? false;
@@ -62,8 +102,19 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
   // No keys to generate, no algorithm to choose. The defaults are the secure
   // ones: opaque tokens, fail-closed on a store outage, five-minute access
   // tokens, refresh rotation with reuse detection.
-  const auth = new Ninsho({
-    store: options.store ?? new MemoryStore(),
+  const store = options.store ?? new MemoryStore();
+  const auth = new Ninsho({ store });
+
+  // ── Passkeys ─────────────────────────────────────────────────────────────
+  // The same store backs both. Challenges are short-lived and single-use, so
+  // they belong wherever session state already lives rather than in a second
+  // piece of infrastructure.
+  const rpId = options.rpId ?? 'localhost';
+  const webauthn = new WebAuthnServer({
+    rpId,
+    rpName: 'Ninsho Example',
+    origin: options.webauthnOrigin ?? `https://${rpId}`,
+    store,
   });
 
   const app = express();
@@ -108,7 +159,7 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
       perIp: { limit: 10, windowMs: 60 * 60 * 1000 },
       trustProxy,
     }),
-    async (req: Request, res: Response) => {
+    route(async (req: Request, res: Response) => {
       const { email, password } = req.body as { email?: unknown; password?: unknown };
 
       if (typeof email !== 'string' || typeof password !== 'string') {
@@ -144,7 +195,7 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
         // account-enumeration oracle the login route works to avoid.
         res.status(202).json({ message: 'If the address is available, the account has been created.' });
       }
-    },
+    }),
   );
 
   // ── Login ────────────────────────────────────────────────────────────────
@@ -165,7 +216,7 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
       // rotating a header. Set it to match your deployment.
       trustProxy,
     }),
-    async (req: Request, res: Response) => {
+    route(async (req: Request, res: Response) => {
       const { email, password } = req.body as { email?: unknown; password?: unknown };
 
       if (typeof email !== 'string' || typeof password !== 'string') {
@@ -196,12 +247,12 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
         expiresAt: pair.accessExpiresAt,
         user: { id: user.id, email: user.email },
       });
-    },
+    }),
   );
 
   // ── Refresh ──────────────────────────────────────────────────────────────
 
-  app.post('/auth/refresh', async (req: Request, res: Response) => {
+  app.post('/auth/refresh', route(async (req: Request, res: Response) => {
     const token = readCookie(req, REFRESH_COOKIE);
     if (token === undefined) {
       res.status(401).json({ error: { code: 'REFRESH_INVALID', message: 'Session could not be renewed' } });
@@ -229,28 +280,227 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
       const { status, body } = toErrorResponse(error);
       res.status(status).json(body);
     }
-  });
+  }));
 
   // ── Logout ───────────────────────────────────────────────────────────────
 
-  app.post('/auth/logout', auth.verify(), async (req: Request, res: Response) => {
+  app.post('/auth/logout', auth.verify(), route(async (req: Request, res: Response) => {
     await auth.revokeSession(getAuth(req).sessionId, 'logout');
     clearRefreshCookie(res);
     res.status(204).end();
-  });
+  }));
 
-  app.post('/auth/logout-all', auth.verify(), async (req: Request, res: Response) => {
+  app.post('/auth/logout-all', auth.verify(), route(async (req: Request, res: Response) => {
     await auth.revokeAllForUser(getAuth(req).userId, 'logout_all');
     clearRefreshCookie(res);
     res.status(204).end();
-  });
+  }));
 
   // ── Sessions ─────────────────────────────────────────────────────────────
 
-  app.get('/auth/sessions', auth.verify(), async (req: Request, res: Response) => {
+  app.get('/auth/sessions', auth.verify(), route(async (req: Request, res: Response) => {
     const context = getAuth(req);
     res.json({ sessions: await auth.listSessions(context.userId, context.sessionId) });
+  }));
+
+  // ── Passkey registration ─────────────────────────────────────────────────
+  // Adding a passkey requires an existing session. A passkey is a new way into
+  // an account, so creating one has to be at least as protected as using one;
+  // an unauthenticated "add a passkey" endpoint is account takeover with extra
+  // steps.
+
+  app.post(
+    '/auth/passkey/register/start',
+    auth.verify(),
+    route(async (req: Request, res: Response) => {
+      const context = getAuth(req);
+      const user = findById(context.userId);
+
+      res.json(
+        await webauthn.startRegistration({
+          userId: context.userId,
+          userName: user?.email ?? context.userId,
+          // Passing what the user already has stops the authenticator creating
+          // a second credential for the same account on the same device —
+          // which produces a user with two passkeys, no way to tell them
+          // apart, and no idea why one of them stopped working.
+          existingCredentials: listForUser(context.userId).map((credential) => ({
+            credentialId: fromBase64Url(credential.credentialId),
+          })),
+        }),
+      );
+    }),
+  );
+
+  app.post(
+    '/auth/passkey/register/finish',
+    auth.verify(),
+    route(async (req: Request, res: Response) => {
+      const context = getAuth(req);
+      const body = req.body as { clientDataJSON?: unknown; attestationObject?: unknown };
+
+      if (typeof body.clientDataJSON !== 'string' || typeof body.attestationObject !== 'string') {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_BODY',
+            message: 'clientDataJSON and attestationObject are required',
+          },
+        });
+        return;
+      }
+
+      // The second argument binds the ceremony to the signed-in user. Without
+      // it, a challenge issued for one account could be completed against
+      // another — the response carries a valid signature either way, so
+      // nothing else would notice.
+      const verified = await webauthn.finishRegistration(
+        {
+          clientDataJSON: fromBase64Url(body.clientDataJSON),
+          attestationObject: fromBase64Url(body.attestationObject),
+        },
+        context.userId,
+      );
+
+      const credential = saveCredential({
+        credentialId: verified.credentialId,
+        publicKey: verified.credentialPublicKey,
+        signCount: verified.signCount,
+        userId: verified.userId,
+        backedUp: verified.backedUp,
+      });
+
+      res.status(201).json({
+        credentialId: credential.credentialId,
+        backedUp: credential.backedUp,
+        createdAt: credential.createdAt,
+      });
+    }),
+  );
+
+  app.get('/auth/passkeys', auth.verify(), (req: Request, res: Response) => {
+    res.json({
+      passkeys: listForUser(getAuth(req).userId).map((credential) => ({
+        credentialId: credential.credentialId,
+        backedUp: credential.backedUp,
+        createdAt: credential.createdAt,
+        // The public key is deliberately not returned. It is not secret, but an
+        // endpoint that hands out key material invites someone to trust it for
+        // something it was never verified for.
+      })),
+    });
   });
+
+  // ── Passkey sign-in ──────────────────────────────────────────────────────
+
+  app.post(
+    '/auth/passkey/login/start',
+    auth.rateLimit({
+      // Cheaper than password login — no scrypt — but still worth limiting: it
+      // writes a challenge to the store on every call.
+      action: 'passkey_login',
+      perIp: { limit: 30, windowMs: 15 * 60 * 1000 },
+      trustProxy,
+    }),
+    route(async (_req: Request, res: Response) => {
+      // No user id and no allowCredentials: a usernameless flow, where the
+      // authenticator offers whatever discoverable credentials it holds. It
+      // also means this endpoint reveals nothing about which accounts exist.
+      res.json(await webauthn.startAuthentication());
+    }),
+  );
+
+  app.post('/auth/passkey/login/finish', route(async (req: Request, res: Response) => {
+    const body = req.body as {
+      credentialId?: unknown;
+      clientDataJSON?: unknown;
+      authenticatorData?: unknown;
+      signature?: unknown;
+      userHandle?: unknown;
+    };
+
+    if (
+      typeof body.credentialId !== 'string' ||
+      typeof body.clientDataJSON !== 'string' ||
+      typeof body.authenticatorData !== 'string' ||
+      typeof body.signature !== 'string'
+    ) {
+      res
+        .status(400)
+        .json({ error: { code: 'INVALID_BODY', message: 'the assertion is incomplete' } });
+      return;
+    }
+
+    const stored = findByCredentialId(body.credentialId);
+    if (stored === undefined) {
+      // The same answer a failed verification gives below. An "unknown
+      // credential" that reads differently from "bad signature" tells an
+      // attacker which credential ids are real.
+      res.status(401).json({
+        error: { code: 'PASSKEY_REJECTED', message: 'Could not sign in with that passkey' },
+      });
+      return;
+    }
+
+    let result;
+    try {
+      result = await webauthn.finishAuthentication(
+        {
+          credentialId: fromBase64Url(body.credentialId),
+          clientDataJSON: fromBase64Url(body.clientDataJSON),
+          authenticatorData: fromBase64Url(body.authenticatorData),
+          signature: fromBase64Url(body.signature),
+          userHandle:
+            typeof body.userHandle === 'string' ? fromBase64Url(body.userHandle) : undefined,
+        },
+        {
+          credentialId: fromBase64Url(stored.credentialId),
+          publicKey: fromBase64Url(stored.publicKey),
+          signCount: stored.signCount,
+          userId: stored.userId,
+        },
+      );
+    } catch {
+      // One answer for every reason a passkey did not work. The specific cause
+      // is already in the error's `detail`, which belongs in the server log and
+      // nowhere else.
+      res.status(401).json({
+        error: { code: 'PASSKEY_REJECTED', message: 'Could not sign in with that passkey' },
+      });
+      return;
+    }
+
+    // Write the counter back before issuing anything. Skipping this leaves the
+    // stored value stale forever and clone detection quietly stops working —
+    // the check still runs, always against the same number.
+    updateSignCount(stored.credentialId, result.newSignCount);
+
+    const user = findById(result.principal.userId);
+    if (user === undefined) {
+      // The credential outlived its account. Refusing is the only safe answer:
+      // a principal with no user behind it has no roles to carry.
+      res.status(401).json({
+        error: { code: 'PASSKEY_REJECTED', message: 'Could not sign in with that passkey' },
+      });
+      return;
+    }
+
+    // WebAuthn proved *who*. Roles and scopes come from the directory — a
+    // passkey says nothing about what its owner may do.
+    const pair = await auth.createSession({
+      ...result.principal,
+      roles: user.roles,
+      scopes: user.scopes,
+      tenant: user.tenant,
+    });
+
+    setRefreshCookie(res, pair.refreshToken, pair.refreshExpiresAt);
+    res.json({
+      accessToken: pair.accessToken,
+      expiresAt: pair.accessExpiresAt,
+      user: { id: user.id, email: user.email },
+      userVerified: result.userVerified,
+    });
+  }));
 
   // ── Protected resources ──────────────────────────────────────────────────
 
@@ -294,10 +544,10 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
 
   // ── Health ───────────────────────────────────────────────────────────────
 
-  app.get('/health', async (_req: Request, res: Response) => {
+  app.get('/health', route(async (_req: Request, res: Response) => {
     const ok = await auth.health();
     res.status(ok ? 200 : 503).json({ status: ok ? 'ok' : 'degraded' });
-  });
+  }));
 
   // ── Error handling ───────────────────────────────────────────────────────
   // Last, and with four parameters, which is how Express recognises it.

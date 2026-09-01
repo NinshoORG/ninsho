@@ -89,7 +89,7 @@ Every claim below links to executable proof.
 | No input produces an uncontrolled exception | every parser on the untrusted path | `fuzz.test.ts` — randomised and mutation testing |
 | Every single-byte mutation of a token is rejected | Ed25519 signature | `fuzz.test.ts` › *rejects every single-byte mutation* |
 | Junk submitted in bulk cannot revoke a live session | tombstone required | `fuzz.test.ts` › *leaves a live session untouched* |
-| The whole system holds together over real HTTP | assembled app | `examples/express-api` — 43 end-to-end tests |
+| The whole system holds together over real HTTP | assembled app | `examples/express-api` — 72 end-to-end tests |
 | A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
 | Sign-out-everywhere scales, with bounded fan-out | `mapConcurrent` | `concurrent-util.test.ts` › *session operations at scale* |
@@ -117,6 +117,9 @@ Every claim below links to executable proof.
 | CBOR decoding matches the specification | RFC 8949 Appendix A vectors | `cbor.test.ts` |
 | DER signature conversion matches OpenSSL | differential: OpenSSL signs, WebCrypto verifies | `der.test.ts` › *converts 200 OpenSSL P-256 signatures* |
 | Attestation is refused rather than rubber-stamped | only `none`; no option widens it | `ceremony.test.ts` › *attestation* |
+| Passkeys work end to end over real HTTP | assembled app, real keys, real signatures | `examples/express-api/src/passkey.test.ts` — 29 tests |
+| A passkey confers identity, never authority | roles come from the directory | `passkey.test.ts` › *carries roles from the directory, not from the passkey* |
+| Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
 942 tests passing · typecheck clean · no flaky runs over 5 repeats
