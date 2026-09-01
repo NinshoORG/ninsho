@@ -202,6 +202,7 @@ jobs:
           import { Ninsho, MemoryStore } from '@ninsho/server';
           import { generateId } from '@ninsho/core';
           import { WebAuthnServer, importCoseKey, CoseError } from '@ninsho/webauthn';
+          import { VirtualAuthenticator } from '@ninsho/webauthn/testing';
           const auth = new Ninsho({ store: new MemoryStore() });
           const pair = await auth.createSession({ userId: 'u', roles: [], scopes: [] });
           const ctx = await auth.engine.verify(pair.accessToken);
@@ -209,16 +210,40 @@ jobs:
           await auth.close();
 
           const wa = new WebAuthnServer({
-            rpId: 'example.com', rpName: 'X',
-            origin: 'https://example.com', store: new MemoryStore(),
+            rpId: 'localhost', rpName: 'X',
+            origin: 'https://localhost', store: new MemoryStore(),
           });
-          const opts = await wa.startRegistration({ userId: 'u1', userName: 'a@b.c' });
-          if (opts.attestation !== 'none' || opts.challenge.length !== 43) process.exit(1);
           // A malformed key must surface as CoseError, not an unhandled throw.
           await importCoseKey(new Uint8Array([0xff])).then(
             () => process.exit(1),
             (e) => { if (!(e instanceof CoseError)) process.exit(1); },
           );
+
+          // A complete ceremony through the packed artifacts. The /testing
+          // subpath resolves differently from a workspace symlink, so it has
+          // to be exercised the way a consumer would reach it.
+          const device = await VirtualAuthenticator.create();
+          const opts = await wa.startRegistration({ userId: 'u1', userName: 'a@b.c' });
+          if (opts.attestation !== 'none' || opts.challenge.length !== 43) process.exit(1);
+          const reg = await wa.finishRegistration(
+            await device.register({
+              challenge: Buffer.from(opts.challenge, 'base64url'),
+              origin: 'https://localhost', rpId: 'localhost',
+            }),
+            'u1',
+          );
+          const aopts = await wa.startAuthentication({ userId: 'u1' });
+          const out = await wa.finishAuthentication(
+            await device.authenticate({
+              challenge: Buffer.from(aopts.challenge, 'base64url'),
+              origin: 'https://localhost', rpId: 'localhost',
+            }),
+            {
+              credentialId: reg.credentialId, publicKey: reg.credentialPublicKey,
+              signCount: reg.signCount, userId: 'u1',
+            },
+          );
+          if (out.principal.userId !== 'u1' || out.newSignCount !== 1) process.exit(1);
           JS
 
           cat > cjs.cjs <<'JS'
@@ -243,6 +268,35 @@ jobs:
           node esm.mjs
           node cjs.cjs
           echo "Both ESM and CJS consumers load the published surface."
+
+      # A test double may ship only if it must be named and cannot be selected
+      # by an environment variable. The virtual authenticator holds a private
+      # key, so a production import of it would defeat WebAuthn while every
+      # signature still verified — a failure with no symptom to notice.
+      - name: Assert the virtual authenticator refuses to run in production
+        run: |
+          set -e
+          NODE_ENV=production node -e "
+            import('./packages/webauthn/dist/testing.js').then(async (m) => {
+              try { await m.VirtualAuthenticator.create(); }
+              catch { console.log('Guard holds.'); return; }
+              console.error('::error::VirtualAuthenticator constructed under NODE_ENV=production.');
+              process.exit(1);
+            });
+          "
+
+      # It must also stay out of the main entry point, so an application that
+      # only imports the verifier never carries it.
+      - name: Assert the virtual authenticator is not in the verifier bundle
+        run: |
+          set -e
+          for forbidden in "VirtualAuthenticator" "encodeCbor"; do
+            if grep -qF "$forbidden" packages/webauthn/dist/index.js packages/webauthn/dist/index.cjs; then
+              echo "::error::'$forbidden' leaked into the @ninsho/webauthn main bundle."
+              exit 1
+            fi
+          done
+          echo "Verifier bundle is clean."
 
       # The client ships to browsers, where every kilobyte and every dependency
       # is the application's problem. It must stay on Web APIs alone.
