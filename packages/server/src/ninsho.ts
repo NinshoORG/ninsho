@@ -6,7 +6,12 @@ import { OpaqueEngine } from './engine/opaque.js';
 import { PasetoEngine } from './engine/paseto.js';
 import { KeyRing } from './keys/keyring.js';
 import { SessionManager } from './session/manager.js';
-import type { RevocationReason, SessionSummary } from './session/types.js';
+import type {
+  CreateSessionOptions,
+  RefreshSessionOptions,
+  RevocationReason,
+  SessionSummary,
+} from './session/types.js';
 import {
   createErrorHandler,
   createRequireAllRoles,
@@ -16,7 +21,10 @@ import {
   createRequireTenant,
   createVerify,
 } from './http/middleware.js';
-import type { Middleware, ValueSelector } from './http/types.js';
+import { establishProofOfPossession } from './http/dpop-middleware.js';
+import type { HttpRequest, Middleware, ValueSelector } from './http/types.js';
+import { DpopReplayGuard } from './dpop/replay.js';
+import type { DpopContext } from './http/dpop-middleware.js';
 import { RateLimiter } from './ratelimit/limiter.js';
 import { createRateLimit, type RateLimitOptions } from './ratelimit/middleware.js';
 
@@ -50,6 +58,10 @@ export class Ninsho {
   readonly #engine: TokenEngine;
   readonly #sessions: SessionManager;
   readonly #limiter: RateLimiter;
+  /** Present only under `binding: 'dpop'`. Its presence enables proof checking. */
+  readonly #dpop: DpopContext | undefined;
+  /** Overridable so a deployment can build the proof URI from configuration. */
+  #requestUrl: ((req: HttpRequest) => string) | undefined;
 
   constructor(config: NinshoConfig) {
     this.#config = resolveConfig(config);
@@ -85,6 +97,23 @@ export class Ninsho {
       audit: this.#config.audit,
     });
 
+    this.#dpop =
+      this.#config.binding === 'dpop'
+        ? {
+            replayGuard: new DpopReplayGuard(
+              this.#config.store,
+              this.#config.onStoreError,
+              // Remembered for at least as long as a proof stays acceptable.
+              // A shorter retention would forget a proof that would still be
+              // accepted, reopening the replay it exists to close.
+              this.#config.dpopProofMaxAgeSeconds + this.#config.clockToleranceSeconds + 1,
+            ),
+            maxAgeSeconds: this.#config.dpopProofMaxAgeSeconds,
+            clockToleranceSeconds: this.#config.clockToleranceSeconds,
+            audit: this.#config.audit,
+          }
+        : undefined;
+
     // Surface every accepted-but-weakening choice once, at startup, where an
     // operator will see it — rather than leaving it to be discovered from an
     // incident. `config.insecure` is a distinct event type so it can be
@@ -104,8 +133,18 @@ export class Ninsho {
    * Starts a session for an already-authenticated principal.
    * Call only after your own credential check has succeeded.
    */
-  createSession(principal: Principal): Promise<TokenPair> {
-    return this.#sessions.create(principal);
+  createSession(principal: Principal, options: CreateSessionOptions = {}): Promise<TokenPair> {
+    if (this.#dpop !== undefined && options.confirmationKey === undefined) {
+      // Fail closed. Silently issuing an unbound token here would mean a
+      // deployment believed it had proof-of-possession while handing out
+      // bearer credentials — and nothing downstream would reveal it, because
+      // an unbound token verifies perfectly well.
+      throw new Error(
+        "ninsho: binding is 'dpop', so createSession() requires a confirmationKey. " +
+          'Obtain it with confirmProofOfPossession(req) on the login route.',
+      );
+    }
+    return this.#sessions.create(principal, options);
   }
 
   /**
@@ -115,8 +154,11 @@ export class Ninsho {
    *   revoked before this throws — treat it as a compromise signal, not a
    *   routine failure.
    */
-  refresh(rawRefreshToken: string): Promise<TokenPair> {
-    return this.#sessions.refresh(rawRefreshToken);
+  refresh(
+    rawRefreshToken: string,
+    options: RefreshSessionOptions = {},
+  ): Promise<TokenPair> {
+    return this.#sessions.refresh(rawRefreshToken, options);
   }
 
   /** Ends one session — its refresh family and every access token under it. */
@@ -136,12 +178,60 @@ export class Ninsho {
 
   // ── Middleware ────────────────────────────────────────────────────────────
 
-  /** Authenticates the request and populates `req.auth`. Mount before any check below. */
+  /**
+   * Authenticates the request and populates `req.auth`. Mount before any check
+   * below.
+   *
+   * Under `binding: 'dpop'` this additionally requires a valid, unreplayed
+   * `DPoP` proof header bound to the presented token.
+   */
   verify(): Middleware {
     return createVerify({
       engine: this.#engine,
       onStoreError: this.#config.onStoreError,
       audit: this.#config.audit,
+      ...(this.#dpop !== undefined && {
+        dpop: {
+          ...this.#dpop,
+          ...(this.#requestUrl !== undefined && { requestUrl: this.#requestUrl }),
+        },
+      }),
+    });
+  }
+
+  /**
+   * Overrides how the request URI a DPoP proof must match is reconstructed.
+   *
+   * The default derives it from the request, which trusts the `Host` header.
+   * Behind a proxy that sets `Host` reliably — the normal deployment — that is
+   * correct. Elsewhere, supply a builder that uses configuration instead, or
+   * an attacker who controls `Host` controls both sides of the comparison.
+   */
+  setRequestUrlBuilder(build: (req: HttpRequest) => string): void {
+    this.#requestUrl = build;
+  }
+
+  /**
+   * Verifies a DPoP proof outside the middleware, returning the key thumbprint
+   * to bind a new session to.
+   *
+   * Needed on the login route, which runs *before* any token exists: the client
+   * sends its first proof there, and the thumbprint it yields is what
+   * {@link createSession} binds the session to.
+   *
+   * @throws {TokenMissingError} No proof header, or more than one.
+   * @throws {TokenInvalidError} The proof failed verification or was replayed.
+   */
+  async confirmProofOfPossession(req: HttpRequest, accessToken?: string): Promise<string> {
+    if (this.#dpop === undefined) {
+      throw new Error(
+        "ninsho: confirmProofOfPossession() requires binding: 'dpop'. " +
+          'Under bearer semantics there is no proof to confirm.',
+      );
+    }
+    return establishProofOfPossession(req, accessToken, {
+      ...this.#dpop,
+      ...(this.#requestUrl !== undefined && { requestUrl: this.#requestUrl }),
     });
   }
 

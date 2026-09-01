@@ -1,13 +1,14 @@
 /**
  * @ninsho/server — the Ninsho authentication engine.
  *
- * ─── Status: v0.1.0, Phase 6 ──────────────────────────────────────────────
+ * ─── Status: v0.1.0, Phase 8 ──────────────────────────────────────────────
  * What exists: the storage seam, the opaque token engine, sessions with
  * refresh-token rotation and reuse detection, configuration validation, and
  * audit sinks.
  *
- * What does not exist yet: an official example app, and DPoP (the `cnf` claim
- * slot and `BindingMode` are reserved for it but nothing implements it).
+ * What does not exist yet: a browser client package. DPoP proofs can be
+ * generated in Node with `createDpopProof`; a browser should use WebCrypto
+ * with a non-extractable key, which no helper here can provide.
  * ──────────────────────────────────────────────────────────────────────────
  *
  * @example The whole setup
@@ -85,6 +86,8 @@ export {
 export { SessionManager } from './session/index.js';
 export type {
   SessionManagerOptions,
+  CreateSessionOptions,
+  RefreshSessionOptions,
   ConsumedRefreshRecord,
   GraceRecord,
   SessionMeta,
@@ -113,6 +116,31 @@ export {
   createRequireTenant,
   createErrorHandler,
 } from './http/index.js';
+
+// ── DPoP — proof-of-possession (RFC 9449) ───────────────────────────────────
+// Active under `binding: 'dpop'`. `generateDpopKeyPair` and `createDpopProof`
+// are client-side helpers, exported so an integration can be tested; nothing
+// on the server's verification path uses them.
+export {
+  verifyDpopProof,
+  accessTokenHash,
+  DpopProofError,
+  DpopReplayGuard,
+  jwkThumbprint,
+  parseJwk,
+  JwkError,
+  ALLOWED_DPOP_ALGORITHMS,
+  generateDpopKeyPair,
+  createDpopProof,
+} from './dpop/index.js';
+export type {
+  Jwk,
+  DpopAlgorithm,
+  VerifiedProof,
+  VerifyProofOptions,
+  DpopKeyPair,
+  CreateProofOptions,
+} from './dpop/index.js';
 
 // ── Configuration ───────────────────────────────────────────────────────────
 export { resolveConfig, DEFAULTS } from './config.js';

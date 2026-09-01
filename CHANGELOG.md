@@ -5,7 +5,56 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Proof-of-possession — `binding: 'dpop'` (RFC 9449).** Access and refresh
+  tokens can now be bound to a key the client holds privately, with a fresh
+  signed proof required on every request. A stolen token alone becomes useless.
+
+  This closes the one limitation the security policy previously listed as
+  unmitigated with "no configuration changes this".
+
+  - ES256 and EdDSA proofs, on an **allowlist**. A DPoP proof is a JWT, so the
+    whole algorithm-confusion family applies — the class PASETO was chosen to
+    avoid for Ninsho's own tokens. `alg: none` and every symmetric algorithm
+    are refused, the latter because the "public" key sits in the header and
+    would otherwise serve as an HMAC secret.
+  - RFC 7638 thumbprints, verified against the specification's own worked
+    example.
+  - Single-use proof identifiers (RFC 9449 §11.1), so a captured proof cannot
+    be replayed within its acceptance window.
+  - Refresh tokens bound too (RFC 9449 §5) — otherwise the longest-lived
+    credential would be the one piece with no proof-of-possession.
+  - `createDpopProof` / `generateDpopKeyPair` for Node clients and tests.
+    Browsers should use WebCrypto with a non-extractable key, which is the
+    property that makes DPoP worth having there.
+
+  Opt-in, because enabling it is a breaking change for clients.
+
 ### Fixed
+
+- **Non-canonical base64url was accepted in DPoP proofs.** The segment check
+  verified only the character set, not canonicality. Node's decoder ignores the
+  spare bits in a segment's final character, so a 64-byte ECDSA signature had
+  sixteen distinct spellings that all decoded to identical bytes and all
+  verified — one proof with many textual forms, which breaks anything treating
+  the proof string as an identity. The PASETO parser already rejected this; the
+  DPoP one now does too. Found by a mutation test, which surfaced it as an
+  intermittent failure before the cause was understood.
+
+- **Two flaky tests, both fixed at the source rather than by loosening them.**
+  A wall-clock assertion on parallelism now observes task overlap instead of
+  elapsed time, and the rate-limit window-boundary test controls the clock
+  rather than racing it. A flaky test of a security property is worse than no
+  test, because it trains people to re-run rather than investigate.
+
+- **A rejected DPoP proof could destroy a session.** The binding was checked
+  inside `#rotate`, which runs after the atomic `take()` that consumes the
+  refresh token. An attacker holding a stolen refresh token — but not the key —
+  could therefore end the session simply by presenting it: the token was
+  consumed, the rotation then failed, and the legitimate client's next refresh
+  found nothing. A denial of service handed to precisely the party the binding
+  exists to shut out. The binding is now checked before the token is consumed.
 
 - **Revocation could lose a race against rotation.** `#revokeFamily` worked by
   enumerating the family index and deleting what it found. A rotation running

@@ -4,11 +4,10 @@
 
 > **Status: v0.1.0, pre-release. Not published to npm. Not ready to depend on.**
 >
-> The library is feature-complete for its stated scope: sessions, both token
-> strategies, authorization, rate limiting, and a single-constructor setup.
-> What remains before 1.0 is hardening work — an example app, adversarial
-> review, and documentation. This README documents what is built, not what is
-> planned. Anything not listed under "What works today" does not exist.
+> Sessions, both token strategies, authorization, rate limiting, and
+> proof-of-possession (RFC 9449) all work. This README documents what is built,
+> not what is planned. Anything not listed under "What works today" does not
+> exist.
 
 Ninsho is a ground-up rebuild of an earlier library (SecureAuth), started after
 a [security audit](#audit-lineage) found that its published release could not be
@@ -95,9 +94,16 @@ Every claim below links to executable proof.
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
 | Sign-out-everywhere scales, with bounded fan-out | `mapConcurrent` | `concurrent-util.test.ts` › *session operations at scale* |
 | One bad session cannot abandon a sweep half-done | per-session isolation in `revokeAllForUser` | `concurrent-util.test.ts` › *completes the sweep even when one session fails* |
+| **A stolen token is useless without the key** | `binding: 'dpop'` (RFC 9449) | `dpop-integration.test.ts` › *a stolen token is useless without the key* |
+| JWK thumbprints match the specification | RFC 7638 canonical form | `dpop-proof.test.ts` — the specification's own vector |
+| A DPoP proof cannot be replayed | single-use `jti`, store-backed | `dpop-integration.test.ts` › *refuses a captured proof replayed* |
+| `alg: none` and HMAC confusion are refused | allowlist, not denylist | `dpop-proof.test.ts` › *algorithm confusion* |
+| Refresh tokens are bound too | RFC 9449 §5 | `dpop-integration.test.ts` › *refresh tokens are bound too* |
+| A rejected proof cannot destroy a session | binding checked before `take()` | `dpop-integration.test.ts` › *regression: a rejected proof must not consume* |
+| Only one textual spelling of a proof is accepted | canonical base64url on every segment | `dpop-proof.test.ts` › *regression: non-canonical base64url* |
 
 ```
-788 tests passing · typecheck clean · no flaky runs over 5 repeats
+895 tests passing · typecheck clean · no flaky runs over 5 repeats
 core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express dependency
 ```
 
@@ -115,9 +121,11 @@ core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express depe
 
 ### What does not exist yet
 
-No example application. No DPoP — the `cnf` claim slot and `BindingMode` type
-are reserved for it, but nothing implements it, and Ninsho issues bearer tokens
-today. No WebAuthn/passkey layer (that is the planned `@ninsho/client`).
+No browser client package. DPoP proofs can be generated in Node with
+`createDpopProof`, but a browser should use WebCrypto with a **non-extractable**
+key — which is the property that makes DPoP worth having there, and which no
+Node helper can provide. No WebAuthn/passkey layer (the planned
+`@ninsho/client`).
 
 ## Quick look
 
@@ -194,9 +202,12 @@ neutral preference.
 
 **No security theatre.** User-agent fingerprinting is not a binding mechanism —
 the User-Agent is a header the attacker chooses. It exists here as an audit
-signal only, and nothing branches on it. Real replay resistance means
-proof-of-possession; the `cnf` claim slot and `BindingMode` type are reserved
-for DPoP (RFC 9449) so it can be added without a token-format change.
+signal only, and nothing branches on it.
+
+Real replay resistance means proof-of-possession, so that is what
+`binding: 'dpop'` implements (RFC 9449): tokens bound to a key the client holds
+privately, with a fresh signed proof on every request. A stolen token alone is
+useless. It is opt-in because enabling it is a breaking change for clients.
 
 **Refresh reuse is treated as theft.** Replaying a rotated refresh token
 outside the grace window revokes the entire token family and emits
@@ -238,6 +249,7 @@ packages/
     paseto/      v4.public sign/verify on node:crypto
     http/        verify + authorization middleware (framework-agnostic)
     ratelimit/   sliding-window counter, per-IP and per-account buckets
+    dpop/        RFC 9449 proof verification, JWK thumbprints, replay guard
   client/        @ninsho/client — WebAuthn PRF.         (Layer 2, later)
 ```
 
@@ -305,6 +317,10 @@ rather than patched:
 | M3 — no authorization primitives | role / scope / tenant / **owner** middleware — **closed** |
 | M4 — vulnerable id dependency | zero dependencies; `node:crypto` directly |
 | M8 — library errors leaked to clients | `detail` is structurally separate from `message` |
+
+The audit's one remaining accepted limitation — that bearer tokens can be
+replayed — is now addressable: `binding: 'dpop'` makes a stolen access token
+useless without the client's key.
 
 ## License
 

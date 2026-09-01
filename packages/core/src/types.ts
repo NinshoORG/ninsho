@@ -29,14 +29,14 @@ export type TokenStrategy = 'opaque' | 'paseto';
 /**
  * How an access token is bound to the client presenting it.
  *
- *  - `none` (default, and the only mode implemented) — bearer semantics.
- *    Anyone holding the token can use it. This is the same guarantee every
- *    mainstream bearer-token system provides, and it is stated plainly rather
- *    than dressed up as replay protection.
+ *  - `none` (default) — bearer semantics. Anyone holding the token can use it.
+ *    This is the same guarantee every mainstream bearer-token system provides,
+ *    and it is stated plainly rather than dressed up as replay protection.
  *
- *  - `dpop` — RESERVED, NOT IMPLEMENTED. Proof-of-possession per RFC 9449.
- *    The type and the `cnf` claim slot exist so that adding it later does not
- *    change the token model or break callers. Selecting it currently throws.
+ *  - `dpop` — proof-of-possession per RFC 9449. Tokens are bound to a key the
+ *    client holds privately, and every request must carry a fresh proof signed
+ *    by it. A stolen token is useless without the key, which in a browser
+ *    should be a non-extractable WebCrypto key.
  *
  * Note that user-agent fingerprinting is deliberately absent. It is not a
  * binding mechanism: the User-Agent is a header the client chooses, so an
@@ -109,6 +109,14 @@ export interface AuthContext extends Principal {
   readonly expiresAt: string;
   /** Which strategy produced this token. Useful in logs and in mixed fleets. */
   readonly strategy: TokenStrategy;
+  /**
+   * Thumbprint of the DPoP key this token is bound to, when it is bound.
+   *
+   * Its presence means proof-of-possession was verified for this request.
+   * Absent means the token was a bearer credential — anyone holding it could
+   * have made this call.
+   */
+  readonly confirmationKey?: string;
 }
 
 // ─── Stored records ─────────────────────────────────────────────────────────
@@ -127,6 +135,14 @@ export interface AccessRecord {
   readonly principal: Principal;
   readonly issuedAt: string;
   readonly expiresAt: string;
+  /**
+   * RFC 7638 thumbprint of the DPoP key this token is bound to.
+   *
+   * Present only under `binding: 'dpop'`. When set, the token is no longer a
+   * bearer credential: presenting it also requires a proof signed by the
+   * matching private key, so a stolen token is useless on its own.
+   */
+  readonly confirmationKey?: string;
 }
 
 /**
@@ -156,6 +172,15 @@ export interface RefreshRecord {
    * cap bounds that, and forces a genuine re-authentication on a schedule.
    */
   readonly familyExpiresAt: string;
+  /**
+   * RFC 7638 thumbprint of the DPoP key this family is bound to.
+   *
+   * RFC 9449 §5 binds refresh tokens for public clients to the same key as the
+   * access token. Without it, a stolen refresh token would still be freely
+   * redeemable — which would leave the longest-lived credential in the system
+   * as the one piece with no proof-of-possession.
+   */
+  readonly confirmationKey?: string;
   /**
    * How many times this family has been rotated. Starts at 0.
    * Recorded for forensics: a reuse event reports which generation was
@@ -219,9 +244,11 @@ export interface PasetoClaims {
   readonly scopes: readonly string[];
   readonly tenant?: string;
   /**
-   * Confirmation claim — RESERVED for proof-of-possession (RFC 9449 §6.1).
-   * Present in the type so that DPoP can be added without a token format
-   * change. Nothing currently writes or reads it.
+   * Confirmation claim — proof-of-possession, RFC 9449 §6.1.
+   *
+   * `jkt` is the RFC 7638 thumbprint of the client's DPoP key. When present,
+   * a verifier must additionally require a proof signed by that key, and this
+   * token stops being a bearer credential.
    */
   readonly cnf?: { readonly jkt: string };
 }

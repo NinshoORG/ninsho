@@ -50,7 +50,14 @@ export interface NinshoConfig {
 
   /**
    * How a token is bound to its holder. Default `'none'` (bearer semantics).
-   * `'dpop'` is reserved and not implemented; selecting it throws.
+   *
+   * `'dpop'` enables proof-of-possession (RFC 9449): tokens are bound to a key
+   * the client holds privately, and every request must carry a fresh proof
+   * signed by it. A stolen token is then useless on its own.
+   *
+   * Enabling it is a breaking change for clients — they must generate a key and
+   * send a `DPoP` header on every request — so it is opt-in rather than
+   * default.
    */
   readonly binding?: BindingMode;
 
@@ -65,6 +72,15 @@ export interface NinshoConfig {
    * the grace window entirely and treat every replay as reuse.
    */
   readonly refreshGraceSeconds?: number;
+
+  /**
+   * How old a DPoP proof may be, in seconds. Default 60.
+   *
+   * Bounds both how long a captured proof stays replayable before the
+   * single-use guard even matters, and how much replay state the store holds.
+   * Too short and legitimate clients on slow links are rejected.
+   */
+  readonly dpopProofMaxAgeSeconds?: number;
 
   /** Clock skew allowance in seconds when checking time claims. Default 5. */
   readonly clockToleranceSeconds?: number;
@@ -109,6 +125,7 @@ export interface ResolvedConfig {
   readonly onStoreError: FailureMode;
   readonly binding: BindingMode;
   readonly refreshGraceSeconds: number;
+  readonly dpopProofMaxAgeSeconds: number;
   readonly clockToleranceSeconds: number;
   readonly audit: AuditSink;
   /** Present only when strategy is 'paseto'. */
@@ -138,6 +155,11 @@ export const DEFAULTS = {
    * another session is almost always outside it.
    */
   refreshGraceSeconds: 30,
+  /**
+   * Sixty seconds, as RFC 9449 §11.1 suggests. Long enough for a slow mobile
+   * round trip; short enough that a captured proof is stale almost immediately.
+   */
+  dpopProofMaxAgeSeconds: 60,
   clockToleranceSeconds: 5,
 } as const;
 
@@ -147,6 +169,8 @@ const ACCESS_TTL_WARN_THRESHOLD = 3600;
 const ACCESS_TTL_MAX = 86_400;
 /** Past this, the grace window starts to meaningfully blunt reuse detection. */
 const GRACE_WARN_THRESHOLD = 120;
+/** Past this, a captured DPoP proof stays useful for an uncomfortably long time. */
+const DPOP_MAX_AGE_WARN_THRESHOLD = 300;
 
 const VALID_STRATEGIES: readonly TokenStrategy[] = ['opaque', 'paseto'];
 const VALID_FAILURE_MODES: readonly FailureMode[] = ['closed', 'open'];
@@ -249,10 +273,29 @@ export function resolveConfig(config: NinshoConfig): ResolvedConfig {
       `config.binding must be one of: ${VALID_BINDINGS.join(', ')}. Received: ${String(binding)}`,
     );
   }
-  if (binding === 'dpop') {
+  const dpopProofMaxAgeSeconds =
+    config.dpopProofMaxAgeSeconds ?? DEFAULTS.dpopProofMaxAgeSeconds;
+  if (
+    typeof dpopProofMaxAgeSeconds !== 'number' ||
+    !Number.isFinite(dpopProofMaxAgeSeconds) ||
+    dpopProofMaxAgeSeconds <= 0
+  ) {
     throw new ConfigurationError(
-      "config.binding 'dpop' is reserved but not implemented. Ninsho issues " +
-        'bearer tokens today; do not rely on proof-of-possession semantics.',
+      'config.dpopProofMaxAgeSeconds must be a positive finite number of seconds',
+    );
+  }
+  if (binding === 'none' && config.dpopProofMaxAgeSeconds !== undefined) {
+    throw new ConfigurationError(
+      "config.dpopProofMaxAgeSeconds is only meaningful when binding is 'dpop'. " +
+        'Setting it under bearer semantics would suggest a proof is being ' +
+        'checked when none is.',
+    );
+  }
+  if (binding === 'dpop' && dpopProofMaxAgeSeconds > DPOP_MAX_AGE_WARN_THRESHOLD) {
+    warnings.push(
+      `dpopProofMaxAgeSeconds is ${dpopProofMaxAgeSeconds}s. A wide window ` +
+        'leaves a captured proof usable for that long against the single-use ' +
+        'guard, and grows the replay state the store must hold.',
     );
   }
 
@@ -380,6 +423,7 @@ export function resolveConfig(config: NinshoConfig): ResolvedConfig {
     onStoreError,
     binding,
     refreshGraceSeconds,
+    dpopProofMaxAgeSeconds,
     clockToleranceSeconds,
     // Wrapped so a throwing sink can never fail an authentication.
     audit: safeSink(audit ?? new ConsoleAuditSink()),

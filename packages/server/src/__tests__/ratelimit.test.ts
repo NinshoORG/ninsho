@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConfigurationError, RateLimitError, StoreUnavailableError } from '@ninsho/core';
 import { MemoryStore } from '../store/memory.js';
 import { MemoryAuditSink } from '../audit.js';
@@ -162,27 +162,59 @@ describe('sliding window counter', () => {
    * The reason for a sliding window rather than a fixed one: a fixed window
    * permits 2× the limit across a boundary, and a login endpoint is exactly
    * where that doubling is aimed.
+   *
+   * The clock is controlled rather than raced. Sleeping to land near a real
+   * boundary makes the test dependent on how long the fill loop happens to
+   * take, which is a coin flip under load — and a flaky test of a security
+   * property is worse than no test, because it trains people to re-run it.
    */
   it('does not permit a double burst across a window boundary', async () => {
     const windowMs = 1000;
     const limit = 5;
     const bucket = 'boundary-test';
 
-    // Fill the current window right before it rolls over.
-    const msIntoWindow = Date.now() % windowMs;
-    await new Promise((r) => {
-      setTimeout(r, Math.max(0, windowMs - msIntoWindow - 120));
-    });
-    for (let i = 0; i < limit; i += 1) await limiter.consume(bucket, limit, windowMs);
+    vi.useFakeTimers();
+    try {
+      // Land 100ms before a boundary, exactly.
+      const base = 1_700_000_000_000;
+      vi.setSystemTime(base + windowMs - 100);
 
-    // Cross into the next window and try to spend the allowance again.
-    await new Promise((r) => {
-      setTimeout(r, 200);
-    });
+      for (let i = 0; i < limit; i += 1) {
+        expect((await limiter.consume(bucket, limit, windowMs)).allowed).toBe(true);
+      }
 
-    const verdict = await limiter.consume(bucket, limit, windowMs);
-    // The previous window is still weighted in, so the burst is refused.
-    expect(verdict.allowed).toBe(false);
+      // Step 200ms forward, into the next window.
+      vi.setSystemTime(base + windowMs + 100);
+
+      // A fixed window would reset here and allow the whole allowance again.
+      // The sliding counter still weights the previous window in — 90% of it,
+      // 100ms into the new one — so the burst is refused.
+      expect((await limiter.consume(bucket, limit, windowMs)).allowed).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('allows traffic again once the previous window has fully aged out', async () => {
+    // The other half of the same property: the window must actually slide, or
+    // a bucket would be poisoned indefinitely.
+    const windowMs = 1000;
+    const limit = 5;
+    const bucket = 'boundary-recovery';
+
+    vi.useFakeTimers();
+    try {
+      const base = 1_700_000_000_000;
+      vi.setSystemTime(base);
+      for (let i = 0; i < limit; i += 1) await limiter.consume(bucket, limit, windowMs);
+      expect((await limiter.consume(bucket, limit, windowMs)).allowed).toBe(false);
+
+      // Two full windows later, nothing is weighted in.
+      vi.setSystemTime(base + windowMs * 2 + 10);
+      expect((await limiter.consume(bucket, limit, windowMs)).allowed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('counts concurrent requests exactly once each', async () => {

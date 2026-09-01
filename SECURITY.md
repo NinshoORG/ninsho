@@ -106,7 +106,9 @@ authorization data inside a `Principal`.
 | Timing side-channels on secret comparison | **Mitigated** | `safeEqual` is constant-time and fails closed on malformed input |
 | Internal detail leaking to clients | **Mitigated** | `detail` is structurally separate from `message` |
 | Test double reaching production | **Mitigated** | Store is injected; CI fails the build if one appears in `dist/` |
-| **Access-token replay by a thief** | **NOT mitigated** | See below |
+| Access-token replay by a thief | **Mitigated under `binding: 'dpop'`** | `dpop-integration.test.ts` › *a stolen token is useless without the key* |
+| DPoP proof replay | **Mitigated** | Single-use `jti`, store-backed (RFC 9449 §11.1) |
+| Algorithm confusion in a DPoP proof | **Mitigated** | Allowlist; `dpop-proof.test.ts` › *algorithm confusion* |
 | **Signing-key compromise** | **Partially** | Rotation is possible without downtime; detection is not provided |
 
 ---
@@ -116,22 +118,32 @@ authorization data inside a `Principal`.
 Stated plainly, because a limitation you know about is manageable and one you
 have been reassured about is not.
 
-### Bearer tokens can be replayed
+### Bearer tokens can be replayed — unless you enable DPoP
 
-Anyone holding a valid access token can use it. Ninsho does not detect that the
-holder is not the original recipient, and **no configuration changes this**.
+**Under the default `binding: 'none'`, anyone holding a valid access token can
+use it.** Ninsho does not detect that the holder is not the original recipient.
+This is the same guarantee every mainstream bearer-token system provides.
 
-This is the same guarantee every mainstream bearer-token system provides. It is
-called out because the predecessor claimed otherwise: it advertised "token
-replay attacks: blocked" on the strength of hashing the `User-Agent` header —
-a value the attacker sets. That feature is gone rather than renamed.
+It is called out because the predecessor claimed otherwise: it advertised
+"token replay attacks: blocked" on the strength of hashing the `User-Agent`
+header — a value the attacker sets. That feature is gone rather than renamed.
 
-Real replay resistance means proof-of-possession. The `cnf` claim slot and the
-`BindingMode` type are reserved for DPoP (RFC 9449), and selecting
-`binding: 'dpop'` throws today rather than silently doing nothing.
+**`binding: 'dpop'` changes this.** Tokens are bound to a key the client holds
+privately (RFC 9449), and every request must carry a fresh proof signed by it.
+A stolen token alone is then useless: replaying it needs the key, and in a
+browser that key should be a non-extractable WebCrypto key that script cannot
+read even after an XSS.
 
-Mitigate meanwhile with short access-token lifetimes (300s by default), TLS, and
-`refresh.reuse_detected` alerting.
+It is opt-in rather than default because enabling it is a breaking change for
+clients — they must generate a key and send a `DPoP` header on every request.
+
+What DPoP does **not** protect against: an attacker with code execution in the
+client's context can still ask the key to sign proofs, even a non-extractable
+one. It raises theft from "copy a string" to "maintain execution", which is a
+large increase in cost but not an impossibility.
+
+Under bearer semantics, mitigate with short access-token lifetimes (300s by
+default), TLS, and `refresh.reuse_detected` alerting.
 
 ### One raw token is stored, briefly
 
@@ -169,7 +181,8 @@ Every default below is chosen to be the safe option and asserted in
 | `accessTokenTtl` | `300` (5 min) | Bounds the window in which a stolen token is useful |
 | `refreshTokenTtl` | `604800` (7 days) | Hard ceiling; rotation never extends it |
 | `refreshGraceSeconds` | `30` | Absorbs a multi-tab race without meaningfully blunting detection |
-| `binding` | `none` | Bearer semantics, stated rather than implied |
+| `binding` | `none` | Bearer semantics, stated rather than implied. `'dpop'` for proof-of-possession |
+| `dpopProofMaxAgeSeconds` | `60` | RFC 9449 §11.1. Bounds how long a captured proof is worth replaying, and the replay state retained |
 | `clockToleranceSeconds` | `5` | Absorbs modest skew without materially extending validity |
 | `trustProxy` | **none** | No safe default exists; guessing breaks the limiter in both directions |
 
@@ -186,6 +199,8 @@ Choices that weaken security are accepted but never silent: each emits a
 | Token and id generation | CSPRNG, 256 / 128 bits | `node:crypto` `randomBytes` |
 | Token storage | SHA-256 | `node:crypto` |
 | Secret comparison | `timingSafeEqual` | `node:crypto` |
+| DPoP proof verification | ES256 (P-256) / EdDSA | `node:crypto` |
+| DPoP key thumbprint | SHA-256, RFC 7638 | `node:crypto` |
 
 **Ninsho implements no cryptographic primitives.** What it does implement is
 PASETO's Pre-Authentication Encoding — a length-prefixed concatenation — and
@@ -203,6 +218,7 @@ denial-of-service vector.
 | Event | Meaning |
 | :--- | :--- |
 | `refresh.reuse_detected` | **Highest signal.** A rotated refresh token was replayed. One of the two holders is an attacker |
+| `token.rejected` with `dpop_proof_replayed` | A DPoP proof was presented twice. Either a broken client or a captured proof being replayed |
 | `store.unavailable` | Revocation could not be checked. With `reason: admitted_without_revocation_check`, a token was accepted without one |
 | `config.insecure` | A weakening configuration choice was made at startup |
 | `authz.denied` | A caller was refused. A spike may indicate probing |
@@ -216,7 +232,8 @@ fail an authentication.
 ## Standards referenced
 
 - RFC 9700 — OAuth 2.0 Security Best Current Practice (§4.14.2, refresh reuse)
-- RFC 9449 — DPoP (reserved, not implemented)
+- RFC 9449 — DPoP, proof-of-possession (implemented; `binding: 'dpop'`)
+- RFC 7638 — JWK thumbprint (implemented; verified against the specification's own vector)
 - RFC 8410 — Ed25519 in ASN.1
 - RFC 7235 — HTTP authentication framework
 - RFC 9116 — `security.txt`

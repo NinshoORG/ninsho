@@ -9,6 +9,7 @@ import {
   type FailureMode,
 } from '@ninsho/core';
 import type { TokenEngine } from '../engine/types.js';
+import { establishProofOfPossession, type DpopContext } from './dpop-middleware.js';
 import type {
   HttpRequest,
   HttpResponse,
@@ -21,10 +22,22 @@ export interface MiddlewareOptions {
   readonly engine: TokenEngine;
   readonly onStoreError: FailureMode;
   readonly audit: AuditSink;
+  /**
+   * Present when `binding: 'dpop'`. Its presence is what makes proof
+   * verification mandatory: absent, tokens are bearer credentials.
+   */
+  readonly dpop?: DpopContext;
 }
 
-/** `Bearer <token>`, case-insensitive scheme per RFC 7235 §2.1. */
-const BEARER = /^Bearer[ ]+(.+)$/i;
+/**
+ * `Bearer <token>` or `DPoP <token>`, case-insensitive per RFC 7235 §2.1.
+ *
+ * RFC 9449 §7.1 introduces the `DPoP` scheme for proof-of-possession tokens.
+ * Both are accepted so a deployment can migrate without a flag day; the
+ * binding is enforced by the token's own `cnf`, not by which scheme was used,
+ * so accepting `Bearer` here cannot be used to shed a binding.
+ */
+const AUTH_SCHEME = /^(?:Bearer|DPoP)[ ]+(.+)$/i;
 
 /**
  * Reads the credential from the Authorization header.
@@ -47,14 +60,14 @@ function extractBearer(req: HttpRequest): string {
     throw new TokenMissingError('no Authorization header');
   }
 
-  const match = BEARER.exec(header.trim());
+  const match = AUTH_SCHEME.exec(header.trim());
   if (match === null) {
-    throw new TokenMissingError('Authorization header is not a Bearer credential');
+    throw new TokenMissingError('Authorization header is not a Bearer or DPoP credential');
   }
 
   const token = match[1]?.trim() ?? '';
   if (token.length === 0) {
-    throw new TokenMissingError('empty Bearer credential');
+    throw new TokenMissingError('empty credential');
   }
   return token;
 }
@@ -131,14 +144,24 @@ export function getAuth(req: HttpRequest): AuthContext {
  * ──────────────────────────────────────────────────────────────────────────
  */
 export function createVerify(options: MiddlewareOptions): Middleware {
-  const { engine, onStoreError, audit } = options;
+  const { engine, onStoreError, audit, dpop } = options;
 
   return guard(async (req, _res) => {
     const token = extractBearer(req);
 
+    // Under DPoP the proof is verified before the token, because a request
+    // without a valid proof cannot authenticate regardless of what the token
+    // says — and doing the cheap structural rejection first keeps an invalid
+    // proof from costing a store round trip.
+    const confirmationKey =
+      dpop === undefined ? undefined : await establishProofOfPossession(req, token, dpop);
+
+    const verifyOptions =
+      confirmationKey === undefined ? {} : { confirmationKey };
+
     let auth: AuthContext;
     try {
-      auth = await engine.verify(token);
+      auth = await engine.verify(token, verifyOptions);
     } catch (error) {
       if (!(error instanceof StoreUnavailableError)) throw error;
 
@@ -153,7 +176,7 @@ export function createVerify(options: MiddlewareOptions): Middleware {
 
       // Fail open: accept on signature and time claims alone. This admits
       // tokens that may have been revoked — the trade-off the operator chose.
-      auth = await engine.verify(token, { skipRevocationCheck: true });
+      auth = await engine.verify(token, { ...verifyOptions, skipRevocationCheck: true });
       audit.emit({
         type: 'store.unavailable',
         at: new Date().toISOString(),

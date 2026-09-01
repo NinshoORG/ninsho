@@ -20,6 +20,8 @@ import type { TokenEngine } from '../engine/types.js';
 import { KEYS } from '../keys.js';
 import { mapConcurrent } from '../internal/concurrent.js';
 import type {
+  CreateSessionOptions,
+  RefreshSessionOptions,
   ConsumedRefreshRecord,
   GraceRecord,
   RevocationReason,
@@ -95,7 +97,7 @@ export class SessionManager {
    * the application's concern, and conflating the two is how auth libraries
    * end up dictating a user model.
    */
-  async create(principal: Principal): Promise<TokenPair> {
+  async create(principal: Principal, options: CreateSessionOptions = {}): Promise<TokenPair> {
     const sessionId = generateId();
     const startedAt = Date.now();
     const now = isoFrom(startedAt);
@@ -110,6 +112,9 @@ export class SessionManager {
       expiresAt: familyExpiresAt,
       familyExpiresAt,
       generation: 0,
+      ...(options.confirmationKey !== undefined && {
+        confirmationKey: options.confirmationKey,
+      }),
     });
 
     const meta: SessionMeta = {
@@ -124,7 +129,13 @@ export class SessionManager {
     await this.#store.set(KEYS.sessionMeta(sessionId), JSON.stringify(meta), familyTtl);
     await this.#store.sAdd(KEYS.userSessions(principal.userId), sessionId, familyTtl);
 
-    const access = await this.#engine.issue({ principal, sessionId });
+    const access = await this.#engine.issue({
+      principal,
+      sessionId,
+      ...(options.confirmationKey !== undefined && {
+        confirmationKey: options.confirmationKey,
+      }),
+    });
 
     this.#options.audit.emit({
       type: 'session.created',
@@ -152,23 +163,58 @@ export class SessionManager {
    * @throws {RefreshReuseError} The token was already rotated and the grace
    *   window has passed. The family is revoked before this throws.
    */
-  async refresh(rawToken: string): Promise<TokenPair> {
+  async refresh(
+    rawToken: string,
+    options: RefreshSessionOptions = {},
+  ): Promise<TokenPair> {
     if (typeof rawToken !== 'string' || rawToken.length === 0) {
       throw new RefreshInvalidError('empty or non-string refresh token');
     }
 
     const hash = hashToken(rawToken);
 
+    // ─── The binding is checked before the token is consumed ───────────────
+    // `take()` is destructive, so checking the DPoP binding after it would let
+    // an attacker holding a stolen refresh token — but not the key — destroy
+    // the session simply by presenting it. The token would be consumed, the
+    // rotation would then fail, and the legitimate client's next refresh would
+    // find nothing. A denial of service handed to exactly the party the
+    // binding is meant to shut out.
+    //
+    // Peeking first costs one extra round trip on the refresh path, which runs
+    // once per token lifetime rather than per request. It is not a
+    // time-of-check problem: a token's binding is fixed at issuance, so a
+    // binding that matches now still matches at `take()`. Losing the race to
+    // another caller in between simply falls through to the grace path, which
+    // is the behaviour that path exists for.
+    // ──────────────────────────────────────────────────────────────────────
+    const peeked = await this.#store.get(KEYS.refreshToken(hash));
+    if (peeked !== null) {
+      const record = this.#parseRefreshRecord(peeked);
+      if (record !== null && record.confirmationKey !== undefined) {
+        if (options.confirmationKey === undefined) {
+          throw new RefreshInvalidError(
+            `refresh token for session ${record.sessionId} is DPoP-bound but no proof was presented`,
+          );
+        }
+        if (options.confirmationKey !== record.confirmationKey) {
+          throw new RefreshInvalidError(
+            `refresh token for session ${record.sessionId} is bound to a different key`,
+          );
+        }
+      }
+    }
+
     // Atomic. Exactly one concurrent caller can win this.
     const liveRaw = await this.#store.take(KEYS.refreshToken(hash));
 
     if (liveRaw !== null) {
-      return this.#rotate(hash, liveRaw);
+      return this.#rotate(hash, liveRaw, options.confirmationKey);
     }
 
     // Either this caller lost the race, or the token is stale, forged, or
     // being replayed. Only the tombstone can tell those apart.
-    return this.#resolveNonLive(hash);
+    return this.#resolveNonLive(hash, options.confirmationKey);
   }
 
   /** Ends one session: its refresh family and all its access tokens. */
@@ -291,7 +337,11 @@ export class SessionManager {
   }
 
   /** The winning path: this caller consumed the live record and rotates it. */
-  async #rotate(oldHash: string, recordJson: string): Promise<TokenPair> {
+  async #rotate(
+    oldHash: string,
+    recordJson: string,
+    presentedKey: string | undefined,
+  ): Promise<TokenPair> {
     const record = this.#parseRefreshRecord(recordJson);
     if (record === null) {
       // Unparseable. The token is gone (take() removed it) and there is no
@@ -300,6 +350,28 @@ export class SessionManager {
     }
 
     const { sessionId, principal } = record;
+
+    // RFC 9449 section 5: a refresh token bound to a key must only be
+    // redeemable by the holder of that key. Without this the longest-lived
+    // credential in the system would be the one piece with no
+    // proof-of-possession, and stealing it would still hand an attacker an
+    // indefinite session.
+    //
+    // `refresh()` has already rejected a mismatch before consuming the token.
+    // This is the backstop for any future caller that reaches #rotate by
+    // another path — a check this cheap is worth keeping in both places.
+    if (record.confirmationKey !== undefined) {
+      if (presentedKey === undefined) {
+        throw new RefreshInvalidError(
+          `refresh token for session ${sessionId} is DPoP-bound but no proof was presented`,
+        );
+      }
+      if (presentedKey !== record.confirmationKey) {
+        throw new RefreshInvalidError(
+          `refresh token for session ${sessionId} is bound to a different key`,
+        );
+      }
+    }
 
     // The session may have been terminated between this token being issued and
     // being presented. The marker is authoritative where the family index is
@@ -335,6 +407,9 @@ export class SessionManager {
       expiresAt,
       familyExpiresAt: record.familyExpiresAt,
       generation,
+      ...(record.confirmationKey !== undefined && {
+        confirmationKey: record.confirmationKey,
+      }),
     });
 
     // ─── Write order below is load-bearing ────────────────────────────────
@@ -366,6 +441,9 @@ export class SessionManager {
       generation: record.generation,
       rotatedAt: now,
       principal,
+      ...(record.confirmationKey !== undefined && {
+        confirmationKey: record.confirmationKey,
+      }),
     };
     await this.#store.set(
       KEYS.refreshConsumed(oldHash),
@@ -389,7 +467,13 @@ export class SessionManager {
 
     await this.#touchMeta(sessionId, generation);
 
-    const access = await this.#engine.issue({ principal, sessionId });
+    const access = await this.#engine.issue({
+      principal,
+      sessionId,
+      ...(record.confirmationKey !== undefined && {
+        confirmationKey: record.confirmationKey,
+      }),
+    });
 
     this.#options.audit.emit({
       type: 'session.refreshed',
@@ -412,7 +496,10 @@ export class SessionManager {
    * The token was not live. Decide between "never existed", "lost a race", and
    * "being replayed".
    */
-  async #resolveNonLive(hash: string): Promise<TokenPair> {
+  async #resolveNonLive(
+    hash: string,
+    presentedKey: string | undefined,
+  ): Promise<TokenPair> {
     const consumedRaw = await this.#awaitTombstone(hash);
 
     if (consumedRaw === null) {
@@ -432,7 +519,7 @@ export class SessionManager {
     if (graceRaw !== null) {
       const grace = this.#parseGrace(graceRaw);
       if (grace !== null) {
-        return this.#adoptReplacement(consumed, grace);
+        return this.#adoptReplacement(consumed, grace, presentedKey);
       }
     }
 
@@ -499,7 +586,17 @@ export class SessionManager {
   async #adoptReplacement(
     consumed: ConsumedRefreshRecord,
     grace: GraceRecord,
+    presentedKey: string | undefined,
   ): Promise<TokenPair> {
+    // The grace path hands back a live credential, so it must enforce the same
+    // binding the rotation path does. Otherwise replaying a bound token inside
+    // the grace window would be a way around proof-of-possession.
+    if (consumed.confirmationKey !== undefined && presentedKey !== consumed.confirmationKey) {
+      throw new RefreshInvalidError(
+        `refresh token for session ${consumed.sessionId} is bound to a different key`,
+      );
+    }
+
     // A grace mapping can outlive the revocation that should have removed it,
     // for the same reason a rotation's output can: both are written outside
     // the index that revocation enumerates.
@@ -510,6 +607,9 @@ export class SessionManager {
     const access = await this.#engine.issue({
       principal: consumed.principal,
       sessionId: consumed.sessionId,
+      ...(consumed.confirmationKey !== undefined && {
+        confirmationKey: consumed.confirmationKey,
+      }),
     });
 
     this.#options.audit.emit({
@@ -657,6 +757,9 @@ export class SessionManager {
     const principal = this.#parsePrincipal(r['principal']);
     if (principal === null) return null;
 
+    const confirmationKey = r['confirmationKey'];
+    if (confirmationKey !== undefined && typeof confirmationKey !== 'string') return null;
+
     return {
       sessionId: r['sessionId'],
       principal,
@@ -664,6 +767,7 @@ export class SessionManager {
       expiresAt: r['expiresAt'],
       familyExpiresAt: r['familyExpiresAt'],
       generation: r['generation'],
+      ...(confirmationKey !== undefined && { confirmationKey }),
     };
   }
 
@@ -682,11 +786,15 @@ export class SessionManager {
     const principal = this.#parsePrincipal(r['principal']);
     if (principal === null) return null;
 
+    const consumedKey = r['confirmationKey'];
+    if (consumedKey !== undefined && typeof consumedKey !== 'string') return null;
+
     return {
       sessionId: r['sessionId'],
       generation: r['generation'],
       rotatedAt: r['rotatedAt'],
       principal,
+      ...(consumedKey !== undefined && { confirmationKey: consumedKey }),
     };
   }
 

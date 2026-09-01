@@ -6,6 +6,8 @@ export type {
   ValueSelector,
 } from './types.js';
 export type { MiddlewareOptions } from './middleware.js';
+export { establishProofOfPossession, defaultRequestUrl } from './dpop-middleware.js';
+export type { DpopContext } from './dpop-middleware.js';
 export {
   getAuth,
   createVerify,

@@ -24,6 +24,33 @@ export interface ConsumedRefreshRecord {
    * lookup. Identical to the family's principal — rotation never changes it.
    */
   readonly principal: Principal;
+  /**
+   * The family's DPoP binding, carried so the grace path enforces it too.
+   *
+   * Without it, replaying a bound token inside the grace window would hand
+   * back a live credential without any proof-of-possession check — a way
+   * around the binding rather than an exception to it.
+   */
+  readonly confirmationKey?: string;
+}
+
+/** Options for starting a session. */
+export interface CreateSessionOptions {
+  /**
+   * RFC 7638 thumbprint of the client's DPoP key, under `binding: 'dpop'`.
+   * Binds both the access token and the refresh family to that key.
+   */
+  readonly confirmationKey?: string;
+}
+
+/** Options for redeeming a refresh token. */
+export interface RefreshSessionOptions {
+  /**
+   * Thumbprint of the key that signed the proof accompanying this request.
+   * Must match the family's binding; a bound family presented without one is
+   * refused.
+   */
+  readonly confirmationKey?: string;
 }
 
 /** Value stored under `KEYS.refreshGrace`, for a tab that lost a rotation race. */

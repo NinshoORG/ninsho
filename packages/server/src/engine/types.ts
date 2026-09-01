@@ -9,6 +9,14 @@ export interface IssueAccessTokenInput {
    * terminating a session kills every access token issued under it.
    */
   readonly sessionId: string;
+  /**
+   * RFC 7638 thumbprint of the client's DPoP key, under `binding: 'dpop'`.
+   *
+   * Setting it makes the issued token proof-of-possession rather than bearer:
+   * every later presentation must carry a proof signed by the matching private
+   * key.
+   */
+  readonly confirmationKey?: string;
 }
 
 /** A freshly minted access token. */
@@ -61,6 +69,16 @@ export interface VerifyOptions {
    * `store.unavailable` audit event.
    */
   readonly skipRevocationCheck?: boolean;
+
+  /**
+   * Thumbprint of the key that signed the DPoP proof accompanying this request.
+   *
+   * The engine compares it against the token's own binding. A token bound to a
+   * key and presented **without** this is refused — the binding must fail
+   * closed, or enabling DPoP would silently weaken to bearer semantics the
+   * moment a caller forgot to pass the proof through.
+   */
+  readonly confirmationKey?: string;
 }
 
 export interface TokenEngine {

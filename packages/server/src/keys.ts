@@ -121,6 +121,18 @@ export const KEYS = {
   revoked: (tokenId: string): string => `${NS}:rev:${tokenId}`,
 
   /**
+   * Seen DPoP proof identifier, for single-use enforcement.
+   *
+   * Namespaced by key thumbprint as well as `jti` so one client cannot burn
+   * another's identifiers by guessing them.
+   *
+   * TTL: the proof acceptance window plus clock tolerance — long enough that a
+   * proof is remembered for as long as it would still be accepted, and no
+   * longer, so the set stays bounded.
+   */
+  dpopProof: (jkt: string, jti: string): string => `${NS}:dpop:${jkt}:${jti}`,
+
+  /**
    * Rate-limit counter for one bucket in one time window.
    *
    * The window index is part of the key rather than being enforced by TTL.

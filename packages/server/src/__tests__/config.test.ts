@@ -146,11 +146,35 @@ describe('binding validation', () => {
     expect(resolveConfig(base({ binding: 'none' })).binding).toBe('none');
   });
 
-  it('rejects dpop as reserved but unimplemented, rather than silently ignoring it', () => {
-    // Silently accepting `dpop` would leave a developer believing they had
-    // proof-of-possession while holding bearer tokens — the exact class of
-    // false assurance this project was rebuilt to remove.
-    expect(() => resolveConfig(base({ binding: 'dpop' }))).toThrow(/reserved but not implemented/);
+  it('accepts dpop, enabling proof-of-possession', () => {
+    const resolved = resolveConfig(base({ binding: 'dpop' }));
+    expect(resolved.binding).toBe('dpop');
+  });
+
+  it('defaults the DPoP proof window to 60 seconds', () => {
+    expect(resolveConfig(base({ binding: 'dpop' })).dpopProofMaxAgeSeconds).toBe(60);
+  });
+
+  /**
+   * Setting the proof window under bearer semantics would suggest a proof is
+   * being checked when none is — the same class of false assurance as silently
+   * accepting `dpop` used to be.
+   */
+  it('rejects a DPoP proof window under bearer semantics', () => {
+    expect(() => resolveConfig(base({ dpopProofMaxAgeSeconds: 30 }))).toThrow(
+      /only meaningful when binding is 'dpop'/,
+    );
+  });
+
+  it.each([0, -1, Number.NaN])('rejects a proof window of %s', (value) => {
+    expect(() =>
+      resolveConfig(base({ binding: 'dpop', dpopProofMaxAgeSeconds: value })),
+    ).toThrow(ConfigurationError);
+  });
+
+  it('warns about a proof window wide enough to blunt replay protection', () => {
+    const resolved = resolveConfig(base({ binding: 'dpop', dpopProofMaxAgeSeconds: 3600 }));
+    expect(resolved.warnings.join(' ')).toMatch(/captured proof usable/);
   });
 
   it('rejects an unknown binding', () => {

@@ -18,7 +18,46 @@ import type {
   IssueAccessTokenInput,
   IssuedAccessToken,
   TokenEngine,
+  VerifyOptions,
 } from './types.js';
+
+/**
+ * Enforces a token's proof-of-possession binding.
+ *
+ * ─── Why the absent-proof case must fail ──────────────────────────────────
+ * Three situations, and only one of them is safe to let through:
+ *
+ *   - Token unbound, no proof: an ordinary bearer token. Allowed.
+ *   - Token bound, matching proof: possession demonstrated. Allowed.
+ *   - Token bound, **no proof or wrong proof**: refused.
+ *
+ * The third case is the one that matters. If a bound token were accepted
+ * without a proof, then enabling DPoP would silently degrade to bearer
+ * semantics the moment any caller forgot to pass the proof through — and the
+ * failure would be invisible, because everything would keep working.
+ */
+function assertConfirmationKey(
+  bound: string | undefined,
+  presented: string | undefined,
+  tokenId: string,
+): void {
+  if (bound === undefined) return;
+
+  if (presented === undefined) {
+    throw new TokenInvalidError(
+      `token ${tokenId} is DPoP-bound but no proof was presented`,
+    );
+  }
+  if (presented !== bound) {
+    // Both values are public thumbprints of public keys, so there is no secret
+    // for a timing difference to leak and nothing is gained by comparing in
+    // constant time.
+    throw new TokenInvalidError(
+      `token ${tokenId} is bound to a different key than the presented proof`,
+    );
+  }
+}
+
 
 /** Configuration for {@link OpaqueEngine}. */
 export interface OpaqueEngineOptions {
@@ -98,6 +137,7 @@ export class OpaqueEngine implements TokenEngine {
       principal: input.principal,
       issuedAt,
       expiresAt,
+      ...(input.confirmationKey !== undefined && { confirmationKey: input.confirmationKey }),
     };
 
     const ttl = this.#options.accessTokenTtl;
@@ -117,7 +157,7 @@ export class OpaqueEngine implements TokenEngine {
     return { token, tokenId, issuedAt, expiresAt };
   }
 
-  async verify(token: string): Promise<AuthContext> {
+  async verify(token: string, options: VerifyOptions = {}): Promise<AuthContext> {
     // Reject obviously malformed input before touching the store, so garbage
     // cannot be used to generate store load.
     if (typeof token !== 'string' || token.length === 0) {
@@ -154,6 +194,8 @@ export class OpaqueEngine implements TokenEngine {
       throw new TokenExpiredError(`token ${record.tokenId} past expiry`);
     }
 
+    assertConfirmationKey(record.confirmationKey, options.confirmationKey, record.tokenId);
+
     return {
       userId: record.principal.userId,
       roles: record.principal.roles,
@@ -164,6 +206,9 @@ export class OpaqueEngine implements TokenEngine {
       issuedAt: record.issuedAt,
       expiresAt: record.expiresAt,
       strategy: this.strategy,
+      ...(record.confirmationKey !== undefined && {
+        confirmationKey: record.confirmationKey,
+      }),
     };
   }
 
@@ -257,12 +302,16 @@ export class OpaqueEngine implements TokenEngine {
     const principal = this.#tryParsePrincipal(r['principal']);
     if (principal === null) return null;
 
+    const confirmationKey = r['confirmationKey'];
+    if (confirmationKey !== undefined && typeof confirmationKey !== 'string') return null;
+
     return {
       tokenId: r['tokenId'],
       sessionId: r['sessionId'],
       principal,
       issuedAt: r['issuedAt'],
       expiresAt: r['expiresAt'],
+      ...(confirmationKey !== undefined && { confirmationKey }),
     };
   }
 

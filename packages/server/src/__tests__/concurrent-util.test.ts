@@ -50,19 +50,33 @@ describe('mapConcurrent', () => {
     expect(peak).toBeGreaterThan(1);
   });
 
+  /**
+   * Parallelism is asserted by observing overlap rather than by measuring
+   * elapsed time. A wall-clock assertion here passes in isolation and fails
+   * under load — which is exactly when the whole suite runs — so it would be a
+   * flaky test dressed up as a performance guarantee. Overlap is the property
+   * that actually matters, and it is deterministic.
+   */
   it('actually runs in parallel rather than serially', async () => {
-    const started = Date.now();
+    const events: Array<'start' | 'end'> = [];
+
     await mapConcurrent(
       Array.from({ length: 40 }, (_, i) => i),
       async () => {
-        await new Promise((r) => setTimeout(r, 10));
+        events.push('start');
+        await new Promise((r) => setTimeout(r, 1));
+        events.push('end');
       },
       10,
     );
-    const elapsed = Date.now() - started;
 
-    // Serial would be ~400ms; four batches of ten is ~40ms plus overhead.
-    expect(elapsed).toBeLessThan(250);
+    // Serial execution produces a strict start,end,start,end… alternation.
+    // Any two consecutive starts prove two tasks were in flight at once.
+    const overlapped = events.some(
+      (event, index) => event === 'start' && events[index + 1] === 'start',
+    );
+    expect(overlapped).toBe(true);
+    expect(events.filter((e) => e === 'end')).toHaveLength(40);
   });
 
   it('does not spawn more runners than there are items', async () => {

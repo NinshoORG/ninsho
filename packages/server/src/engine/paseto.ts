@@ -103,6 +103,11 @@ export class PasetoEngine implements TokenEngine {
       roles: input.principal.roles,
       scopes: input.principal.scopes,
       ...(input.principal.tenant !== undefined && { tenant: input.principal.tenant }),
+      // RFC 9449 §6.1. Inside the signed payload, so the binding cannot be
+      // stripped by anyone who does not hold the signing key.
+      ...(input.confirmationKey !== undefined && {
+        cnf: { jkt: input.confirmationKey },
+      }),
     };
 
     const footer: Footer = { kid: this.#keys.signingKid };
@@ -192,6 +197,22 @@ export class PasetoEngine implements TokenEngine {
       throw new TokenExpiredError(`token ${claims.jti} past expiry`);
     }
 
+    // ── Proof-of-possession ───────────────────────────────────────────────
+    // A bound token presented without a matching proof is refused. Accepting
+    // it would silently degrade DPoP to bearer semantics the moment a caller
+    // forgot to pass the proof through — and everything would keep working,
+    // so nobody would notice.
+    if (claims.cnf !== undefined) {
+      if (options.confirmationKey === undefined) {
+        throw new TokenInvalidError(`token ${claims.jti} is DPoP-bound but no proof was presented`);
+      }
+      if (options.confirmationKey !== claims.cnf.jkt) {
+        throw new TokenInvalidError(
+          `token ${claims.jti} is bound to a different key than the presented proof`,
+        );
+      }
+    }
+
     // ── Revocation ────────────────────────────────────────────────────────
     // A store failure propagates as StoreUnavailableError rather than being
     // read as "not revoked". Deciding what an outage means belongs to the
@@ -221,6 +242,7 @@ export class PasetoEngine implements TokenEngine {
       issuedAt: claims.iat,
       expiresAt: claims.exp,
       strategy: this.strategy,
+      ...(claims.cnf !== undefined && { confirmationKey: claims.cnf.jkt }),
     };
   }
 
@@ -295,6 +317,17 @@ export class PasetoEngine implements TokenEngine {
     const tenant = c['tenant'];
     if (tenant !== undefined && typeof tenant !== 'string') return null;
 
+    // A malformed `cnf` must reject the token rather than be ignored: dropping
+    // it would turn a proof-of-possession token into a bearer one.
+    const rawCnf = c['cnf'];
+    let cnf: { jkt: string } | undefined;
+    if (rawCnf !== undefined) {
+      if (typeof rawCnf !== 'object' || rawCnf === null || Array.isArray(rawCnf)) return null;
+      const jkt = (rawCnf as Record<string, unknown>)['jkt'];
+      if (typeof jkt !== 'string' || jkt.length === 0) return null;
+      cnf = { jkt };
+    }
+
     return {
       jti: c['jti'] as string,
       sub: c['sub'] as string,
@@ -307,6 +340,7 @@ export class PasetoEngine implements TokenEngine {
       roles: roles as string[],
       scopes: scopes as string[],
       ...(tenant !== undefined && { tenant }),
+      ...(cnf !== undefined && { cnf }),
     };
   }
 
