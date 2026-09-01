@@ -181,8 +181,9 @@ jobs:
         run: |
           set -e
           WORK="$(mktemp -d)"
-          npm pack --workspace @ninsho/core   --pack-destination "$WORK"
-          npm pack --workspace @ninsho/server --pack-destination "$WORK"
+          npm pack --workspace @ninsho/core     --pack-destination "$WORK"
+          npm pack --workspace @ninsho/server   --pack-destination "$WORK"
+          npm pack --workspace @ninsho/webauthn --pack-destination "$WORK"
 
           cd "$WORK"
           cat > package.json <<'JSON'
@@ -190,7 +191,8 @@ jobs:
             "name": "consumer-check", "version": "1.0.0", "type": "module", "private": true,
             "dependencies": {
               "@ninsho/core": "file:./ninsho-core-0.1.0.tgz",
-              "@ninsho/server": "file:./ninsho-server-0.1.0.tgz"
+              "@ninsho/server": "file:./ninsho-server-0.1.0.tgz",
+              "@ninsho/webauthn": "file:./ninsho-webauthn-0.1.0.tgz"
             }
           }
           JSON
@@ -199,22 +201,42 @@ jobs:
           cat > esm.mjs <<'JS'
           import { Ninsho, MemoryStore } from '@ninsho/server';
           import { generateId } from '@ninsho/core';
+          import { WebAuthnServer, importCoseKey, CoseError } from '@ninsho/webauthn';
           const auth = new Ninsho({ store: new MemoryStore() });
           const pair = await auth.createSession({ userId: 'u', roles: [], scopes: [] });
           const ctx = await auth.engine.verify(pair.accessToken);
           if (ctx.userId !== 'u' || generateId().length !== 22) process.exit(1);
           await auth.close();
+
+          const wa = new WebAuthnServer({
+            rpId: 'example.com', rpName: 'X',
+            origin: 'https://example.com', store: new MemoryStore(),
+          });
+          const opts = await wa.startRegistration({ userId: 'u1', userName: 'a@b.c' });
+          if (opts.attestation !== 'none' || opts.challenge.length !== 43) process.exit(1);
+          // A malformed key must surface as CoseError, not an unhandled throw.
+          await importCoseKey(new Uint8Array([0xff])).then(
+            () => process.exit(1),
+            (e) => { if (!(e instanceof CoseError)) process.exit(1); },
+          );
           JS
 
           cat > cjs.cjs <<'JS'
           const { Ninsho, MemoryStore } = require('@ninsho/server');
           const { generateId } = require('@ninsho/core');
+          const { WebAuthnServer } = require('@ninsho/webauthn');
           (async () => {
             const auth = new Ninsho({ store: new MemoryStore() });
             const pair = await auth.createSession({ userId: 'u', roles: [], scopes: [] });
             const ctx = await auth.engine.verify(pair.accessToken);
             if (ctx.userId !== 'u' || generateId().length !== 22) process.exit(1);
             await auth.close();
+
+            const wa = new WebAuthnServer({
+              rpId: 'example.com', rpName: 'X',
+              origin: 'https://example.com', store: new MemoryStore(),
+            });
+            if ((await wa.startAuthentication()).rpId !== 'example.com') process.exit(1);
           })().catch((e) => { console.error(e); process.exit(1); });
           JS
 
