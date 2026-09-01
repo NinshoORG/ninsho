@@ -96,8 +96,10 @@ export type {
 } from './session/index.js';
 
 // ── HTTP middleware ─────────────────────────────────────────────────────────
-// Framework-agnostic by structural typing: Express Request/Response satisfy
-// these shapes, so no Express dependency is needed.
+// Typed structurally against Express shapes, so Express Request/Response
+// satisfy them and no Express dependency is needed. Frameworks with a
+// different response API — Fastify, Hono — need a small adapter, which is not
+// written here and therefore not claimed.
 export type {
   HttpRequest,
   HttpResponse,
