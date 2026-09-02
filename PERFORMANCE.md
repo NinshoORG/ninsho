@@ -68,6 +68,61 @@ Keeping counters consistent costs nothing worth optimising away, and skipping
 would let an attacker keep their account counter low by tripping the IP one
 first.
 
+## WebAuthn
+
+Node v24.11.1, 500 iterations. Responses are pre-built outside the timer, so
+these measure verification rather than the authenticator.
+
+| Operation | ops/sec | mean | p95 | p99 |
+| :--- | ---: | ---: | ---: | ---: |
+| `cbor: decode` (COSE key) | 781,616 | 0.001ms | 0.002ms | 0.014ms |
+| `cose: importCoseKey` | 13,676 | 0.073ms | 0.118ms | 0.169ms |
+| `register: verify` (none) | 4,512 | 0.222ms | 0.322ms | 0.632ms |
+| `authenticate: verify` (RS256) | 3,766 | 0.266ms | 0.364ms | 0.611ms |
+| `authenticate: verify` (EdDSA) | 3,122 | 0.320ms | 0.468ms | 0.731ms |
+| `authenticate: verify` (ES256) | 2,704 | 0.370ms | 0.570ms | 1.065ms |
+| `register: verify` (packed + chain) | 1,779 | 0.562ms | 0.935ms | 1.281ms |
+
+```bash
+npm run bench --workspace @ninsho/webauthn
+```
+
+### These are per sign-in, not per request
+
+A ceremony happens once when a session starts. `opaque: verify` above runs on
+*every* authenticated call and is 30–45× faster. In practice a ceremony is
+dominated by the user's finger reaching the sensor, not by any of this.
+
+### Attestation roughly halves registration throughput
+
+4,512 → 1,779 ops/sec, about 0.34ms extra. That is certificate chain
+verification — signature checks up the chain, validity windows, the AAGUID
+extension lookup — and it is the honest price of knowing which hardware a
+credential lives on.
+
+It is paid once per credential, ever. If you need approved-hardware enrolment,
+0.34ms is not the reason to skip it; if you do not need it, the default already
+avoids the cost.
+
+### RS256 verification is *faster* than ES256
+
+This surprises people, and it is correct. RSA verification with the usual
+public exponent (65537) is a short modular exponentiation, while ECDSA
+verification needs two point multiplications. RSA is slow to *sign* and cheap
+to *verify*; the authenticator does the signing and the server does the
+verifying, so the server sees the cheap half.
+
+It is not a reason to prefer RS256. ES256 keys are far smaller, and every
+modern passkey uses them.
+
+### CBOR decoding is free
+
+781,616 ops/sec, roughly a microsecond. That matters because the decoder is the
+one piece an unauthenticated caller can reach with arbitrary bytes — the guards
+on it (bounds checks before allocation, a nesting limit, no indefinite lengths)
+cost nothing measurable, so there is no tension between being strict and being
+fast.
+
 ## Against Redis
 
 Set `REDIS_URL` to measure with real round trips. Those figures are dominated by
@@ -91,6 +146,8 @@ round trip in both strategies.
 ## Methodology
 
 - A warm-up pass is discarded so JIT compilation is not counted as steady state.
+- WebAuthn responses and assertions are generated ahead of the timer, so the
+  figures measure verification and not the virtual authenticator's signing.
 - Rotation consumes its input, so the token chain is pre-built outside the
   measurement.
 - Benchmarks run against the **built** output, not the source, so the numbers

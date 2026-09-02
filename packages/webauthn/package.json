@@ -36,7 +36,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench": "node --experimental-strip-types bench/bench.ts"
   },
   "keywords": [
     "ninsho",
