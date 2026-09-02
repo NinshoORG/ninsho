@@ -5,6 +5,7 @@ import { ChallengeError } from './challenge.js';
 import { WebAuthnError } from './ceremony.js';
 import { ES256, EdDSA, RS256, SUPPORTED_ALGORITHMS } from './cose.js';
 import { VirtualAuthenticator, FLAG_UP, FLAG_UV } from './testing.js';
+import { createChain } from './x509-fixtures.js';
 import type { StoredCredential } from './ceremony.js';
 
 const RP_ID = 'example.com';
@@ -517,6 +518,104 @@ describe('policy is applied at both ends', () => {
 
     await expect(b.finishRegistration(response)).rejects.toBeInstanceOf(ChallengeError);
     await expect(a.finishRegistration(response)).resolves.toBeTruthy();
+  });
+});
+
+describe('attestation through the server', () => {
+  it('asks the browser for none when no attestation is configured', async () => {
+    // Requesting attestation you cannot check collects a statement nobody
+    // verifies, so the default asks for nothing.
+    const server = makeServer();
+    const options = await server.startRegistration({ userId: 'u', userName: 'n' });
+    expect(options.attestation).toBe('none');
+  });
+
+  it('asks for direct conveyance once a policy accepts packed', async () => {
+    // The conveyance follows the policy rather than being a second setting:
+    // two settings that must agree are two settings that will not.
+    const chain = createChain();
+    const server = makeServer({
+      attestation: { formats: ['packed'], trustAnchors: [chain.root.der] },
+    });
+
+    const options = await server.startRegistration({ userId: 'u', userName: 'n' });
+    expect(options.attestation).toBe('direct');
+  });
+
+  it('verifies a real attestation end to end and vouches for the AAGUID', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const chain = createChain({ aaguid: authenticator.aaguid });
+    const server = makeServer({
+      attestation: {
+        formats: ['packed'],
+        trustAnchors: [chain.root.der],
+        allowedAaguids: [Buffer.from(authenticator.aaguid).toString('hex')],
+      },
+    });
+
+    const options = await server.startRegistration({ userId: 'user-1', userName: 'ada' });
+    const verified = await server.finishRegistration(
+      await authenticator.register({
+        challenge: fromB64u(options.challenge),
+        origin: ORIGIN,
+        rpId: RP_ID,
+        attestationChain: chain,
+      }),
+      'user-1',
+    );
+
+    expect(verified.attestationType).toBe('basic');
+    expect(verified.aaguidVerified).toBe(true);
+  });
+
+  it('refuses hardware outside the allowlist end to end', async () => {
+    // The enterprise requirement, expressed as a policy and enforced by the
+    // server rather than by the caller remembering to check.
+    const authenticator = await VirtualAuthenticator.create();
+    const chain = createChain({ aaguid: authenticator.aaguid });
+    const server = makeServer({
+      attestation: {
+        formats: ['packed'],
+        trustAnchors: [chain.root.der],
+        allowedAaguids: ['0'.repeat(32)],
+      },
+    });
+
+    const options = await server.startRegistration({ userId: 'user-1', userName: 'ada' });
+    const error = await rejection(
+      server.finishRegistration(
+        await authenticator.register({
+          challenge: fromB64u(options.challenge),
+          origin: ORIGIN,
+          rpId: RP_ID,
+          attestationChain: chain,
+        }),
+        'user-1',
+      ),
+    );
+    expect(error.detail).toMatch(/is not on the allowed list/);
+  });
+
+  it('refuses a passkey with no attestation when attestation is required', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const chain = createChain({ aaguid: authenticator.aaguid });
+    const server = makeServer({
+      attestation: { formats: ['packed'], trustAnchors: [chain.root.der] },
+    });
+
+    const options = await server.startRegistration({ userId: 'user-1', userName: 'ada' });
+    const error = await rejection(
+      server.finishRegistration(
+        // A plain passkey: `none` attestation, which the policy no longer accepts.
+        await authenticator.register({
+          challenge: fromB64u(options.challenge),
+          origin: ORIGIN,
+          rpId: RP_ID,
+        }),
+        'user-1',
+      ),
+    );
+    expect(error.detail).toMatch(/is not accepted/);
   });
 });
 

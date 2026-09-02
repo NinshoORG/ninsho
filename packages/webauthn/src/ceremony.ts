@@ -11,17 +11,14 @@
  * origin, the RP ID hash, the user-presence flag, the backup-state invariant,
  * and — for authentication — the signature and the sign counter.
  *
- * ATTESTATION IS NOT VERIFIED, AND THAT IS SAID PLAINLY RATHER THAN IMPLIED.
- * Only the `none` format is accepted by default. Verifying `packed`, `tpm`,
- * `android-key` or `apple` means parsing X.509 chains and maintaining root
- * stores, and a verifier that parses an attestation statement without checking
- * it is worse than one that refuses it — it looks like a guarantee and is not
- * one. So other formats are refused. If a deployment needs them, that is a
- * feature to build, not a flag to flip.
- *
- * For passkeys this costs nothing: the browser replaces the attestation with
- * `none` whenever the relying party asks for `none` conveyance, which is the
- * normal case.
+ * Attestation is verified only on terms that mean something. `none` is the
+ * default and conveys nothing, which is correct for passkeys — the browser
+ * substitutes it whenever the relying party requests `none` conveyance.
+ * `packed` is verified against certificate roots the relying party supplies,
+ * and is refused outright without them: a chain checked against no trust
+ * anchor proves nothing, because anyone can self-sign a CA and claim any
+ * AAGUID. `tpm`, `android-key` and `apple` remain unimplemented and are
+ * refused rather than parsed-and-ignored. See `attestation.ts`.
  * ──────────────────────────────────────────────────────────────────────────
  */
 
@@ -35,6 +32,12 @@ import {
   verifyCoseSignature,
   type CoseAlgorithm,
 } from './cose.js';
+import {
+  AttestationError,
+  verifyAttestation,
+  type AttestationPolicy,
+  type AttestationType,
+} from './attestation.js';
 
 /** A ceremony failed to verify. Maps to 400. */
 export class WebAuthnError extends NinshoError {
@@ -270,13 +273,12 @@ export interface RegistrationExpectations extends CommonExpectations {
   /** Algorithms this relying party accepts. Defaults to ES256, EdDSA, RS256. */
   readonly allowedAlgorithms?: readonly CoseAlgorithm[];
   /**
-   * Attestation formats to accept. Defaults to `['none']`.
+   * Attestation policy. Defaults to accepting `none` only.
    *
-   * Only `none` is verifiable by this package. Adding a format here does not
-   * make it verified — see the note at the top of this file — so the option
-   * exists to *narrow* the default, not to widen it.
+   * Accepting `packed` additionally requires `trustAnchors`; see
+   * `attestation.ts` for why a chain without roots proves nothing.
    */
-  readonly allowedAttestationFormats?: readonly string[];
+  readonly attestation?: AttestationPolicy;
 }
 
 export interface VerifiedRegistration {
@@ -290,11 +292,26 @@ export interface VerifiedRegistration {
   readonly backupEligible: boolean;
   readonly backedUp: boolean;
   readonly attestationFormat: string;
+  /** What the attestation established. `none` and `self` establish nothing. */
+  readonly attestationType: AttestationType;
+  /**
+   * Whether a trusted chain vouched for the AAGUID.
+   *
+   * `false` means the AAGUID is self-asserted by the client and must not drive
+   * policy — it is fine for display, and not for "is this approved hardware".
+   */
+  readonly aaguidVerified: boolean;
+  /** Subject of the attestation certificate, when there was one. */
+  readonly attestationSubject: string | undefined;
   readonly origin: string;
 }
 
-/** Reads `fmt` / `authData` from an attestation object. */
-function parseAttestationObject(bytes: Uint8Array): { fmt: string; authData: Uint8Array } {
+/** Reads `fmt`, `attStmt` and `authData` from an attestation object. */
+function parseAttestationObject(bytes: Uint8Array): {
+  fmt: string;
+  authData: Uint8Array;
+  attStmt: Map<string | number, CborValue>;
+} {
   let decoded: CborValue;
   try {
     decoded = decodeCbor(bytes);
@@ -319,11 +336,12 @@ function parseAttestationObject(bytes: Uint8Array): { fmt: string; authData: Uin
   if (!(authData instanceof Uint8Array)) {
     throw new WebAuthnError('attestationObject.authData is missing or not a byte string');
   }
-  if (!decoded.has('attStmt')) {
-    throw new WebAuthnError('attestationObject.attStmt is missing');
+  const attStmt = decoded.get('attStmt');
+  if (!(attStmt instanceof Map)) {
+    throw new WebAuthnError('attestationObject.attStmt is missing or not a map');
   }
 
-  return { fmt, authData };
+  return { fmt, authData, attStmt };
 }
 
 /** Verifies a registration response and returns what to store. */
@@ -334,19 +352,9 @@ export async function verifyRegistration(
   const clientData = parseClientData(response.clientDataJSON);
   const origin = verifyClientData(clientData, CREATE_TYPE, expectations);
 
-  const { fmt, authData: authDataBytes } = parseAttestationObject(response.attestationObject);
-
-  const allowedFormats = expectations.allowedAttestationFormats ?? ['none'];
-  if (!allowedFormats.includes(fmt)) {
-    throw new WebAuthnError(`attestation format ${fmt} is not accepted`);
-  }
-  if (fmt !== 'none') {
-    // Reached only if a caller widened `allowedAttestationFormats`. Refusing
-    // here rather than at configuration time means there is no arrangement of
-    // options that results in an unverified attestation being treated as
-    // verified.
-    throw new WebAuthnError(`attestation format ${fmt} cannot be verified by this package`);
-  }
+  const { fmt, authData: authDataBytes, attStmt } = parseAttestationObject(
+    response.attestationObject,
+  );
 
   let authData: ParsedAuthenticatorData;
   try {
@@ -384,6 +392,29 @@ export async function verifyRegistration(
     );
   }
 
+  // Attestation last, because it needs the AAGUID and the credential key that
+  // the steps above established. Everything it checks is about *provenance* —
+  // the ceremony itself is already verified by this point.
+  let attestation;
+  try {
+    attestation = await verifyAttestation(
+      {
+        format: fmt,
+        statement: attStmt,
+        authData: authData.raw,
+        clientDataHash: await sha256(response.clientDataJSON),
+        aaguid: attested.aaguid,
+        credentialPublicKey: attested.credentialPublicKey,
+        credentialAlgorithm: algorithm,
+      },
+      expectations.attestation ?? {},
+    );
+  } catch (error) {
+    throw new WebAuthnError(
+      error instanceof AttestationError ? error.message : 'the attestation was not acceptable',
+    );
+  }
+
   return {
     // Copied out of the parent buffer. The subarrays share memory with the
     // response, and a caller storing them would be storing a view of bytes
@@ -397,6 +428,9 @@ export async function verifyRegistration(
     backupEligible: authData.flags.backupEligible,
     backedUp: authData.flags.backedUp,
     attestationFormat: fmt,
+    attestationType: attestation.type,
+    aaguidVerified: attestation.aaguidVerified,
+    attestationSubject: attestation.attestationSubject,
     origin,
   };
 }

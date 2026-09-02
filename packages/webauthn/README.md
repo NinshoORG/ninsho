@@ -128,27 +128,73 @@ the sign counter, and the user handle.
 | A ceremony cannot be completed against another account | Challenge user and credential owner must agree | `server.test.ts` — "binding a ceremony to its user" |
 | Parsers never read past their input | Every length is bounds-checked before use | `cbor.test.ts`, `der.test.ts`, `authdata.test.ts` — prefix and fuzz suites |
 | Failures never leak which check failed | Reason lives in `detail`, which `toResponse()` cannot read | `ceremony.test.ts` — "gives the same body whichever check failed" |
+| Only approved hardware may enrol | `packed` chain verified to your roots + AAGUID allowlist | `attestation.test.ts` — "enforces an AAGUID allowlist" |
+| A self-signed CA cannot forge attestation | Trust anchors are mandatory | `attestation.test.ts` — "refuses a chain that does not reach a configured root" |
+| An attestation lifted from another device is refused | Certificate AAGUID must match the authenticator data | `attestation.test.ts` |
+| A CA certificate cannot pose as an attestation leaf | Refused per §8.2.1 | `attestation.test.ts` |
 
-318 tests. The CBOR decoder is verified against **RFC 8949 Appendix A** vectors; the DER signature
+400 tests. The CBOR decoder is verified against **RFC 8949 Appendix A** vectors; the DER signature
 parser is verified differentially against signatures produced by OpenSSL through `node:crypto` and
 checked by WebCrypto, so the conversion has to satisfy two implementations that know nothing about
-this code.
+this code. Certificate parsing leans on Node's own vetted `X509Certificate` rather than a
+hand-rolled X.509 parser — only the AAGUID extension lookup is done here, because that is the one
+thing Node does not expose.
+
+## Attestation — proving *which hardware*
+
+A normal passkey ceremony proves someone controls a private key. Attestation proves the key was
+generated inside a particular piece of hardware, vouched for by a chain the manufacturer signed.
+That is the difference between "a credential" and "a credential on an issued YubiKey".
+
+```ts
+const webauthn = new WebAuthnServer({
+  rpId: 'example.com',
+  rpName: 'Example',
+  origin: 'https://example.com',
+  store,
+  attestation: {
+    formats: ['packed'],
+    trustAnchors: [vendorRootDer],              // roots you decide to trust
+    allowedAaguids: ['d8522d9f575b486688a9ba99fa02f35b'], // optional model allowlist
+  },
+});
+```
+
+Configuring this also changes what the browser is asked for — the ceremony requests `direct`
+conveyance automatically, because a browser asked for `none` replaces the statement and there would
+be nothing left to verify. Two settings that must agree are two settings that will not, so there is
+only one.
+
+The result tells you exactly what was established:
+
+```ts
+verified.attestationType   // 'none' | 'self' | 'basic'
+verified.aaguidVerified    // true only when a trusted chain vouched for the AAGUID
+verified.attestationSubject
+```
+
+**Trust anchors are mandatory.** `packed` is refused outright without them. A chain checked against
+no root proves nothing — anyone can self-sign a CA and put any AAGUID they like in a certificate
+they issued to themselves — and a verifier reporting success there would manufacture confidence.
+If you have no roots, you have no attestation, and saying so is the honest answer.
 
 ## What is *not* verified
 
-**Attestation is not verified.** Only the `none` format is accepted.
+**Attestation formats other than `packed`.** `tpm` (Windows Hello), `android-key`,
+`android-safetynet`, `apple` and `fido-u2f` are not implemented and are refused rather than
+parsed-and-ignored — allowlisting one still fails closed. `packed` covers most security keys,
+including the YubiKey line.
 
-Verifying `packed`, `tpm`, `android-key` or `apple` means parsing X.509 chains and maintaining root
-stores. A verifier that parses an attestation statement without checking it is worse than one that
-refuses it — it looks like a guarantee and is not one. So other formats are refused, and adding one
-to `allowedAttestationFormats` does not change that: there is no arrangement of options that turns
-an unverified attestation into a verified one.
+**No root store ships here.** Which manufacturers you trust is an operational decision that changes
+without this package changing. FIDO's Metadata Service is where most relying parties draw roots
+from; fetching it, verifying its signature and honouring its revocations is not implemented.
 
-For passkeys this costs nothing. The browser replaces the attestation with `none` whenever the
-relying party requests `none` conveyance, which is what this package always requests.
+**Self-attestation proves nothing about hardware.** It is off by default, and reports
+`aaguidVerified: false` even when enabled — the credential key signing for itself adds nothing
+beyond what the ceremony already established.
 
-If you need enterprise attestation — proving a credential lives on a specific approved hardware
-model — that is a feature to build, not a flag to flip.
+For passkeys none of this matters: the browser substitutes `none`, which is the default and the
+right answer.
 
 ## Defaults worth knowing
 
@@ -158,7 +204,7 @@ model — that is a feature to build, not a flag to flip.
 | `onCounterRegression` | `'reject'` | The counter exists to signal a cloned authenticator. A library that only logs the signal has moved the decision somewhere nobody is looking. |
 | `allowCrossOrigin` | `false` | A ceremony in an iframe the user may not know they are in is one they cannot meaningfully consent to. |
 | `timeoutMs` | `300000` | Also the challenge lifetime — one number governs both, so a ceremony cannot outlive the challenge it depends on. |
-| `attestation` | `'none'` | See above. |
+| `attestation` | accept `none` only | Passkeys convey nothing. Accepting `packed` requires trust anchors. |
 | algorithms | ES256, EdDSA, RS256 | RS256 is included because Windows Hello's TPM path still produces RSA keys. |
 
 User presence is always required and has no option to disable it, because the specification does not
@@ -184,6 +230,37 @@ written once.
 The parsers (`parseAuthenticatorData`, `decodeCbor`, `importCoseKey`, `derToRawSignature`) are
 exported too, so inspecting a credential — reading the AAGUID to name the authenticator, say —
 does not require reimplementing them.
+
+## Testing your integration
+
+Testing a passkey flow otherwise means a physical authenticator and a human finger — which is to say
+it does not get tested. `@ninsho/webauthn/testing` ships a software authenticator that holds a real
+key pair and produces genuinely signed responses, so your tests exercise the real verifier:
+
+```ts
+import { VirtualAuthenticator, createChain } from '@ninsho/webauthn/testing';
+
+const device = await VirtualAuthenticator.create();
+
+const options = await webauthn.startRegistration({ userId: 'u1', userName: 'ada@example.com' });
+const verified = await webauthn.finishRegistration(
+  await device.register({
+    challenge: Buffer.from(options.challenge, 'base64url'),
+    origin: 'https://example.com',
+    rpId: 'example.com',
+  }),
+  'u1',
+);
+```
+
+`createChain()` builds a certificate chain so attestation paths can be tested too, and every
+override you need for the negative cases is there — a wrong origin, a stale counter, a broken
+signature, a chain that reaches no trusted root.
+
+It is a separate entry point, so it never reaches a bundle that only imports the verifier, and it
+**refuses to construct under `NODE_ENV=production`**. That guard is not decoration: a virtual
+authenticator running server-side would mean your server holds the credential's private key —
+WebAuthn defeated, quietly, while every signature still verifies.
 
 ## Requirements
 

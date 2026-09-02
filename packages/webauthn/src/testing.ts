@@ -26,8 +26,9 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import type { webcrypto } from 'node:crypto';
+import { createSign, type webcrypto } from 'node:crypto';
 import { ES256, EdDSA, RS256, type CoseAlgorithm } from './cose.js';
+import type { CertificateChain } from './x509-fixtures.js';
 
 // ─── CBOR encoding ─────────────────────────────────────────────────────────
 
@@ -324,7 +325,13 @@ export class VirtualAuthenticator {
     );
   }
 
-  /** Produces a registration response with `none` attestation — a passkey. */
+  /**
+   * Produces a registration response.
+   *
+   * Defaults to `none` attestation — a passkey. Pass `attestationChain` to
+   * produce a genuine `packed` statement signed by that chain's leaf, or
+   * `selfAttested` to have the credential key sign for itself.
+   */
   async register(options: {
     challenge: Uint8Array;
     origin: string;
@@ -333,6 +340,20 @@ export class VirtualAuthenticator {
     clientDataOverride?: Uint8Array;
     rpIdHashOverride?: Uint8Array;
     attestationFormat?: string;
+    /** Signs a packed statement with this chain's leaf certificate. */
+    attestationChain?: CertificateChain;
+    /**
+     * Extra certificates to append to `x5c`, leaf-first.
+     *
+     * Real authenticators ship the intermediates alongside the leaf and leave
+     * the root to be configured out of band, so a chain deeper than two links
+     * needs them supplied here.
+     */
+    attestationIntermediates?: readonly Uint8Array[];
+    /** Signs a packed statement with the credential key itself. */
+    selfAttested?: boolean;
+    /** Corrupts the attestation signature, to test that it is checked. */
+    breakAttestationSignature?: boolean;
   }): Promise<RegistrationResult> {
     const authData = await buildAuthenticatorData({
       rpId: options.rpId,
@@ -346,21 +367,49 @@ export class VirtualAuthenticator {
       ...(options.rpIdHashOverride ? { rpIdHashOverride: options.rpIdHashOverride } : {}),
     });
 
+    const clientDataJSON =
+      options.clientDataOverride ??
+      this.clientData('webauthn.create', options.challenge, options.origin);
+
+    // The statement is signed over authData || SHA-256(clientDataJSON), so the
+    // client data has to exist before the attestation can.
+    const clientDataHash = new Uint8Array(await crypto.subtle.digest('SHA-256', clientDataJSON));
+    const signedData = concat([authData, clientDataHash]);
+
+    const attStmt = new Map<string | number, Encodable>();
+    let format = options.attestationFormat ?? 'none';
+
+    if (options.attestationChain) {
+      format = options.attestationFormat ?? 'packed';
+      const signature = new Uint8Array(
+        createSign('SHA256').update(signedData).sign(options.attestationChain.leaf.privateKey),
+      );
+      if (options.breakAttestationSignature) signature[0] = (signature[0] as number) ^ 0xff;
+
+      attStmt.set('alg', ES256);
+      attStmt.set('sig', signature);
+      attStmt.set('x5c', [
+        options.attestationChain.leaf.der,
+        ...(options.attestationIntermediates ?? []),
+      ]);
+    } else if (options.selfAttested) {
+      format = options.attestationFormat ?? 'packed';
+      const signature = await this.sign(signedData);
+      if (options.breakAttestationSignature) signature[0] = (signature[0] as number) ^ 0xff;
+
+      attStmt.set('alg', this.alg);
+      attStmt.set('sig', signature);
+    }
+
     const attestationObject = encodeCbor(
       new Map<string, Encodable>([
-        ['fmt', options.attestationFormat ?? 'none'],
-        ['attStmt', new Map<string | number, Encodable>()],
+        ['fmt', format],
+        ['attStmt', attStmt],
         ['authData', authData],
       ]),
     );
 
-    return {
-      credentialId: this.credentialId,
-      attestationObject,
-      clientDataJSON:
-        options.clientDataOverride ??
-        this.clientData('webauthn.create', options.challenge, options.origin),
-    };
+    return { credentialId: this.credentialId, attestationObject, clientDataJSON };
   }
 
   /** Produces an authentication assertion, signed over authData || hash(clientData). */
@@ -398,3 +447,13 @@ export class VirtualAuthenticator {
     };
   }
 }
+
+// ─── X.509 fixtures ────────────────────────────────────────────────────────
+export {
+  createCertificate,
+  createChain,
+  FIDO_AAGUID_OID,
+  type CertificateChain,
+  type GeneratedCertificate,
+  type CreateCertificateOptions,
+} from './x509-fixtures.js';

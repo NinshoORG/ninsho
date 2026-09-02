@@ -143,7 +143,13 @@ function bitLength(bytes: Uint8Array): number {
   return (bytes.length - index - 1) * 8 + (32 - Math.clz32(leading));
 }
 
-async function importEc2(map: Map<string | number, CborValue>): Promise<webcrypto.CryptoKey> {
+/** A validated key, ready to import — or to hand to node:crypto as a JWK. */
+export interface CoseKeyMaterial {
+  readonly jwk: webcrypto.JsonWebKey;
+  readonly params: webcrypto.EcKeyImportParams | webcrypto.RsaHashedImportParams | string;
+}
+
+function ec2Material(map: Map<string | number, CborValue>): CoseKeyMaterial {
   const crv = requireInteger(map, LABEL_CRV, 'a curve');
   if (crv !== CRV_P256) {
     throw new CoseError(`unsupported EC2 curve: ${crv} (only P-256 is accepted)`);
@@ -162,19 +168,15 @@ async function importEc2(map: Map<string | number, CborValue>): Promise<webcrypt
     );
   }
 
-  // WebCrypto checks that the point is actually on the curve, so an invalid
-  // -curve attack is refused at this call. Verified by test rather than
-  // assumed.
-  return crypto.subtle.importKey(
-    'jwk',
-    { kty: 'EC', crv: 'P-256', x: toBase64Url(x), y: toBase64Url(y) },
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['verify'],
-  );
+  // Whether the point is actually on the curve is checked by WebCrypto at
+  // import. Verified by test rather than assumed.
+  return {
+    jwk: { kty: 'EC', crv: 'P-256', x: toBase64Url(x), y: toBase64Url(y) },
+    params: { name: 'ECDSA', namedCurve: 'P-256' },
+  };
 }
 
-async function importOkp(map: Map<string | number, CborValue>): Promise<webcrypto.CryptoKey> {
+function okpMaterial(map: Map<string | number, CborValue>): CoseKeyMaterial {
   const crv = requireInteger(map, LABEL_CRV, 'a curve');
   if (crv !== CRV_ED25519) {
     throw new CoseError(`unsupported OKP curve: ${crv} (only Ed25519 is accepted)`);
@@ -185,16 +187,10 @@ async function importOkp(map: Map<string | number, CborValue>): Promise<webcrypt
     throw new CoseError(`an Ed25519 public key must be ${ED25519_KEY_BYTES} bytes, got ${x.length}`);
   }
 
-  return crypto.subtle.importKey(
-    'jwk',
-    { kty: 'OKP', crv: 'Ed25519', x: toBase64Url(x) },
-    'Ed25519',
-    false,
-    ['verify'],
-  );
+  return { jwk: { kty: 'OKP', crv: 'Ed25519', x: toBase64Url(x) }, params: 'Ed25519' };
 }
 
-async function importRsa(map: Map<string | number, CborValue>): Promise<webcrypto.CryptoKey> {
+function rsaMaterial(map: Map<string | number, CborValue>): CoseKeyMaterial {
   const n = requireBytes(map, LABEL_RSA_N, 'the modulus');
   const e = requireBytes(map, LABEL_RSA_E, 'the exponent');
 
@@ -220,27 +216,34 @@ async function importRsa(map: Map<string | number, CborValue>): Promise<webcrypt
     throw new CoseError('implausibly large RSA public exponent');
   }
 
-  return crypto.subtle.importKey(
-    'jwk',
-    { kty: 'RSA', n: toBase64Url(n), e: toBase64Url(e) },
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['verify'],
-  );
+  return {
+    jwk: { kty: 'RSA', n: toBase64Url(n), e: toBase64Url(e) },
+    params: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+  };
+}
+
+/** A validated COSE key: its algorithm and the material to import it with. */
+export interface ParsedCoseKey extends CoseKeyMaterial {
+  readonly alg: CoseAlgorithm;
 }
 
 /**
- * Parses and imports a COSE public key.
+ * Parses and validates a COSE public key without importing it.
+ *
+ * Split out from {@link importCoseKey} because attestation needs the same
+ * validated key material as a JWK for `node:crypto`, and the imported
+ * `CryptoKey` is deliberately non-extractable — so exporting it back out is
+ * not possible, and duplicating the validation would be worse than sharing it.
  *
  * @param bytes    the `credentialPublicKey` from attested credential data.
  * @param allowed  algorithms the relying party accepts. An algorithm absent
  *                 from this list is refused even if this package supports it —
  *                 the decision is the relying party's, not this module's.
  */
-export async function importCoseKey(
+export function parseCoseKey(
   bytes: Uint8Array,
   allowed: readonly CoseAlgorithm[] = DEFAULT_ALGORITHMS,
-): Promise<CosePublicKey> {
+): ParsedCoseKey {
   if (allowed.length === 0) {
     // An empty allowlist can only ever reject, and a check that always fails
     // is nearly always a configuration mistake rather than an intention.
@@ -286,24 +289,45 @@ export async function importCoseKey(
     throw new CoseError(`key type ${kty} does not match algorithm ${alg}`);
   }
 
+  const material =
+    kty === KTY_EC2
+      ? ec2Material(decoded)
+      : kty === KTY_OKP
+        ? okpMaterial(decoded)
+        : rsaMaterial(decoded);
+
+  return { alg: alg as CoseAlgorithm, ...material };
+}
+
+/**
+ * Parses and imports a COSE public key as a verification-only `CryptoKey`.
+ *
+ * @param bytes    the `credentialPublicKey` from attested credential data.
+ * @param allowed  algorithms the relying party accepts.
+ */
+export async function importCoseKey(
+  bytes: Uint8Array,
+  allowed: readonly CoseAlgorithm[] = DEFAULT_ALGORITHMS,
+): Promise<CosePublicKey> {
+  const { alg, jwk, params } = parseCoseKey(bytes, allowed);
+
   let key: webcrypto.CryptoKey;
   try {
-    key = await (kty === KTY_EC2
-      ? importEc2(decoded)
-      : kty === KTY_OKP
-        ? importOkp(decoded)
-        : importRsa(decoded));
+    // Non-extractable and verify-only: nothing downstream has a reason to read
+    // the key material back out.
+    key = await crypto.subtle.importKey('jwk', jwk, params as webcrypto.EcKeyImportParams, false, [
+      'verify',
+    ]);
   } catch (error) {
-    if (error instanceof CoseError) throw error;
     // WebCrypto's own refusals — an off-curve point, a malformed modulus —
-    // arrive here as DOMException or TypeError. They are still "this key is
-    // not acceptable", so they get the same error class as everything else.
+    // arrive as DOMException or TypeError. They are still "this key is not
+    // acceptable", so they get the same error class as everything else.
     throw new CoseError(
       `the public key could not be imported: ${(error as Error).message ?? 'unknown error'}`,
     );
   }
 
-  return { alg: alg as CoseAlgorithm, key };
+  return { alg, key };
 }
 
 /**

@@ -123,7 +123,10 @@ authorization data inside a `Principal`.
 | Cloned authenticator | **Detected** | Sign-counter regression rejects by default (WebAuthn §6.1.1) |
 | Ceremony completed against another account | **Mitigated** | Challenge user and credential owner must agree; `server.test.ts` › *binding a ceremony to its user* |
 | Memory-safety bugs in attacker-facing parsers | **Mitigated** | Every length bounds-checked before use; CBOR, DER and authenticator-data parsers each fuzzed |
-| **Authenticator provenance (attestation)** | **Not provided** | Only `none` is accepted. Verifying other formats is not implemented, and no option enables it — see below |
+| **Authenticator provenance (attestation)** | **Mitigated for `packed`** | Chain verified to relying-party roots, AAGUID cross-checked against the certificate; `attestation.test.ts`. Other formats unimplemented — see below |
+| Forged attestation from a self-signed CA | **Mitigated** | Trust anchors are mandatory; `attestation.test.ts` › *refuses a chain that does not reach a configured root* |
+| An attestation statement lifted from another device | **Mitigated** | The certificate's AAGUID must match the authenticator data |
+| A CA certificate presented as an attestation leaf | **Mitigated** | Refused per §8.2.1 — a CA leaf could sign for other authenticators too |
 | **Signing-key compromise** | **Partially** | Rotation is possible without downtime; detection is not provided |
 
 ---
@@ -133,25 +136,34 @@ authorization data inside a `Principal`.
 Stated plainly, because a limitation you know about is manageable and one you
 have been reassured about is not.
 
-### WebAuthn attestation is not verified
+### WebAuthn attestation covers `packed` only
 
-`@ninsho/webauthn` accepts only the `none` attestation format. It does not
-verify `packed`, `tpm`, `android-key`, `android-safetynet`, `apple` or
-`fido-u2f`, and adding one to `allowedAttestationFormats` does not make it
-verified — the ceremony refuses it regardless. There is deliberately no
-arrangement of options that turns an unverified attestation into a verified
-one.
+`@ninsho/webauthn` verifies the `none` and `packed` formats. It does **not**
+verify `tpm`, `android-key`, `android-safetynet`, `apple` or `fido-u2f`, and
+allowlisting one of those does not change that — the ceremony refuses it
+regardless. There is deliberately no arrangement of options that turns an
+unverified attestation into a verified one.
 
-The reasoning: verifying those formats means X.509 chain validation and
-maintaining authenticator root stores. A verifier that parses an attestation
-statement without checking it is worse than one that refuses it, because it
-looks like a guarantee and is not one.
+`packed` covers most security keys, the YubiKey line included. The formats
+above are principally Windows Hello's TPM path (`tpm`), Android platform
+authenticators (`android-key`) and Apple platform authenticators (`apple`); if
+your policy has to cover those devices' attestation, that work is not done.
 
-**What this costs you:** nothing for passkeys. The browser replaces the
-attestation with `none` whenever the relying party requests `none` conveyance,
-which is what this package always requests. What you cannot do is enforce
-"credentials must live on this specific approved hardware model" — an
-enterprise requirement, and one that needs the work above rather than a flag.
+**Trust anchors are mandatory, not optional.** `packed` is refused unless the
+relying party supplies the root certificates it trusts. A chain checked against
+no root proves nothing — anyone can self-sign a CA and put any AAGUID they like
+in a certificate they issued to themselves — and a verifier reporting
+"attestation verified" in that situation manufactures confidence.
+
+**No root store ships with this package.** Which manufacturers you trust is an
+operational decision that changes without the library changing; FIDO's Metadata
+Service is where most relying parties draw those roots from. Integrating with
+MDS — fetching it, verifying its signature, honouring revocations — is not
+implemented.
+
+**Self-attestation is off by default**, and reports `aaguidVerified: false`
+even when enabled. It proves the credential key signed for itself, which
+establishes no hardware provenance at all.
 
 ### Bearer tokens can be replayed — unless you enable DPoP
 
@@ -266,7 +278,8 @@ fail an authentication.
 
 ## Standards referenced
 
-- W3C WebAuthn Level 3 (§6.1 authenticator data, §7.1/§7.2 verification, §6.1.1 counters)
+- W3C WebAuthn Level 3 (§6.1 authenticator data, §7.1/§7.2 verification, §6.1.1 counters, §8.2 packed attestation)
+- RFC 5280 — X.509 (extension lookup; parsing and chain checks use Node's vetted `X509Certificate`)
 - RFC 9052 — COSE structures and process (key import, algorithm identifiers)
 - RFC 8230 — RSA keys for COSE
 - RFC 8949 — CBOR (decoder verified against Appendix A vectors)

@@ -7,6 +7,54 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **WebAuthn attestation — `packed`, verified to roots you supply.** A normal
+  passkey ceremony proves someone controls a private key. Attestation proves
+  the key was generated inside a particular piece of hardware, vouched for by a
+  chain the manufacturer signed. That is the difference between "a credential"
+  and "a credential on an issued YubiKey", and it is the only way to express a
+  policy like "company laptops authenticate with issued hardware".
+
+  Configuring an attestation policy also changes what the browser is asked for:
+  the ceremony switches to `direct` conveyance automatically, because a browser
+  asked for `none` replaces the statement and there would be nothing left to
+  verify. Two settings that must agree are two settings that will not, so there
+  is only one.
+
+  **Trust anchors are mandatory.** `packed` is refused outright without them. A
+  chain checked against no root proves nothing — anyone can self-sign a CA and
+  put any AAGUID they like in a certificate they issued to themselves — and a
+  verifier reporting success there manufactures confidence, which is worse than
+  having no attestation support at all. The result is explicit about what was
+  established: `attestationType` is `none`, `self` or `basic`, and
+  `aaguidVerified` is true only when a trusted chain vouched for the AAGUID.
+
+  Also refused: a CA certificate presented as the attestation leaf (§8.2.1, it
+  could sign for other authenticators), a certificate whose AAGUID contradicts
+  the authenticator data (a statement lifted from another device), an expired
+  certificate anywhere in the chain, and self-attestation unless explicitly
+  enabled — it establishes no provenance, so an AAGUID allowlist against it is
+  refused rather than silently meaningless.
+
+  X.509 parsing, signature verification and issuance checks go through Node's
+  vetted `X509Certificate`. The only thing written here is a walk to find one
+  extension by OID, because the AAGUID lives in a custom one Node does not
+  expose — hand-rolling a certificate parser would be inventing exactly the
+  primitive this project refuses to invent.
+
+  Still not implemented, and refused rather than rubber-stamped: `tpm`,
+  `android-key`, `android-safetynet`, `apple`, `fido-u2f`. No root store ships
+  with the package and FIDO Metadata Service integration is not implemented —
+  which manufacturers you trust is an operational decision, not library content.
+
+- **A certificate builder for tests, in `@ninsho/webauthn/testing`.**
+  Attestation needs real certificate chains to test against. Committed fixtures
+  expire, and shelling out to `openssl` makes the suite depend on a CLI that
+  differs by platform — on this repo's own Windows checkout `req -x509` mangles
+  the subject through mingw path conversion while CI's Linux openssl does not.
+  So the chains are built in TypeScript, and every certificate produced is
+  cross-checked by Node's own `X509Certificate`: if the encoder were wrong,
+  that parser would reject its output.
+
 - **The security invariants now run against real Redis, not just a Map.**
   `store.contract.test.ts` already proved the two stores agree about
   primitives. What was never checked is whether the *engine* invariants built

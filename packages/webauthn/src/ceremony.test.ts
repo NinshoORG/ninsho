@@ -104,6 +104,10 @@ describe('registration', () => {
     expect(Buffer.from(verified.credentialId)).toEqual(Buffer.from(authenticator.credentialId));
     expect(Buffer.from(verified.aaguid)).toEqual(Buffer.from(authenticator.aaguid));
     expect(verified.attestationFormat).toBe('none');
+    expect(verified.attestationType).toBe('none');
+    // Nothing vouched for the AAGUID, and the result says so rather than
+    // leaving a caller to assume.
+    expect(verified.aaguidVerified).toBe(false);
     expect(verified.userVerified).toBe(true);
     expect(verified.origin).toBe(ORIGIN);
   });
@@ -382,9 +386,10 @@ describe('attestation', () => {
     },
   );
 
-  it('still refuses a format even when the caller allowlists it', async () => {
-    // There is no arrangement of options that turns an unverified attestation
-    // into a verified one.
+  it('refuses a statement labelled packed that carries nothing', async () => {
+    // An empty attStmt under a `packed` label is refused for want of an
+    // algorithm, before any policy question arises. The trust-anchor
+    // requirement is exercised against genuine chains in attestation.test.ts.
     const authenticator = await VirtualAuthenticator.create();
     const challenge = challengeBytes();
     const response = await authenticator.register({
@@ -397,10 +402,31 @@ describe('attestation', () => {
     const error = await rejection(
       verifyRegistration(response, {
         ...registrationExpectations(challenge),
-        allowedAttestationFormats: ['none', 'packed'],
+        attestation: { formats: ['none', 'packed'] },
       }),
     );
-    expect(error.detail).toMatch(/cannot be verified by this package/);
+    expect(error.detail).toMatch(/has no algorithm/);
+  });
+
+  it('refuses a format this package cannot verify even when allowlisted', async () => {
+    // tpm, android-key and apple are unimplemented. Allowlisting one must not
+    // produce a result that reads as verified.
+    const authenticator = await VirtualAuthenticator.create();
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      attestationFormat: 'tpm',
+    });
+
+    const error = await rejection(
+      verifyRegistration(response, {
+        ...registrationExpectations(challenge),
+        attestation: { formats: ['none', 'tpm'] },
+      }),
+    );
+    expect(error.detail).toMatch(/cannot be verified/);
   });
 
   it('refuses an attestation object missing attStmt', async () => {

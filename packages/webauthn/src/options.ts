@@ -17,6 +17,17 @@
 import { DEFAULT_ALGORITHMS, type CoseAlgorithm } from './cose.js';
 import type { UserVerificationRequirement } from './ceremony.js';
 
+/**
+ * How much attestation to ask the browser for.
+ *
+ * `none` is the default and the right answer for passkeys: the browser
+ * replaces whatever the authenticator produced with an empty statement, so
+ * nothing identifying the device reaches the relying party. Asking for
+ * `direct` is only worthwhile when you have trust anchors to check the result
+ * against — otherwise you have collected a statement nobody verifies.
+ */
+export type AttestationConveyance = 'none' | 'indirect' | 'direct' | 'enterprise';
+
 /** How the credential should be stored on the authenticator. */
 export type ResidentKeyRequirement = 'discouraged' | 'preferred' | 'required';
 
@@ -53,7 +64,7 @@ export interface RegistrationOptionsJSON {
     readonly userVerification: UserVerificationRequirement;
     readonly authenticatorAttachment?: AuthenticatorAttachment;
   };
-  readonly attestation: 'none';
+  readonly attestation: AttestationConveyance;
 }
 
 export interface AuthenticationOptionsJSON {
@@ -105,6 +116,8 @@ export interface BuildRegistrationOptionsInput {
   readonly residentKey?: ResidentKeyRequirement;
   readonly userVerification?: UserVerificationRequirement;
   readonly authenticatorAttachment?: AuthenticatorAttachment;
+  /** Defaults to `'none'`. */
+  readonly attestation?: AttestationConveyance;
 }
 
 export function buildRegistrationOptions(
@@ -137,9 +150,10 @@ export function buildRegistrationOptions(
         ? { authenticatorAttachment: input.authenticatorAttachment }
         : {}),
     },
-    // Always `none`. Requesting an attestation this package cannot verify
-    // would collect a statement nobody checks — see the note in ceremony.ts.
-    attestation: 'none',
+    // Defaults to `none`. A relying party that has configured trust anchors
+    // asks for `direct` instead — requesting attestation you cannot check
+    // would collect a statement nobody verifies.
+    attestation: input.attestation ?? 'none',
   };
 }
 

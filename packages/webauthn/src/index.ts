@@ -71,7 +71,19 @@ export type {
   ResidentKeyRequirement,
   AuthenticatorAttachment,
   AuthenticatorTransport,
+  AttestationConveyance,
 } from './options.js';
+
+// ── Attestation ─────────────────────────────────────────────────────────────
+export { AttestationError, verifyAttestation, VERIFIABLE_FORMATS, FIDO_AAGUID_OID } from './attestation.js';
+export type {
+  AttestationPolicy,
+  AttestationResult,
+  AttestationType,
+  VerifyAttestationInput,
+} from './attestation.js';
+
+export { Asn1Error, findExtension } from './asn1.js';
 
 // ── COSE keys ───────────────────────────────────────────────────────────────
 export {
@@ -82,9 +94,10 @@ export {
   SUPPORTED_ALGORITHMS,
   DEFAULT_ALGORITHMS,
   importCoseKey,
+  parseCoseKey,
   verifyCoseSignature,
 } from './cose.js';
-export type { CoseAlgorithm, CosePublicKey } from './cose.js';
+export type { CoseAlgorithm, CosePublicKey, ParsedCoseKey, CoseKeyMaterial } from './cose.js';
 
 // ── Lower-level parsers ─────────────────────────────────────────────────────
 // Exported because a relying party inspecting a credential — reading the

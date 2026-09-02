@@ -118,7 +118,11 @@ Every claim below links to executable proof.
 | Lookalike origins are refused | exact allowlist, no suffix matching | `ceremony.test.ts` › *refuses the lookalike origin …* |
 | CBOR decoding matches the specification | RFC 8949 Appendix A vectors | `cbor.test.ts` |
 | DER signature conversion matches OpenSSL | differential: OpenSSL signs, WebCrypto verifies | `der.test.ts` › *converts 200 OpenSSL P-256 signatures* |
-| Attestation is refused rather than rubber-stamped | only `none`; no option widens it | `ceremony.test.ts` › *attestation* |
+| **Approved-hardware-only enrolment** | `packed` attestation, chain verified to your roots | `attestation.test.ts` › *enforces an AAGUID allowlist* |
+| A self-signed CA cannot forge attestation | trust anchors are mandatory | `attestation.test.ts` › *refuses a chain that does not reach a configured root* |
+| An attestation lifted from another device is refused | certificate AAGUID must match the authenticator data | `attestation.test.ts` |
+| Unimplemented attestation formats are refused, not rubber-stamped | allowlisting one still fails closed | `ceremony.test.ts` › *cannot be verified* |
+| Generated test certificates are real certificates | cross-checked by Node's own X.509 parser | `asn1.test.ts` › *the generated certificates are real certificates* |
 | Passkeys work end to end over real HTTP | assembled app, real keys, real signatures | `examples/express-api/src/passkey.test.ts` — 29 tests |
 | A passkey confers identity, never authority | roles come from the directory | `passkey.test.ts` › *carries roles from the directory, not from the passkey* |
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
@@ -144,13 +148,12 @@ core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express depe
 
 ### What does not exist yet
 
-**Attestation verification.** `@ninsho/webauthn` accepts only the `none`
-attestation format. Verifying `packed`, `tpm`, `android-key` or `apple` means
-X.509 chain parsing and root stores; a verifier that reads an attestation
-statement without checking it looks like a guarantee and is not one, so the
-others are refused rather than rubber-stamped. Passkeys are unaffected — the
-browser replaces the attestation with `none` for the conveyance this package
-requests.
+**Attestation beyond `packed`.** `@ninsho/webauthn` verifies `none` and
+`packed` — the latter against roots you supply, which covers most security keys.
+`tpm` (Windows Hello), `android-key` and `apple` are not implemented and are
+refused rather than rubber-stamped. No root store ships with the package, and
+FIDO Metadata Service integration is not implemented: which manufacturers you
+trust is an operational decision, not library content.
 
 **Framework adapters.** None for Fastify, Hono or Koa: the middleware is
 Express-shaped, and while structural typing means anything matching those
@@ -280,6 +283,8 @@ packages/
   webauthn/      @ninsho/webauthn — passkeys. Zero third-party dependencies.
     cbor.ts      RFC 8949 decoder, definite lengths only
     der.ts       strict DER → P1363 for ECDSA signatures
+    asn1.ts      X.509 extension lookup (AAGUID)
+    attestation.ts  packed attestation, chain verified to your roots
     cose.ts      COSE key import, algorithm allowlist
     authdata.ts  WebAuthn §6.1 authenticator data
     challenge.ts single-use challenges, scoped by ceremony

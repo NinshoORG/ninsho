@@ -39,6 +39,7 @@ import {
   type VerifiedRegistration,
 } from './ceremony.js';
 import type { CoseAlgorithm } from './cose.js';
+import type { AttestationPolicy } from './attestation.js';
 import {
   buildAuthenticationOptions,
   buildRegistrationOptions,
@@ -70,6 +71,14 @@ export interface WebAuthnServerOptions {
   readonly authenticatorAttachment?: AuthenticatorAttachment;
   readonly allowCrossOrigin?: boolean;
   readonly onCounterRegression?: 'reject' | 'allow';
+  /**
+   * Attestation policy. Defaults to accepting `none` only.
+   *
+   * Supplying one that accepts `packed` also changes what the browser is asked
+   * for: the ceremony requests `direct` conveyance, because a browser asked
+   * for `none` replaces the statement and there would be nothing to verify.
+   */
+  readonly attestation?: AttestationPolicy;
   /** Key prefix for the challenge store. */
   readonly keyPrefix?: string;
 }
@@ -131,6 +140,13 @@ export class WebAuthnServer {
   async startRegistration(input: StartRegistrationInput): Promise<RegistrationOptionsJSON> {
     const { challenge } = await this.#challenges.issue('registration', input.userId);
 
+    // Asking for attestation only makes sense when it will be checked, so the
+    // conveyance follows the policy rather than being configured separately —
+    // two settings that must agree are two settings that will not.
+    const wantsAttestation = (this.#options.attestation?.formats ?? ['none']).some(
+      (format) => format !== 'none',
+    );
+
     return buildRegistrationOptions({
       rpId: this.#options.rpId,
       rpName: this.#options.rpName,
@@ -151,6 +167,7 @@ export class WebAuthnServer {
         : {}),
       userVerification:
         input.userVerification ?? this.#options.userVerification ?? 'preferred',
+      attestation: wantsAttestation ? 'direct' : 'none',
     });
   }
 
@@ -209,6 +226,7 @@ export class WebAuthnServer {
       ...(this.#options.allowCrossOrigin !== undefined
         ? { allowCrossOrigin: this.#options.allowCrossOrigin }
         : {}),
+      ...(this.#options.attestation ? { attestation: this.#options.attestation } : {}),
       userVerification: this.#options.userVerification ?? 'preferred',
     });
 
