@@ -136,6 +136,7 @@ export class OpaqueEngine implements TokenEngine {
       sessionId: input.sessionId,
       principal: input.principal,
       issuedAt,
+      authenticatedAt: input.authenticatedAt,
       expiresAt,
       ...(input.confirmationKey !== undefined && { confirmationKey: input.confirmationKey }),
     };
@@ -204,6 +205,7 @@ export class OpaqueEngine implements TokenEngine {
       tokenId: record.tokenId,
       sessionId: record.sessionId,
       issuedAt: record.issuedAt,
+      authenticatedAt: record.authenticatedAt,
       expiresAt: record.expiresAt,
       strategy: this.strategy,
       ...(record.confirmationKey !== undefined && {
@@ -305,11 +307,17 @@ export class OpaqueEngine implements TokenEngine {
     const confirmationKey = r['confirmationKey'];
     if (confirmationKey !== undefined && typeof confirmationKey !== 'string') return null;
 
+    // Fail closed on a record with no authentication time. Substituting
+    // `issuedAt` would look harmless and would silently make every step-up
+    // check wrong, because rotation refreshes `issuedAt` and not this.
+    if (typeof r['authenticatedAt'] !== 'string') return null;
+
     return {
       tokenId: r['tokenId'],
       sessionId: r['sessionId'],
       principal,
       issuedAt: r['issuedAt'],
+      authenticatedAt: r['authenticatedAt'],
       expiresAt: r['expiresAt'],
       ...(confirmationKey !== undefined && { confirmationKey }),
     };

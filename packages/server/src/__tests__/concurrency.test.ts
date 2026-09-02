@@ -166,7 +166,7 @@ describe('revocation racing issuance', () => {
 
       // Issue and revoke at the same moment.
       const [issued] = await Promise.all([
-        engine.issue({ principal: ALICE, sessionId: pair.sessionId }),
+        engine.issue({ principal: ALICE, sessionId: pair.sessionId , authenticatedAt: new Date().toISOString() }),
         sessions.revoke(pair.sessionId),
       ]);
 

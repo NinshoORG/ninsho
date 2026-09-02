@@ -98,6 +98,7 @@ export class PasetoEngine implements TokenEngine {
       aud: this.#options.audience,
       iat: issuedAt,
       nbf: issuedAt,
+      auth_time: input.authenticatedAt,
       exp: expiresAt,
       sid: input.sessionId,
       roles: input.principal.roles,
@@ -240,6 +241,7 @@ export class PasetoEngine implements TokenEngine {
       tokenId: claims.jti,
       sessionId: claims.sid,
       issuedAt: claims.iat,
+      authenticatedAt: claims.auth_time,
       expiresAt: claims.exp,
       strategy: this.strategy,
       ...(claims.cnf !== undefined && { confirmationKey: claims.cnf.jkt }),
@@ -304,7 +306,10 @@ export class PasetoEngine implements TokenEngine {
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
     const c = parsed as Record<string, unknown>;
 
-    const strings = ['jti', 'sub', 'iss', 'aud', 'iat', 'nbf', 'exp', 'sid'] as const;
+    // `auth_time` is validated here rather than cast blindly below: a claim
+    // that is absent or not a string cannot answer a freshness question, and a
+    // token that cannot answer it must not be honoured.
+    const strings = ['jti', 'sub', 'iss', 'aud', 'iat', 'nbf', 'exp', 'sid', 'auth_time'] as const;
     for (const field of strings) {
       if (typeof c[field] !== 'string' || (c[field] as string).length === 0) return null;
     }
@@ -336,6 +341,7 @@ export class PasetoEngine implements TokenEngine {
       iat: c['iat'] as string,
       nbf: c['nbf'] as string,
       exp: c['exp'] as string,
+      auth_time: c['auth_time'] as string,
       sid: c['sid'] as string,
       roles: roles as string[],
       scopes: scopes as string[],

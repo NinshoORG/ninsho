@@ -44,7 +44,7 @@ beforeEach(() => {
 });
 
 const issue = (): ReturnType<PasetoEngine['issue']> =>
-  engine.issue({ principal: PRINCIPAL, sessionId: SESSION });
+  engine.issue({ principal: PRINCIPAL, sessionId: SESSION , authenticatedAt: new Date().toISOString() });
 
 describe('issue', () => {
   it('produces a v4.public token', async () => {
@@ -102,6 +102,7 @@ describe('verify', () => {
     const issued = await engine.issue({
       principal: { ...PRINCIPAL, tenant: 'acme' },
       sessionId: SESSION,
+      authenticatedAt: new Date().toISOString(),
     });
     await expect(engine.verify(issued.token)).resolves.toMatchObject({ tenant: 'acme' });
   });
@@ -146,7 +147,7 @@ describe('issuer and audience scoping', () => {
   it('rejects a token minted by a different issuer', async () => {
     const stagingToken = (await build(new KeyRing({ active: KEY_2026_08 }), {
       issuer: 'https://id.staging.test',
-    }).issue({ principal: PRINCIPAL, sessionId: SESSION })).token;
+    }).issue({ principal: PRINCIPAL, sessionId: SESSION , authenticatedAt: new Date().toISOString() })).token;
 
     // A staging token working in production is not a theoretical concern.
     await expect(engine.verify(stagingToken)).rejects.toThrow(TokenInvalidError);
@@ -183,7 +184,7 @@ describe('key rotation', () => {
   it('still verifies tokens signed by a retired key', async () => {
     // Token minted before the rotation.
     const oldEngine = build(new KeyRing({ active: KEY_2026_05 }));
-    const oldToken = (await oldEngine.issue({ principal: PRINCIPAL, sessionId: SESSION })).token;
+    const oldToken = (await oldEngine.issue({ principal: PRINCIPAL, sessionId: SESSION , authenticatedAt: new Date().toISOString() })).token;
 
     // After rotation, the old key is verify-only but still present.
     const rotated = build(new KeyRing({ active: KEY_2026_08, previous: [KEY_2026_05] }));
@@ -194,7 +195,7 @@ describe('key rotation', () => {
   it('causes no forced sign-out during the overlap', async () => {
     const before = build(new KeyRing({ active: KEY_2026_05 }));
     const tokens = await Promise.all(
-      Array.from({ length: 5 }, () => before.issue({ principal: PRINCIPAL, sessionId: SESSION })),
+      Array.from({ length: 5 }, () => before.issue({ principal: PRINCIPAL, sessionId: SESSION , authenticatedAt: new Date().toISOString() })),
     );
 
     const rotated = build(new KeyRing({ active: KEY_2026_08, previous: [KEY_2026_05] }));
@@ -205,7 +206,7 @@ describe('key rotation', () => {
 
   it('rejects tokens from a key dropped from the set', async () => {
     const oldEngine = build(new KeyRing({ active: KEY_2026_05 }));
-    const oldToken = (await oldEngine.issue({ principal: PRINCIPAL, sessionId: SESSION })).token;
+    const oldToken = (await oldEngine.issue({ principal: PRINCIPAL, sessionId: SESSION , authenticatedAt: new Date().toISOString() })).token;
 
     // Overlap window over; the retired key has been removed.
     const current = build(new KeyRing({ active: KEY_2026_08 }));
@@ -301,7 +302,7 @@ describe('key loading', () => {
 describe('time claims', () => {
   it('rejects an expired token', async () => {
     const shortLived = build(new KeyRing({ active: KEY_2026_08 }), { ttl: 1 });
-    const issued = await shortLived.issue({ principal: PRINCIPAL, sessionId: SESSION });
+    const issued = await shortLived.issue({ principal: PRINCIPAL, sessionId: SESSION , authenticatedAt: new Date().toISOString() });
 
     await new Promise((r) => {
       setTimeout(r, 6500);
@@ -410,8 +411,8 @@ describe('revocation', () => {
   });
 
   it('does not touch a different session', async () => {
-    const mine = await engine.issue({ principal: PRINCIPAL, sessionId: 'sess_mine' });
-    const theirs = await engine.issue({ principal: PRINCIPAL, sessionId: 'sess_theirs' });
+    const mine = await engine.issue({ principal: PRINCIPAL, sessionId: 'sess_mine' , authenticatedAt: new Date().toISOString() });
+    const theirs = await engine.issue({ principal: PRINCIPAL, sessionId: 'sess_theirs' , authenticatedAt: new Date().toISOString() });
 
     await engine.revokeSession('sess_mine');
 
@@ -429,7 +430,7 @@ describe('revocation', () => {
    */
   it('does not retain denylist entries beyond the token lifetime', async () => {
     const shortLived = build(new KeyRing({ active: KEY_2026_08 }), { ttl: 1 });
-    const issued = await shortLived.issue({ principal: PRINCIPAL, sessionId: SESSION });
+    const issued = await shortLived.issue({ principal: PRINCIPAL, sessionId: SESSION , authenticatedAt: new Date().toISOString() });
     await shortLived.revoke(issued.tokenId);
 
     const before = store.size();

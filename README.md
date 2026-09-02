@@ -94,6 +94,9 @@ Every claim below links to executable proof.
 | The whole system holds together over real HTTP | assembled app | `examples/express-api` — 72 end-to-end tests |
 | A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
+| **Sensitive operations can demand a recent login** | `requireFreshAuth()` reads the authentication time, not the token's | `fresh-auth.test.ts` |
+| Refreshing cannot masquerade as re-authenticating | `authenticatedAt` is carried unchanged through rotation | `fresh-auth.test.ts` › *refreshing does not count as authenticating* |
+| A parallel tab is not signed out under real store latency | exponential tombstone backoff, measured against Redis | `store-invariants.test.ts` › *one replacement chain from 100 concurrent callers* |
 | Sign-out-everywhere scales, with bounded fan-out | `mapConcurrent` | `concurrent-util.test.ts` › *session operations at scale* |
 | One bad session cannot abandon a sweep half-done | per-session isolation in `revokeAllForUser` | `concurrent-util.test.ts` › *completes the sweep even when one session fails* |
 | **A stolen token is useless without the key** | `binding: 'dpop'` (RFC 9449) | `dpop-integration.test.ts` › *a stolen token is useless without the key* |

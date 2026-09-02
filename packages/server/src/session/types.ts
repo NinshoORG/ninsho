@@ -25,6 +25,12 @@ export interface ConsumedRefreshRecord {
    */
   readonly principal: Principal;
   /**
+   * The family's authentication time, carried for the same reason as the
+   * principal — the grace path mints a token and must not reset it. A parallel
+   * tab racing a refresh is not a new authentication.
+   */
+  readonly authenticatedAt: string;
+  /**
    * The family's DPoP binding, carried so the grace path enforces it too.
    *
    * Without it, replaying a bound token inside the grace window would hand

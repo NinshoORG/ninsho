@@ -655,6 +655,7 @@ describe('corrupt stored records', () => {
         sessionId: 'sess_skewed',
         principal: ALICE,
         issuedAt: new Date().toISOString(),
+        authenticatedAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 3600_000).toISOString(),
         familyExpiresAt: new Date(Date.now() - 1000).toISOString(),
         generation: 3,

@@ -10,6 +10,14 @@ export interface IssueAccessTokenInput {
    */
   readonly sessionId: string;
   /**
+   * When the user authenticated, ISO 8601.
+   *
+   * Supplied by the session manager rather than read from the clock here: a
+   * rotation mints a new access token and must carry the *original* time
+   * forward, because a refresh is not a new proof of identity.
+   */
+  readonly authenticatedAt: string;
+  /**
    * RFC 7638 thumbprint of the client's DPoP key, under `binding: 'dpop'`.
    *
    * Setting it makes the issued token proof-of-possession rather than bearer:

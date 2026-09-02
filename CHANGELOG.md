@@ -7,6 +7,39 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Step-up authentication — `requireFreshAuth()`.** Some operations should
+  need more than a live session: changing an email address, adding a passkey,
+  moving money. OWASP ASVS asks for re-authentication before them, and until
+  now Ninsho gave you no correct way to express it.
+
+  ```ts
+  app.post('/account/email', auth.verify(), auth.requireFreshAuth(300), handler);
+  ```
+
+  The reason this needed a new field rather than a new middleware alone is
+  worth stating, because the obvious implementation is wrong in a way that
+  looks right. Comparing `AuthContext.issuedAt` against the clock reads like a
+  freshness check and is not one: rotation mints a new access token every few
+  minutes for as long as a session lives, so on a session refreshed for thirty
+  days `issuedAt` is always minutes old. A check built on it passes for
+  everyone, forever, while appearing in the code as a real control.
+
+  So `AuthContext` now carries `authenticatedAt`, fixed when the session is
+  created and propagated unchanged through every rotation — including the grace
+  path, where a parallel tab adopting a replacement is likewise not a new
+  authentication. Refreshing can never satisfy the check. Only
+  re-authenticating and starting a new session can, which is the point.
+
+  In paseto mode it travels as `auth_time`, matching OIDC's claim of the same
+  meaning. It is validated as a required string on the way in: a record that
+  cannot say when the user authenticated is refused rather than being given the
+  benefit of `issuedAt`, because substituting that would look harmless and
+  silently make every step-up check wrong.
+
+  **Breaking for anyone tracking `main`:** access and refresh records written
+  before this change lack the field and are refused, so a deploy signs existing
+  sessions out. Nothing is published, so this affects no released version.
+
 - **WebAuthn attestation — `packed`, verified to roots you supply.** A normal
   passkey ceremony proves someone controls a private key. Attestation proves
   the key was generated inside a particular piece of hardware, vouched for by a
@@ -223,6 +256,37 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **Parallel tabs were spuriously signed out under a real store.** A caller
+  that loses a refresh rotation race waits briefly for the winner to publish
+  its tombstone, then adopts the same replacement — that wait is what stops a
+  parallel-tab page load from looking like token theft.
+
+  The wait was a flat 3 x 5ms. That ceiling was tuned against `MemoryStore`,
+  where the winner's follow-up writes complete inside a single tick, and it is
+  far too tight for a store that lives across a socket. Losers gave up before
+  the winner had published and reported `no record for presented refresh
+  token`, which is a sign-out for a user who did nothing wrong.
+
+  Measured against a local Redis before the fix: a rotation race takes 14ms at
+  the median with two callers and 45-85ms with forty. Spurious rejections
+  appeared in 1 of 20 rounds at a concurrency of 40, and 5 of 20 — a quarter of
+  attempts — at 100.
+
+  Replaced with exponential steps of 2, 4, 8, 16, 32 and 64ms, totalling about
+  126ms. The loop still returns the instant the tombstone appears, so the
+  common case got *faster* rather than slower: the median at low concurrency
+  improved from 14.5ms to 8.3ms, because the first step is now 2ms rather than
+  5ms. After the change, 0 spurious rejections across all 100 measured rounds.
+
+  The cost lands only on a token that never had a tombstone — genuinely unknown
+  or forged — which now occupies a request for up to ~126ms before being
+  refused. That is bounded, and the refresh endpoint should be rate-limited
+  regardless.
+
+  Found by running the engine invariants against real Redis rather than against
+  a Map, which is exactly what that suite was added for. The regression test
+  now runs the race at a concurrency of 100 and asserts no rejections at all.
 
 - **Every async route in the reference API dropped its errors.** Express 4 does
   not catch a rejection from an `async` handler. A failing route — a store

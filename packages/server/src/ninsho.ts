@@ -19,6 +19,7 @@ import {
   createRequireRole,
   createRequireScope,
   createRequireTenant,
+  createRequireFreshAuth,
   createVerify,
 } from './http/middleware.js';
 import { establishProofOfPossession } from './http/dpop-middleware.js';
@@ -261,6 +262,26 @@ export class Ninsho {
   /** Requires that the caller's tenant matches the tenant being addressed. */
   requireTenant(selector: ValueSelector): Middleware {
     return createRequireTenant(this.#config.audit)(selector);
+  }
+
+  /**
+   * Requires that the user authenticated within the last `maxAgeSeconds` — a
+   * step-up check, for operations where a live session is not enough.
+   *
+   * Mount it on the routes where being signed in should not be sufficient:
+   * changing an email address, adding a passkey, moving money.
+   *
+   * ```ts
+   * app.post('/account/email', auth.verify(), auth.requireFreshAuth(300), handler);
+   * ```
+   *
+   * This reads the *authentication* time, not the token's issue time. A
+   * refresh mints a new token but is not a new proof of identity, so refreshing
+   * will never satisfy this check — only re-authenticating and starting a new
+   * session will.
+   */
+  requireFreshAuth(maxAgeSeconds: number): Middleware {
+    return createRequireFreshAuth(this.#config.audit)(maxAgeSeconds);
   }
 
   /**

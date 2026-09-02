@@ -30,12 +30,32 @@ import type {
 } from './types.js';
 
 /**
- * How many times a caller that lost a rotation race re-checks for the
- * winner's tombstone, and how long it pauses between attempts. Together these
- * bound the extra latency an unrecognised refresh token can cost.
+ * Backoff for a caller that lost a rotation race and is waiting for the
+ * winner's tombstone to appear.
+ *
+ * ─── Why these numbers, and why they changed ──────────────────────────────
+ * This was a flat 3 x 5ms. That was tuned against `MemoryStore`, where the
+ * winner's follow-up writes complete inside a single tick, and it is far too
+ * tight for a store that lives across a socket.
+ *
+ * Measured against a local Redis, a rotation race takes 14ms at the median
+ * with two callers and 45-85ms with forty. Under the old 15ms ceiling, losers
+ * gave up before the winner had published, and reported `no record for
+ * presented refresh token` — a spurious sign-out for a parallel tab, which is
+ * the precise failure the grace window exists to prevent. At a concurrency of
+ * 100 it happened in a quarter of attempts.
+ *
+ * Exponential steps totalling ~126ms fix that without slowing the common case:
+ * the loop returns the moment the tombstone appears, so a typical loser waits
+ * one or two steps.
+ *
+ * The cost is paid only by a token that never had a tombstone — genuinely
+ * unknown or forged — which now occupies a request for up to ~126ms before
+ * being refused. That is a bounded amplification, and the refresh endpoint
+ * should be rate-limited regardless; `auth.rateLimit()` is there for it.
+ * ──────────────────────────────────────────────────────────────────────────
  */
-const TOMBSTONE_RETRIES = 3;
-const TOMBSTONE_RETRY_MS = 5;
+const TOMBSTONE_BACKOFF_MS = [2, 4, 8, 16, 32, 64] as const;
 
 export interface SessionManagerOptions {
   readonly refreshTokenTtl: number;
@@ -109,6 +129,9 @@ export class SessionManager {
       sessionId,
       principal,
       issuedAt: now,
+      // The session is being created, so this *is* the authentication. Every
+      // later rotation carries this value forward unchanged.
+      authenticatedAt: now,
       expiresAt: familyExpiresAt,
       familyExpiresAt,
       generation: 0,
@@ -132,6 +155,7 @@ export class SessionManager {
     const access = await this.#engine.issue({
       principal,
       sessionId,
+      authenticatedAt: now,
       ...(options.confirmationKey !== undefined && {
         confirmationKey: options.confirmationKey,
       }),
@@ -404,6 +428,11 @@ export class SessionManager {
       sessionId,
       principal,
       issuedAt: now,
+      // Deliberately the original, not `now`. A refresh proves possession of a
+      // token, not that the user is present — resetting this would let a
+      // session stay "freshly authenticated" forever and quietly defeat every
+      // step-up check built on it.
+      authenticatedAt: record.authenticatedAt,
       expiresAt,
       familyExpiresAt: record.familyExpiresAt,
       generation,
@@ -441,6 +470,7 @@ export class SessionManager {
       generation: record.generation,
       rotatedAt: now,
       principal,
+      authenticatedAt: record.authenticatedAt,
       ...(record.confirmationKey !== undefined && {
         confirmationKey: record.confirmationKey,
       }),
@@ -470,6 +500,7 @@ export class SessionManager {
     const access = await this.#engine.issue({
       principal,
       sessionId,
+      authenticatedAt: record.authenticatedAt,
       ...(record.confirmationKey !== undefined && {
         confirmationKey: record.confirmationKey,
       }),
@@ -551,10 +582,10 @@ export class SessionManager {
    * legitimate parallel tab, which is precisely what the grace window exists
    * to prevent.
    *
-   * The wait is bounded and tiny: the winner needs only a couple of store
-   * writes. A genuinely unknown token pays this cost once and is then
-   * rejected, so the ceiling on wasted work per bogus request is a few
-   * milliseconds.
+   * The wait is bounded and returns the instant the tombstone appears, so a
+   * caller that genuinely lost a race usually pauses once or twice. A
+   * genuinely unknown token pays the full backoff before being rejected — see
+   * `TOMBSTONE_BACKOFF_MS` for the measurements behind the numbers.
    *
    * Skipped entirely when the grace window is disabled — `refreshGraceSeconds:
    * 0` means "tolerate nothing", and waiting to be lenient would contradict it.
@@ -567,9 +598,9 @@ export class SessionManager {
       return first;
     }
 
-    for (let attempt = 0; attempt < TOMBSTONE_RETRIES; attempt += 1) {
+    for (const delayMs of TOMBSTONE_BACKOFF_MS) {
       await new Promise((resolve) => {
-        setTimeout(resolve, TOMBSTONE_RETRY_MS);
+        setTimeout(resolve, delayMs);
       });
       const retried = await this.#store.get(key);
       if (retried !== null) return retried;
@@ -607,6 +638,7 @@ export class SessionManager {
     const access = await this.#engine.issue({
       principal: consumed.principal,
       sessionId: consumed.sessionId,
+      authenticatedAt: consumed.authenticatedAt,
       ...(consumed.confirmationKey !== undefined && {
         confirmationKey: consumed.confirmationKey,
       }),
@@ -760,10 +792,15 @@ export class SessionManager {
     const confirmationKey = r['confirmationKey'];
     if (confirmationKey !== undefined && typeof confirmationKey !== 'string') return null;
 
+    // Fail closed rather than defaulting to `issuedAt`: a record that cannot
+    // say when the user authenticated cannot support a step-up decision.
+    if (typeof r['authenticatedAt'] !== 'string') return null;
+
     return {
       sessionId: r['sessionId'],
       principal,
       issuedAt: r['issuedAt'],
+      authenticatedAt: r['authenticatedAt'],
       expiresAt: r['expiresAt'],
       familyExpiresAt: r['familyExpiresAt'],
       generation: r['generation'],
@@ -789,11 +826,16 @@ export class SessionManager {
     const consumedKey = r['confirmationKey'];
     if (consumedKey !== undefined && typeof consumedKey !== 'string') return null;
 
+    // Fail closed, as elsewhere: a tombstone that cannot say when the user
+    // authenticated cannot mint a token that answers a step-up check.
+    if (typeof r['authenticatedAt'] !== 'string') return null;
+
     return {
       sessionId: r['sessionId'],
       generation: r['generation'],
       rotatedAt: r['rotatedAt'],
       principal,
+      authenticatedAt: r['authenticatedAt'],
       ...(consumedKey !== undefined && { confirmationKey: consumedKey }),
     };
   }

@@ -128,7 +128,7 @@ const verify = (onStoreError: 'closed' | 'open' = 'closed'): Middleware =>
 
 describe('bearer extraction', () => {
   it('authenticates a valid token and populates req.auth', async () => {
-    const issued = await engine.issue({ principal: ALICE, sessionId: 's1' });
+    const issued = await engine.issue({ principal: ALICE, sessionId: 's1' , authenticatedAt: new Date().toISOString() });
     const req = request({ token: issued.token });
 
     const result = await run(verify(), req);
@@ -138,7 +138,7 @@ describe('bearer extraction', () => {
   });
 
   it('accepts a lowercase scheme, per RFC 7235', async () => {
-    const issued = await engine.issue({ principal: ALICE, sessionId: 's1' });
+    const issued = await engine.issue({ principal: ALICE, sessionId: 's1' , authenticatedAt: new Date().toISOString() });
     const req = { headers: { authorization: `bearer ${issued.token}` } } as HttpRequest;
     expect((await run(verify(), req)).nextCalled).toBe(true);
   });
@@ -164,7 +164,7 @@ describe('bearer extraction', () => {
    * were presented. Refusing is the only unambiguous answer.
    */
   it('refuses a repeated Authorization header rather than picking one', async () => {
-    const issued = await engine.issue({ principal: ALICE, sessionId: 's1' });
+    const issued = await engine.issue({ principal: ALICE, sessionId: 's1' , authenticatedAt: new Date().toISOString() });
     const req = {
       headers: { authorization: [`Bearer ${issued.token}`, 'Bearer other'] },
     } as unknown as HttpRequest;
@@ -184,7 +184,7 @@ describe('bearer extraction', () => {
    * access logs, browser history, Referer headers and analytics pipelines.
    */
   it('ignores a token supplied in the query string', async () => {
-    const issued = await engine.issue({ principal: ALICE, sessionId: 's1' });
+    const issued = await engine.issue({ principal: ALICE, sessionId: 's1' , authenticatedAt: new Date().toISOString() });
     const req = { headers: {}, query: { access_token: issued.token } } as HttpRequest;
 
     const result = await run(verify(), req);
@@ -282,7 +282,7 @@ describe('store outage behaviour', () => {
       issuer: 'https://id.test',
       audience: 'api',
     });
-    const issued = await pasetoEngine.issue({ principal: ALICE, sessionId: 's1' });
+    const issued = await pasetoEngine.issue({ principal: ALICE, sessionId: 's1' , authenticatedAt: new Date().toISOString() });
 
     const failingEngine = new PasetoEngine(brokenStore(), new KeyRing({ active: key }), {
       accessTokenTtl: 300,
@@ -310,7 +310,7 @@ describe('store outage behaviour', () => {
       issuer: 'https://id.test',
       audience: 'api',
     });
-    const issued = await good.issue({ principal: ALICE, sessionId: 's1' });
+    const issued = await good.issue({ principal: ALICE, sessionId: 's1' , authenticatedAt: new Date().toISOString() });
 
     const failing = new PasetoEngine(brokenStore(), new KeyRing({ active: key }), {
       accessTokenTtl: 300,

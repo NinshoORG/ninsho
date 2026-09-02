@@ -104,6 +104,7 @@ authorization data inside a `Principal`.
 | Refresh token theft | **Detected** | Reuse revokes the whole family and emits `refresh.reuse_detected` (RFC 9700 §4.14.2) |
 | Session extended indefinitely by rotation | **Mitigated** | `familyExpiresAt` is fixed at creation and never extended |
 | Broken object-level authorization (BOLA) | **Mitigated where used** | `requireOwner()`. Ninsho cannot force you to mount it |
+| A long-lived session performing a sensitive operation | **Mitigated where used** | `requireFreshAuth()` reads the authentication time, which rotation does not reset; `fresh-auth.test.ts` |
 | Cross-tenant access | **Mitigated where used** | `requireTenant()`; a token with no tenant claim never passes |
 | Credential stuffing, distributed | **Mitigated** | Per-account rate-limit bucket, not per-IP alone |
 | Rate-limit bypass via `X-Forwarded-For` | **Mitigated** | Hop-counting from the trusted end; `trustProxy` has no default |

@@ -32,6 +32,7 @@ const issue = (
   engine.issue({
     principal: overrides.principal ?? PRINCIPAL,
     sessionId: overrides.sessionId ?? SESSION,
+    authenticatedAt: new Date().toISOString(),
   });
 
 describe('issue', () => {
@@ -251,6 +252,7 @@ describe('verify', () => {
       sessionId: SESSION,
       principal: PRINCIPAL,
       issuedAt: new Date(Date.now() - 7200_000).toISOString(),
+      authenticatedAt: new Date(Date.now() - 7200_000).toISOString(),
       expiresAt: new Date(Date.now() - 3600_000).toISOString(),
     };
     await store.set(KEYS.accessToken(hashToken(token)), JSON.stringify(record), 300);
@@ -265,6 +267,7 @@ describe('verify', () => {
       sessionId: SESSION,
       principal: PRINCIPAL,
       issuedAt: new Date(Date.now() - 7200_000).toISOString(),
+      authenticatedAt: new Date(Date.now() - 7200_000).toISOString(),
       expiresAt: new Date(Date.now() - 3600_000).toISOString(),
     };
     await store.set(KEYS.accessToken(hashToken(token)), JSON.stringify(record), 300);
@@ -281,10 +284,38 @@ describe('verify', () => {
       sessionId: SESSION,
       principal: PRINCIPAL,
       issuedAt: new Date().toISOString(),
+      authenticatedAt: new Date().toISOString(),
       expiresAt: 'not-a-date',
     };
     await store.set(KEYS.accessToken(hashToken(token)), JSON.stringify(record), 300);
     await expect(engine.verify(token)).rejects.toThrow(TokenExpiredError);
+  });
+
+  it('rejects a record with no authentication time', async () => {
+    // Substituting `issuedAt` would look harmless and would silently make
+    // every step-up check wrong, because rotation refreshes `issuedAt` and not
+    // the authentication time. So the record is refused instead.
+    const token = generateToken();
+    const record = {
+      tokenId: 'tok_no_auth_time',
+      sessionId: SESSION,
+      principal: PRINCIPAL,
+      issuedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 300_000).toISOString(),
+    };
+    await store.set(KEYS.accessToken(hashToken(token)), JSON.stringify(record), 300);
+    await expect(engine.verify(token)).rejects.toThrow(TokenInvalidError);
+  });
+
+  it('surfaces the authentication time on the verified context', async () => {
+    const authenticatedAt = new Date(Date.now() - 60_000).toISOString();
+    const issued = await engine.issue({
+      principal: PRINCIPAL,
+      sessionId: SESSION,
+      authenticatedAt,
+    });
+
+    await expect(engine.verify(issued.token)).resolves.toMatchObject({ authenticatedAt });
   });
 });
 

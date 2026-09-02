@@ -6,6 +6,7 @@ import {
   TokenInvalidError,
   generateId,
   type Principal,
+  type TokenPair,
 } from '@ninsho/core';
 import { MemoryStore } from '../store/memory.js';
 import { RedisStore } from '../store/redis.js';
@@ -109,7 +110,7 @@ for (const candidate of candidates) {
      * unexplained logout for a user who did nothing wrong.
      */
     describe('single-use refresh consumption', () => {
-      it('produces exactly one replacement chain from 40 concurrent callers', async () => {
+      it('produces exactly one replacement chain from 100 concurrent callers', async () => {
         // With a grace window every caller succeeds — that is what stops a
         // parallel-tab page load looking like theft. The invariant is not
         // "one winner" but "one chain": all forty must receive the *same*
@@ -118,11 +119,27 @@ for (const candidate of candidates) {
         const { sessions, audit } = build(candidate);
         const pair = await sessions.create(principal());
 
-        const results = await Promise.all(
-          Array.from({ length: 40 }, () => sessions.refresh(pair.refreshToken)),
+        // REGRESSION (found by running this suite against real Redis)
+        // The tombstone wait used to be a flat 3 x 5ms, tuned against an
+        // in-process Map. Against Redis a rotation race takes 45-85ms at this
+        // concurrency, so losers gave up before the winner had published and
+        // reported an unknown token — a spurious sign-out for a parallel tab,
+        // which is the exact failure the grace window exists to prevent. It
+        // reproduced in a quarter of attempts at this concurrency.
+        const results = await Promise.allSettled(
+          Array.from({ length: 100 }, () => sessions.refresh(pair.refreshToken)),
         );
 
-        expect(new Set(results.map((r) => r.refreshToken)).size).toBe(1);
+        const rejected = results.filter((r) => r.status === 'rejected');
+        expect(
+          rejected,
+          `spurious rejections: ${rejected
+            .map((r) => String((r as PromiseRejectedResult).reason?.detail))
+            .join('; ')}`,
+        ).toHaveLength(0);
+
+        const tokens = results.map((r) => (r as PromiseFulfilledResult<TokenPair>).value.refreshToken);
+        expect(new Set(tokens).size).toBe(1);
         expect(audit.events.filter((e) => e.type === 'refresh.reuse_detected')).toHaveLength(0);
       });
 

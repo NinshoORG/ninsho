@@ -105,6 +105,23 @@ export interface AuthContext extends Principal {
   readonly sessionId: string;
   /** When this access token was issued. ISO 8601. */
   readonly issuedAt: string;
+  /**
+   * When the user actually authenticated, ISO 8601.
+   *
+   * ─── Why this is not `issuedAt` ─────────────────────────────────────────
+   * `issuedAt` is when this *token* was minted, and rotation mints a new one
+   * every few minutes for as long as the session lives. A session refreshed
+   * for thirty days has an `issuedAt` that is always minutes old.
+   *
+   * So `issuedAt` cannot answer "did this person prove who they are
+   * recently?", which is the question a step-up check asks before letting
+   * someone change an email address or move money. This field can: it is fixed
+   * when the session is created and carried unchanged through every rotation.
+   *
+   * Enforce it with `requireFreshAuth()`.
+   * ────────────────────────────────────────────────────────────────────────
+   */
+  readonly authenticatedAt: string;
   /** When this access token expires. ISO 8601. */
   readonly expiresAt: string;
   /** Which strategy produced this token. Useful in logs and in mixed fleets. */
@@ -134,6 +151,8 @@ export interface AccessRecord {
   readonly sessionId: string;
   readonly principal: Principal;
   readonly issuedAt: string;
+  /** When the user authenticated. Constant across rotations — see AuthContext. */
+  readonly authenticatedAt: string;
   readonly expiresAt: string;
   /**
    * RFC 7638 thumbprint of the DPoP key this token is bound to.
@@ -160,6 +179,13 @@ export interface RefreshRecord {
   readonly sessionId: string;
   readonly principal: Principal;
   readonly issuedAt: string;
+  /**
+   * When the user authenticated, fixed at session creation.
+   *
+   * Carried through every rotation deliberately: a refresh is not a new proof
+   * of identity, so it must not reset the clock a step-up check reads.
+   */
+  readonly authenticatedAt: string;
   /** When this individual token expires. Reset on each rotation. */
   readonly expiresAt: string;
   /**
@@ -238,6 +264,11 @@ export interface PasetoClaims {
   readonly iat: string;
   readonly nbf: string;
   readonly exp: string;
+  /**
+   * When the user authenticated. Named for OIDC's `auth_time`, which carries
+   * the same meaning, so the claim reads the way people expect.
+   */
+  readonly auth_time: string;
   /** Session (refresh family) id. Surfaces as `AuthContext.sessionId`. */
   readonly sid: string;
   readonly roles: readonly string[];

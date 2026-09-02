@@ -4,6 +4,7 @@ import {
   StoreUnavailableError,
   TokenMissingError,
   toErrorResponse,
+  isoToMs,
   type AuditSink,
   type AuthContext,
   type FailureMode,
@@ -253,6 +254,61 @@ export function createRequireAllRoles(audit: AuditSink) {
       const missing = required.filter((role) => !auth.roles.includes(role));
       if (missing.length > 0) {
         deny(audit, auth, `missing role: ${missing.join(', ')}`);
+      }
+      return true;
+    });
+  };
+}
+
+/**
+ * Requires that the user authenticated recently — a step-up check.
+ *
+ * ─── Why this cannot be built on `issuedAt` ───────────────────────────────
+ * The obvious implementation compares `auth.issuedAt` against the clock, and
+ * it is wrong in a way that looks right. Rotation mints a new access token
+ * every few minutes for as long as a session lives, so `issuedAt` on a session
+ * refreshed for thirty days is always minutes old. A check built on it would
+ * pass for everyone, forever, while reading in the code as a real control.
+ *
+ * `authenticatedAt` is fixed when the session is created and carried unchanged
+ * through every rotation, so it answers the question actually being asked:
+ * did this person prove who they are recently, not was this token minted
+ * recently.
+ *
+ * To satisfy the check after it fails, the application re-authenticates the
+ * user and calls `createSession()` again — a new session carries a new
+ * authentication time. Refreshing will never satisfy it, which is the point.
+ *
+ * @param maxAgeSeconds How recent the authentication must be. OWASP ASVS
+ *   suggests re-authentication before sensitive operations; the right number
+ *   is a product decision, not a library default.
+ */
+export function createRequireFreshAuth(audit: AuditSink) {
+  return (maxAgeSeconds: number): Middleware => {
+    if (!Number.isFinite(maxAgeSeconds) || maxAgeSeconds <= 0) {
+      // A non-positive window would reject every request while reading as a
+      // freshness requirement.
+      throw new Error('ninsho: requireFreshAuth() needs a positive maxAgeSeconds');
+    }
+
+    return guard(async (req) => {
+      const auth = getAuth(req);
+      const authenticatedMs = isoToMs(auth.authenticatedAt);
+
+      // Fails closed on an unparseable timestamp, as every other time
+      // comparison in Ninsho does: a credential whose age cannot be
+      // established has not established it.
+      if (Number.isNaN(authenticatedMs)) {
+        deny(audit, auth, 'authentication time could not be read');
+      }
+
+      const ageSeconds = (Date.now() - authenticatedMs) / 1000;
+      if (ageSeconds > maxAgeSeconds) {
+        deny(
+          audit,
+          auth,
+          `authentication is ${Math.floor(ageSeconds)}s old, needs to be under ${maxAgeSeconds}s`,
+        );
       }
       return true;
     });

@@ -16,5 +16,6 @@ export {
   createRequireScope,
   createRequireOwner,
   createRequireTenant,
+  createRequireFreshAuth,
   createErrorHandler,
 } from './middleware.js';
