@@ -27,6 +27,7 @@ import type { HttpRequest, Middleware, ValueSelector } from './http/types.js';
 import { DpopReplayGuard } from './dpop/replay.js';
 import type { DpopContext } from './http/dpop-middleware.js';
 import { RateLimiter } from './ratelimit/limiter.js';
+import { OneTimeTokenManager } from './tokens/one-time.js';
 import { createRateLimit, type RateLimitOptions } from './ratelimit/middleware.js';
 
 /**
@@ -59,6 +60,7 @@ export class Ninsho {
   readonly #engine: TokenEngine;
   readonly #sessions: SessionManager;
   readonly #limiter: RateLimiter;
+  readonly #oneTimeTokens: OneTimeTokenManager;
   /** Present only under `binding: 'dpop'`. Its presence enables proof checking. */
   readonly #dpop: DpopContext | undefined;
   /** Overridable so a deployment can build the proof URI from configuration. */
@@ -97,6 +99,11 @@ export class Ninsho {
       onStoreError: this.#config.onStoreError,
       audit: this.#config.audit,
     });
+
+    this.#oneTimeTokens = new OneTimeTokenManager(
+      { store: this.#config.store, audit: this.#config.audit },
+      this.#config.oneTimeTokens,
+    );
 
     this.#dpop =
       this.#config.binding === 'dpop'
@@ -282,6 +289,29 @@ export class Ninsho {
    */
   requireFreshAuth(maxAgeSeconds: number): Middleware {
     return createRequireFreshAuth(this.#config.audit)(maxAgeSeconds);
+  }
+
+  /**
+   * Single-use tokens — password reset, email verification, magic links.
+   *
+   * ```ts
+   * const { token } = await auth.oneTimeTokens.issue({
+   *   purpose: 'password-reset',
+   *   subject: user.id,
+   * });
+   * await sendEmail(user.email, `https://example.com/reset?t=${token}`);
+   *
+   * // …and on the other side of the link:
+   * const claim = await auth.oneTimeTokens.consume('password-reset', presented);
+   * await setPassword(claim.subject, newPassword);
+   * await auth.revokeAllForUser(claim.subject, 'password_reset');
+   * ```
+   *
+   * Rate-limit the request endpoint. Without it this is an email-flooding tool
+   * pointed at your users, and no property of the token itself helps.
+   */
+  get oneTimeTokens(): OneTimeTokenManager {
+    return this.#oneTimeTokens;
   }
 
   /**

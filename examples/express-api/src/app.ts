@@ -10,7 +10,14 @@ import {
   type NinshoStore,
 } from '@ninsho/server';
 import { WebAuthnServer } from '@ninsho/webauthn';
-import { createUser, findById, verifyCredentials } from './users.js';
+import {
+  createUser,
+  deliverResetLink,
+  findByEmail,
+  findById,
+  setPassword,
+  verifyCredentials,
+} from './users.js';
 import {
   findByCredentialId,
   fromBase64Url,
@@ -311,6 +318,92 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
     const context = getAuth(req);
     res.json({ sessions: await auth.listSessions(context.userId, context.sessionId) });
   }));
+
+  // ── Password reset ───────────────────────────────────────────────────────
+  // The flow most often got wrong, and every way of getting it wrong is a full
+  // account takeover. Three things below are doing the work.
+
+  app.post(
+    '/auth/password/forgot',
+    auth.rateLimit({
+      // Without this the endpoint is an email-flooding tool aimed at your
+      // users, and no property of the token itself helps. Two dimensions: the
+      // per-address bucket stops one victim being targeted, the per-IP bucket
+      // stops one attacker working through a list.
+      action: 'password_forgot',
+      perIp: { limit: 10, windowMs: 60 * 60 * 1000 },
+      perAccount: { limit: 3, windowMs: 60 * 60 * 1000 },
+      identify: (req) => (req.body as { email?: string } | undefined)?.email,
+      trustProxy,
+    }),
+    route(async (req: Request, res: Response) => {
+      const { email } = req.body as { email?: unknown };
+
+      if (typeof email === 'string') {
+        const user = findByEmail(email);
+        if (user !== undefined) {
+          const { token } = await auth.oneTimeTokens.issue({
+            purpose: 'password-reset',
+            subject: user.id,
+          });
+          // Where a real application sends the email. The token appears here
+          // and nowhere else — never logged, never stored, never returned.
+          deliverResetLink(user.email, token);
+        }
+      }
+
+      // The same answer whether or not the address exists, and whether or not
+      // it was even a string. Anything else turns this into the
+      // account-enumeration oracle the login route works to avoid, and doing
+      // it correctly here matters more: /auth/login at least demands a
+      // password guess, while this endpoint needs only an address.
+      res.status(202).json({
+        message: 'If that address has an account, a reset link is on its way.',
+      });
+    }),
+  );
+
+  app.post(
+    '/auth/password/reset',
+    auth.rateLimit({
+      action: 'password_reset',
+      perIp: { limit: 20, windowMs: 60 * 60 * 1000 },
+      trustProxy,
+    }),
+    route(async (req: Request, res: Response) => {
+      const { token, password } = req.body as { token?: unknown; password?: unknown };
+
+      if (typeof token !== 'string' || typeof password !== 'string') {
+        res.status(400).json({
+          error: { code: 'INVALID_BODY', message: 'token and password are required' },
+        });
+        return;
+      }
+      if (password.length < 12) {
+        res.status(400).json({
+          error: { code: 'WEAK_PASSWORD', message: 'password must be at least 12 characters' },
+        });
+        return;
+      }
+
+      // Single-use and atomic: two people clicking the same link cannot both
+      // succeed. Throws a 400 for expired, already-used, never-issued and
+      // wrong-purpose alike — one answer, so the endpoint says nothing about
+      // which links were real.
+      const claim = await auth.oneTimeTokens.consume('password-reset', token);
+
+      await setPassword(claim.subject, password);
+
+      // The step people forget. Whoever forced the reset may already hold a
+      // session; leaving those alive means the password change accomplished
+      // nothing. This is also why the reset is worth auditing — it is the
+      // moment an account changes hands, legitimately or not.
+      await auth.revokeAllForUser(claim.subject, 'credential_changed');
+      req.log?.('SECURITY: password reset completed, all sessions revoked');
+
+      res.status(204).end();
+    }),
+  );
 
   // ── Passkey registration ─────────────────────────────────────────────────
   // Adding a passkey requires an existing session. A passkey is a new way into

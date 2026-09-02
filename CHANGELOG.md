@@ -7,6 +7,56 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Single-use tokens — `auth.oneTimeTokens`.** Password reset, email
+  verification, magic links.
+
+  This does not change what Ninsho owns. It issues an opaque token bound to a
+  subject and a purpose, and tells you which subject presented it; sending the
+  email, setting the password and marking an address verified remain yours.
+
+  It is here because password reset is the most reliably botched flow in
+  authentication, and every way of botching it is a full account takeover:
+
+  - a token stored in plaintext, so a database read is a takeover
+  - a token that works twice, so a forwarded email is a takeover
+  - a token that never expires, so an old inbox is a takeover
+  - a reset token accepted by an email-verification endpoint, so the weaker
+    flow becomes an entry point to the stronger one
+  - an old link that keeps working after a new one was requested
+
+  Each is closed by construction rather than by remembering to close it. The
+  token is 256 bits of CSPRNG output, stored only as `hashToken(raw)`; the
+  purpose is part of the storage key, so a token for another purpose is not
+  rejected but absent; consumption goes through the store's atomic `take`, so
+  two simultaneous clicks cannot both win; expiry is checked against the
+  recorded timestamp as well as the store's TTL, failing closed on one it
+  cannot parse; and issuing a replacement invalidates the subject's previous
+  token by default, as OWASP advises.
+
+  Every failure answers identically. "Expired", "already used" and "never
+  issued" are one answer to a user and three hints to an attacker probing which
+  reset links were real.
+
+  Two audit events come with it — `onetime.issued` and `onetime.consumed`. A
+  spike of the first aimed at one account is a takeover attempt; a spike across
+  many is email flooding; the second is the moment an account changes hands.
+
+- **A complete password-reset flow in the reference API.** `POST
+  /auth/password/forgot` and `POST /auth/password/reset`, with the three things
+  that are easy to leave out: the request endpoint is rate-limited per address
+  *and* per IP, because without that it is an email-flooding tool pointed at
+  your users; it answers identically whether or not the address exists, since
+  it needs only an address where login at least demands a password guess; and
+  completing a reset revokes every existing session, because whoever forced the
+  reset may already hold one.
+
+  `RevocationReason` gains `credential_changed` for that last step —
+  distinguished from `administrative` because it is the one an incident review
+  looks for.
+
+  18 end-to-end tests over real HTTP, including eight simultaneous clicks on
+  one link where exactly one must succeed.
+
 - **A Fastify adapter — `@ninsho/server/fastify`.** The middleware was
   Express-shaped, and the docs said plainly that no adapter existed. One does
   now.

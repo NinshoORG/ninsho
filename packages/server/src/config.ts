@@ -8,6 +8,7 @@ import {
 } from '@ninsho/core';
 import type { NinshoStore } from './store/types.js';
 import { ConsoleAuditSink, safeSink } from './audit.js';
+import type { OneTimeTokenOptions } from './tokens/one-time.js';
 
 /**
  * Configuration for `new Ninsho(...)`.
@@ -23,6 +24,13 @@ export interface NinshoConfig {
    * choosing an implementation is a visible act in application code.
    */
   readonly store: NinshoStore;
+
+  /**
+   * Single-use token behaviour — password reset, email verification, magic
+   * links. Defaults are a fifteen-minute lifetime, 256 bits of randomness, and
+   * invalidating a subject's previous token when a new one is issued.
+   */
+  readonly oneTimeTokens?: OneTimeTokenOptions;
 
   /**
    * Access token format. Default `'opaque'`.
@@ -132,6 +140,7 @@ export interface ResolvedConfig {
   readonly issuer: string | undefined;
   readonly audience: string | undefined;
   readonly keys: KeySet | undefined;
+  readonly oneTimeTokens: OneTimeTokenOptions | undefined;
   /** Conditions that are valid but weaken security. Emitted as audit events at startup. */
   readonly warnings: readonly string[];
 }
@@ -430,6 +439,7 @@ export function resolveConfig(config: NinshoConfig): ResolvedConfig {
     issuer,
     audience,
     keys,
+    oneTimeTokens: config.oneTimeTokens,
     warnings,
   };
 }

@@ -91,12 +91,18 @@ Every claim below links to executable proof.
 | No input produces an uncontrolled exception | every parser on the untrusted path | `fuzz.test.ts` — randomised and mutation testing |
 | Every single-byte mutation of a token is rejected | Ed25519 signature | `fuzz.test.ts` › *rejects every single-byte mutation* |
 | Junk submitted in bulk cannot revoke a live session | tombstone required | `fuzz.test.ts` › *leaves a live session untouched* |
-| The whole system holds together over real HTTP | assembled app | `examples/express-api` — 75 end-to-end tests |
+| The whole system holds together over real HTTP | assembled app | `examples/express-api` — 93 end-to-end tests |
 | A denied request never reaches a Fastify route handler | `toFastify()` returns the reply, not undefined | `fastify.test.ts` — asserted against real Fastify |
 | A 401 carries a challenge, as RFC 7235 requires | `WWW-Authenticate`, scheme follows the binding | `middleware.test.ts` › *the 401 challenge* |
 | A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
 | **Sensitive operations can demand a recent login** | `requireFreshAuth()` reads the authentication time, not the token's | `fresh-auth.test.ts` |
+| **A reset link works exactly once** | atomic `take()`, never read-then-delete | `one-time-token.test.ts` › *lets exactly one of many simultaneous clicks win* |
+| A reset token is never stored in plaintext | keyed by `hashToken()` | `one-time-token.test.ts` › *the raw token never reaches the store* |
+| A reset token cannot be used at a verification endpoint | purpose is part of the key, not a comparison | `one-time-token.test.ts` › *purpose scoping* |
+| Requesting a new reset link kills the old one | subject index, invalidated on issue | `one-time-token.test.ts` › *invalidating previous tokens* |
+| A password reset ends every existing session | `revokeAllForUser('credential_changed')` | `password-reset.test.ts` › *revokes every existing session* |
+| The reset endpoint is not an enumeration oracle | identical answer for real and unknown addresses | `password-reset.test.ts` › *it does not reveal which accounts exist* |
 | Refreshing cannot masquerade as re-authenticating | `authenticatedAt` is carried unchanged through rotation | `fresh-auth.test.ts` › *refreshing does not count as authenticating* |
 | A parallel tab is not signed out under real store latency | exponential tombstone backoff, measured against Redis | `store-invariants.test.ts` › *one replacement chain from 100 concurrent callers* |
 | Sign-out-everywhere scales, with bounded fan-out | `mapConcurrent` | `concurrent-util.test.ts` › *session operations at scale* |
@@ -305,6 +311,7 @@ packages/
     paseto/      v4.public sign/verify on node:crypto
     http/        verify + authorization middleware (Express-shaped)
     ratelimit/   sliding-window counter, per-IP and per-account buckets
+    tokens/      single-use tokens — reset, verification, magic links
     dpop/        RFC 9449 proof verification, JWK thumbprints, replay guard
 ```
 

@@ -14,6 +14,7 @@ import { OpaqueEngine } from '../engine/opaque.js';
 import { SessionManager } from '../session/manager.js';
 import { RateLimiter } from '../ratelimit/limiter.js';
 import { DpopReplayGuard } from '../dpop/replay.js';
+import { OneTimeTokenManager } from '../tokens/one-time.js';
 import { MemoryAuditSink } from '../audit.js';
 import type { NinshoStore } from '../store/types.js';
 
@@ -344,6 +345,48 @@ for (const candidate of candidates) {
         expect(await guard.claim(generateId(), jti)).toBe(true);
         // A different key, the same jti — must still be its first use.
         expect(await guard.claim(generateId(), jti)).toBe(true);
+      });
+    });
+
+    /**
+     * A password-reset link that works twice is a forwarded email becoming an
+     * account takeover. The property rests on `take` being atomic, so it is
+     * worth checking against a store that is not a Map.
+     */
+    describe('single-use tokens', () => {
+      it('lets exactly one of 30 simultaneous clicks redeem a link', async () => {
+        const { store } = build(candidate);
+        const tokens = new OneTimeTokenManager({ store, audit: new MemoryAuditSink() });
+        const subject = `user_${generateId()}`;
+
+        const issued = await tokens.issue({ purpose: 'password-reset', subject });
+        const results = await Promise.allSettled(
+          Array.from({ length: 30 }, () => tokens.consume('password-reset', issued.token)),
+        );
+
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      });
+
+      it('invalidates the previous link when a replacement is issued', async () => {
+        const { store } = build(candidate);
+        const tokens = new OneTimeTokenManager({ store, audit: new MemoryAuditSink() });
+        const subject = `user_${generateId()}`;
+
+        const first = await tokens.issue({ purpose: 'password-reset', subject });
+        const second = await tokens.issue({ purpose: 'password-reset', subject });
+
+        await expect(tokens.consume('password-reset', first.token)).rejects.toThrow();
+        await expect(tokens.consume('password-reset', second.token)).resolves.toBeTruthy();
+      });
+
+      it('keeps purposes separate across a real keyspace', async () => {
+        const { store } = build(candidate);
+        const tokens = new OneTimeTokenManager({ store, audit: new MemoryAuditSink() });
+        const subject = `user_${generateId()}`;
+
+        const issued = await tokens.issue({ purpose: 'password-reset', subject });
+        await expect(tokens.consume('email-verification', issued.token)).rejects.toThrow();
+        await expect(tokens.consume('password-reset', issued.token)).resolves.toBeTruthy();
       });
     });
 

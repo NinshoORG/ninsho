@@ -342,6 +342,14 @@ export type SecurityEventType =
   | 'auth.failed'
   | 'authz.denied'
   | 'ratelimit.exceeded'
+  /**
+   * A single-use token was issued — a password reset requested, an address
+   * verification sent. Worth alerting on in bulk: a spike aimed at one account
+   * is a takeover attempt, and a spike across many is an email-flooding one.
+   */
+  | 'onetime.issued'
+  /** A single-use token was redeemed. The moment a password reset takes effect. */
+  | 'onetime.consumed'
   | 'store.unavailable'
   | 'config.insecure';
 

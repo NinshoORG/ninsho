@@ -55,6 +55,46 @@ export function findById(id: string): User | undefined {
   return byId.get(id);
 }
 
+export function findByEmail(email: string): User | undefined {
+  return byEmail.get(normaliseEmail(email));
+}
+
+/**
+ * Replaces a user's password hash.
+ *
+ * The record is rewritten rather than mutated so the stored hash is never
+ * momentarily absent, and the old hash is discarded rather than kept for
+ * "history" — a previous-password list is a set of live credentials for
+ * anyone who reads the database.
+ */
+export async function setPassword(userId: string, password: string): Promise<void> {
+  const user = byId.get(userId);
+  if (user === undefined) return;
+
+  const updated: User = { ...user, passwordHash: await hashPassword(password) };
+  byId.set(userId, updated);
+  byEmail.set(updated.email, updated);
+}
+
+/**
+ * Stands in for sending an email.
+ *
+ * A real implementation hands the link to a mail provider. What matters is
+ * what it must *not* do: the token is a bearer credential for the account, so
+ * it belongs in the message body and in no log line, error report or analytics
+ * event.
+ */
+const delivered: { email: string; token: string }[] = [];
+
+export function deliverResetLink(email: string, token: string): void {
+  delivered.push({ email, token });
+}
+
+/** Test affordance — a real application has no such function. */
+export function lastResetLink(): { email: string; token: string } | undefined {
+  return delivered[delivered.length - 1];
+}
+
 /**
  * Verifies credentials in constant time with respect to account existence.
  *
@@ -87,4 +127,5 @@ export async function verifyCredentials(
 export function resetUsers(): void {
   byEmail.clear();
   byId.clear();
+  delivered.length = 0;
 }

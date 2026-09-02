@@ -56,7 +56,8 @@ whether a caller may do a given thing.
 ### What Ninsho is deliberately not responsible for
 
 - **Passwords and federated sign-in.** Owning these would mean owning your user
-  model.
+  model. Ninsho issues the single-use token a reset flow needs and tells you
+  which subject redeemed it; hashing the password and storing it stay yours.
 
   WebAuthn is the one exception, and a deliberately narrow one:
   `@ninsho/webauthn` verifies the ceremony — challenge, origin, RP ID,
@@ -108,7 +109,12 @@ authorization data inside a `Principal`.
 | Cross-tenant access | **Mitigated where used** | `requireTenant()`; a token with no tenant claim never passes |
 | Credential stuffing, distributed | **Mitigated** | Per-account rate-limit bucket, not per-IP alone |
 | Rate-limit bypass via `X-Forwarded-For` | **Mitigated** | Hop-counting from the trusted end; `trustProxy` has no default |
-| Account enumeration | **Application's responsibility** | The example shows a constant-time login path; the library cannot enforce it |
+| Account enumeration | **Application's responsibility** | The example shows a constant-time login path and an indistinguishable reset response; the library cannot enforce either |
+| A reset link redeemed twice | **Mitigated** | Atomic `take()`; `one-time-token.test.ts` › *lets exactly one of many simultaneous clicks win* |
+| A stolen database yielding usable reset links | **Mitigated** | Only `hashToken(raw)` is stored; the raw value exists solely in the email |
+| A reset token replayed at a weaker endpoint | **Mitigated** | Purpose is part of the storage key, not a comparison |
+| A stale reset link in an old inbox | **Mitigated** | 15-minute default, and issuing a replacement invalidates the previous token |
+| Sessions surviving a password change | **Mitigated where used** | `revokeAllForUser('credential_changed')`; shown in the example, and Ninsho cannot force you to call it |
 | Store-read attacker replaying credentials | **Mitigated** | Only SHA-256 hashes are stored. One exception below |
 | Timing side-channels on secret comparison | **Mitigated** | `safeEqual` is constant-time and fails closed on malformed input |
 | Internal detail leaking to clients | **Mitigated** | `detail` is structurally separate from `message` |

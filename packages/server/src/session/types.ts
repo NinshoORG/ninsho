@@ -102,4 +102,12 @@ export type RevocationReason =
   | 'logout'
   | 'logout_all'
   | 'reuse_detected'
+  /**
+   * The password changed, so every existing session must end.
+   *
+   * Distinguished from `administrative` because it is the one an incident
+   * review looks for: whoever forced a reset may already hold a session, and a
+   * password change that left those alive accomplished nothing.
+   */
+  | 'credential_changed'
   | 'administrative';

@@ -133,6 +133,32 @@ export const KEYS = {
   dpopProof: (jkt: string, jti: string): string => `${NS}:dpop:${jkt}:${jti}`,
 
   /**
+   * A single-use token — password reset, email verification, magic link.
+   *
+   * Keyed by `hashToken(rawToken)`, so a store read yields nothing usable: the
+   * raw value exists only in the email that carried it.
+   *
+   * The purpose is part of the key rather than a field compared afterwards. A
+   * password-reset token presented to an email-verification endpoint is
+   * therefore not *rejected*, it is simply absent — and a check that cannot be
+   * skipped is better than one that must be remembered.
+   *
+   * TTL: the token's remaining lifetime.
+   */
+  oneTimeToken: (purpose: string, tokenHash: string): string =>
+    `${NS}:ott:${purpose}:${tokenHash}`,
+
+  /**
+   * Set of outstanding single-use token hashes for one subject and purpose.
+   *
+   * Read when issuing a replacement, so requesting a second password-reset
+   * email invalidates the first — OWASP's guidance, and what stops an old link
+   * sitting in an inbox from working indefinitely.
+   */
+  oneTimeTokenSubject: (purpose: string, subject: string): string =>
+    `${NS}:ott:${purpose}:sub:${subject}`,
+
+  /**
    * Rate-limit counter for one bucket in one time window.
    *
    * The window index is part of the key rather than being enforced by TTL.

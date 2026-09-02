@@ -19,6 +19,8 @@ Runs on `MemoryStore` by default, which refuses to start under
 | `POST /auth/register` | Session creation; a registration response that does not confirm whether an address was already taken |
 | `POST /auth/login` | Constant-time credential check; two-dimensional rate limiting |
 | `POST /auth/refresh` | Rotation, and clearing the cookie on any failure |
+| `POST /auth/password/forgot` | Single-use reset token, rate-limited, and no enumeration oracle |
+| `POST /auth/password/reset` | Redeeming it once — and revoking every existing session |
 | `POST /auth/logout` | Ending one session |
 | `POST /auth/logout-all` | Ending every session for a user |
 | `GET /auth/sessions` | Listing sessions without exposing credentials |
@@ -111,7 +113,7 @@ established. Owning credential verification would mean owning your user model.
 npm run test --workspace @ninsho/example-express-api
 ```
 
-75 end-to-end tests over real HTTP. They exist to catch what unit tests
+93 end-to-end tests over real HTTP. They exist to catch what unit tests
 structurally cannot — a middleware mounted in the wrong order, a cookie flag
 that never reaches the wire, an error mapped to the wrong status by the
 framework.

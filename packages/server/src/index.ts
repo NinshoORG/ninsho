@@ -199,3 +199,19 @@ export {
   isNinshoError,
   toErrorResponse,
 } from '@ninsho/core';
+
+// ── Single-use tokens ───────────────────────────────────────────────────────
+// Password reset, email verification, magic links. Reachable as
+// `auth.oneTimeTokens`; exported here for callers assembling their own.
+export {
+  OneTimeTokenManager,
+  OneTimeTokenError,
+  OneTimeTokenConfigurationError,
+} from './tokens/one-time.js';
+export type {
+  OneTimeTokenOptions,
+  OneTimeTokenClaim,
+  IssueOneTimeTokenInput,
+  IssuedOneTimeToken,
+  OneTimeTokenManagerDeps,
+} from './tokens/one-time.js';
