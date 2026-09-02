@@ -102,7 +102,8 @@ authorization data inside a `Principal`.
 | Forged `kid` selecting an attacker's key | **Mitigated** | Key lookup precedes signature verification, which then fails. `paseto-engine.test.ts` |
 | Cross-service token reuse | **Mitigated** | `iss` and `aud` required and validated in paseto mode |
 | Use of a revoked token | **Mitigated** | Fail-closed by default; fail-open rejected where it could not take effect |
-| Refresh token theft | **Detected** | Reuse revokes the whole family and emits `refresh.reuse_detected` (RFC 9700 §4.14.2) |
+| Refresh token theft | **Detected** | Reuse revokes the whole family and emits `refresh.reuse_detected` (RFC 9700 §4.14.2), classified by whether the replay came from the same client |
+| Device fingerprinting presented as a control | **Structurally impossible** | Signals are recorded hashed and never branched on; `signals.test.ts` › *signals are never a control* |
 | Session extended indefinitely by rotation | **Mitigated** | `familyExpiresAt` is fixed at creation and never extended |
 | Broken object-level authorization (BOLA) | **Mitigated where used** | `requireOwner()`. Ninsho cannot force you to mount it |
 | A long-lived session performing a sensitive operation | **Mitigated where used** | `requireFreshAuth()` reads the authentication time, which rotation does not reset; `fresh-auth.test.ts` |

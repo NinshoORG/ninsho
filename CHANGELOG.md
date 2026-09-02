@@ -7,6 +7,38 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Client signals, and an actionable reuse alarm.** `SecuritySignals` and
+  `hashSignal` had been declared since the rebuild and were used by nothing —
+  a feature described in the types and never implemented. It is implemented
+  now, for the one purpose that justifies storing anything about a client.
+
+  `createSession` and `refresh` accept raw signals — a `User-Agent`, a resolved
+  client address. Ninsho hashes them on the way in and stores only the
+  truncated digests, so the raw values never reach the store and the privacy
+  property is structural rather than a caller's responsibility.
+
+  What that buys: when a rotated refresh token is replayed, the
+  `refresh.reuse_detected` event now carries `signalMatch`. A replay from a
+  *different* client is close to certain theft; one from the same client is
+  more often a retry or a double-submit in the application's own code. Those
+  deserve different responses, and an operator previously had no way to tell
+  them apart. Absent signals report `unknown` rather than `same` — reporting
+  confidence that was never established is worse than reporting none.
+
+  **Nothing branches on them.** Every field is client-controlled and trivially
+  forged, so a mismatch never rejects a request: a user moving from wifi to
+  cellular changes address mid-session, and if a mismatch caused revocation
+  then anyone who guessed a token could also choose the header that revokes it.
+  There is a test for exactly that.
+
+  Because the hashes are truncated they support correlation and not display —
+  you can tell two sessions came from different clients, not which clients they
+  were. If you want "Chrome on macOS" in a sessions list, keep it alongside
+  your own record; it is personal data and Ninsho declines to hold it.
+
+  `SessionSummary` exposes them, and the reference API records them on
+  registration, login and refresh.
+
 - **Single-use tokens — `auth.oneTimeTokens`.** Password reset, email
   verification, magic links.
 

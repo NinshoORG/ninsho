@@ -371,6 +371,18 @@ export interface SecurityEvent {
   readonly ip?: string;
   /** Short non-sensitive classifier. Never user input, never a secret. */
   readonly reason?: string;
+  /**
+   * Whether the client signals matched those recorded for the session.
+   *
+   * Present on reuse detection, where it is the difference between an alarm
+   * and an actionable one: a replay from a *different* client is close to
+   * certain theft, while one from the same client is more often a retry or a
+   * double-submit in the application's own code.
+   *
+   * `unknown` means signals were not supplied on one side or the other, which
+   * is the honest answer rather than assuming a match.
+   */
+  readonly signalMatch?: 'same' | 'different' | 'unknown';
 }
 
 /**
@@ -402,4 +414,30 @@ export interface AuditSink {
 export interface SecuritySignals {
   readonly userAgentHash?: string;
   readonly ipHash?: string;
+}
+
+/**
+ * Raw client signals, as an application observes them.
+ *
+ * Passed to `createSession` and `refresh`; Ninsho hashes them on the way in
+ * and stores only {@link SecuritySignals}. The raw values never reach the
+ * store, so the privacy property is structural rather than something a caller
+ * has to remember — which is why this takes the raw form rather than asking
+ * for hashes.
+ *
+ * Being hashed and truncated, they support *correlation* and not display: you
+ * can tell that two sessions came from different clients, not which clients
+ * they were. If you want to show "Chrome on macOS" in a sessions list, keep
+ * that alongside your own record — it is personal data, and Ninsho declines to
+ * hold it.
+ */
+export interface ClientSignals {
+  /** Typically the `User-Agent` header. */
+  readonly userAgent?: string;
+  /**
+   * The client address, already resolved through whatever proxy configuration
+   * you trust. Ninsho does not parse `X-Forwarded-For` here — see
+   * `trustProxy` on the rate limiter for why guessing is worse than asking.
+   */
+  readonly ip?: string;
 }

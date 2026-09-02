@@ -58,6 +58,9 @@ Every claim below links to executable proof.
 | Refresh rotation, race-free | `session/manager.ts` — `store.take()` | `session.test.ts` › *lets exactly one of many simultaneous callers rotate* |
 | **Refresh reuse revokes the whole family** | `#resolveNonLive` | `session.test.ts` › *ends the session for both parties when a stolen token is redeemed first* |
 | Reuse raises an alarm, not just a 401 | `refresh.reuse_detected` event | `session.test.ts` › *emits refresh.reuse_detected with the replayed generation* |
+| **A reuse alarm says whether the replay came from elsewhere** | hashed client signals, compared at detection | `signals.test.ts` › *classifying a reuse alarm* |
+| A forged header cannot end anyone's session | signals are recorded, never branched on | `signals.test.ts` › *signals are never a control* |
+| Client addresses are never stored in the clear | truncated hashes only | `signals.test.ts` › *signals are stored hashed, never raw* |
 | Garbage tokens cannot revoke anyone's session | tombstone required before revoking | `session.test.ts` › *does not revoke anything when an unrecognised token is presented* |
 | Parallel tabs are not signed out | grace window | `session.test.ts` › *grace window* |
 | Rotation extends the token, never the session | `familyExpiresAt` ceiling | `session.test.ts` › *does not extend the family ceiling on rotation* |

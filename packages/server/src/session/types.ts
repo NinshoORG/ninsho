@@ -1,4 +1,4 @@
-import type { Principal } from '@ninsho/core';
+import type { ClientSignals, Principal, SecuritySignals } from '@ninsho/core';
 
 /**
  * Tombstone left behind when a refresh token is rotated.
@@ -47,6 +47,15 @@ export interface CreateSessionOptions {
    * Binds both the access token and the refresh family to that key.
    */
   readonly confirmationKey?: string;
+  /**
+   * Weak client signals, recorded for anomaly detection.
+   *
+   * Hashed on the way in; the raw values never reach the store. Nothing
+   * branches on them — they are trivially forged — but recording them is what
+   * lets a reuse alarm say whether the replay came from the same client as the
+   * rest of the family.
+   */
+  readonly signals?: ClientSignals;
 }
 
 /** Options for redeeming a refresh token. */
@@ -57,6 +66,15 @@ export interface RefreshSessionOptions {
    * refused.
    */
   readonly confirmationKey?: string;
+  /**
+   * Client signals for this request, compared against the family's.
+   *
+   * Never used to accept or reject — a forged header must not be able to end
+   * someone's session. They classify the reuse event when one occurs, which is
+   * the difference between "a token was replayed" and "a token was replayed
+   * from somewhere else".
+   */
+  readonly signals?: ClientSignals;
 }
 
 /** Value stored under `KEYS.refreshGrace`, for a tab that lost a rotation race. */
@@ -80,6 +98,8 @@ export interface SessionMeta {
   /** Hard ceiling on the session, fixed at creation. */
   readonly expiresAt: string;
   readonly generation: number;
+  /** Hashed client signals from when the session started. */
+  readonly signals?: SecuritySignals;
 }
 
 /**
@@ -95,6 +115,15 @@ export interface SessionSummary {
   readonly generation: number;
   /** True when this is the session that made the current request. */
   readonly current: boolean;
+  /**
+   * Hashed client signals recorded when the session started.
+   *
+   * Truncated hashes, so they support correlation and not display: an
+   * application can group sessions by client, or highlight the ones unlike the
+   * current request, but cannot render "Chrome on macOS" from them. Keep that
+   * alongside your own record if you need it.
+   */
+  readonly signals?: SecuritySignals;
 }
 
 /** Why a session was terminated. Surfaces in the audit log. */

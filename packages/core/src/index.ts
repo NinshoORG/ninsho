@@ -28,6 +28,7 @@ export type {
   SecurityEvent,
   AuditSink,
   SecuritySignals,
+  ClientSignals,
 } from './types.js';
 
 // ── Errors ──────────────────────────────────────────────────────────────────

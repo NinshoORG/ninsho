@@ -2,11 +2,14 @@ import {
   RefreshInvalidError,
   RefreshReuseError,
   type AuditSink,
+  type ClientSignals,
   type Principal,
   type RefreshRecord,
+  type SecuritySignals,
   type TokenPair,
   generateId,
   generateToken,
+  hashSignal,
   hashToken,
   isExpired,
   isoFrom,
@@ -98,6 +101,54 @@ export interface SessionManagerOptions {
  * see `refreshGraceSeconds`.
  * ──────────────────────────────────────────────────────────────────────────
  */
+/**
+ * Hashes raw client signals for storage.
+ *
+ * Truncated hashes, never the raw values: an IP address is personal data, and
+ * a store that never held one cannot leak one. Nothing branches on the result
+ * — these are trivially forged — so hashing costs nothing that matters and
+ * makes the privacy property structural rather than a caller's responsibility.
+ */
+function hashSignals(signals: ClientSignals | undefined): SecuritySignals | undefined {
+  if (signals === undefined) return undefined;
+
+  const hashed: { userAgentHash?: string; ipHash?: string } = {};
+  if (typeof signals.userAgent === 'string' && signals.userAgent.length > 0) {
+    hashed.userAgentHash = hashSignal(signals.userAgent);
+  }
+  if (typeof signals.ip === 'string' && signals.ip.length > 0) {
+    hashed.ipHash = hashSignal(signals.ip);
+  }
+  return hashed.userAgentHash === undefined && hashed.ipHash === undefined ? undefined : hashed;
+}
+
+/**
+ * Compares recorded signals against those of the current request.
+ *
+ * `unknown` when either side is missing — the honest answer, rather than
+ * treating an absent signal as a match and reporting confidence that was never
+ * established.
+ */
+function compareSignals(
+  recorded: SecuritySignals | undefined,
+  presented: SecuritySignals | undefined,
+): 'same' | 'different' | 'unknown' {
+  if (recorded === undefined || presented === undefined) return 'unknown';
+
+  const fields = ['userAgentHash', 'ipHash'] as const;
+  let compared = 0;
+
+  for (const field of fields) {
+    const a = recorded[field];
+    const b = presented[field];
+    if (a === undefined || b === undefined) continue;
+    compared += 1;
+    if (a !== b) return 'different';
+  }
+
+  return compared === 0 ? 'unknown' : 'same';
+}
+
 export class SessionManager {
   readonly #store: NinshoStore;
   readonly #engine: TokenEngine;
@@ -140,6 +191,7 @@ export class SessionManager {
       }),
     });
 
+    const signals = hashSignals(options.signals);
     const meta: SessionMeta = {
       sessionId,
       userId: principal.userId,
@@ -147,6 +199,7 @@ export class SessionManager {
       lastUsedAt: now,
       expiresAt: familyExpiresAt,
       generation: 0,
+      ...(signals !== undefined && { signals }),
     };
     const familyTtl = secondsUntil(familyExpiresAt);
     await this.#store.set(KEYS.sessionMeta(sessionId), JSON.stringify(meta), familyTtl);
@@ -238,7 +291,7 @@ export class SessionManager {
 
     // Either this caller lost the race, or the token is stale, forged, or
     // being replayed. Only the tombstone can tell those apart.
-    return this.#resolveNonLive(hash, options.confirmationKey);
+    return this.#resolveNonLive(hash, options.confirmationKey, hashSignals(options.signals));
   }
 
   /** Ends one session: its refresh family and all its access tokens. */
@@ -328,6 +381,7 @@ export class SessionManager {
         expiresAt: meta.expiresAt,
         generation: meta.generation,
         current: currentSessionId !== undefined && meta.sessionId === currentSessionId,
+        ...(meta.signals !== undefined && { signals: meta.signals }),
       });
     }
 
@@ -530,6 +584,7 @@ export class SessionManager {
   async #resolveNonLive(
     hash: string,
     presentedKey: string | undefined,
+    presentedSignals: SecuritySignals | undefined,
   ): Promise<TokenPair> {
     const consumedRaw = await this.#awaitTombstone(hash);
 
@@ -554,6 +609,11 @@ export class SessionManager {
       }
     }
 
+    // Read before revoking: revocation deletes the metadata this compares
+    // against, and losing the signal would make the alarm less useful at
+    // exactly the moment it matters.
+    const signalMatch = compareSignals(await this.#readSignals(consumed.sessionId), presentedSignals);
+
     // Tombstoned, and past the grace window. One of the two parties holding
     // this token is an attacker, and there is no way to tell which — so the
     // session ends for both.
@@ -565,6 +625,10 @@ export class SessionManager {
       userId: consumed.principal.userId,
       sessionId: consumed.sessionId,
       reason: `replayed generation ${consumed.generation}`,
+      // The difference between an alarm and an actionable one: a replay from a
+      // different client is close to certain theft, while one from the same
+      // client is more often a retry in the application's own code.
+      signalMatch,
     });
 
     throw new RefreshReuseError(
@@ -718,6 +782,18 @@ export class SessionManager {
     }
   }
 
+  /**
+   * Reads the signals recorded when a session started.
+   *
+   * Best-effort: a session whose metadata has already expired reports nothing,
+   * and `compareSignals` treats that as `unknown` rather than as a match.
+   */
+  async #readSignals(sessionId: string): Promise<SecuritySignals | undefined> {
+    const raw = await this.#store.get(KEYS.sessionMeta(sessionId));
+    if (raw === null) return undefined;
+    return this.#parseMeta(raw)?.signals;
+  }
+
   /** Records that a session was used, for the sessions list. Best-effort. */
   async #touchMeta(sessionId: string, generation: number): Promise<void> {
     const raw = await this.#store.get(KEYS.sessionMeta(sessionId));
@@ -863,6 +939,21 @@ export class SessionManager {
       return null;
     }
 
+    // Signals are optional and are read defensively: a malformed one is
+    // dropped rather than failing the whole record, because they are an audit
+    // aid and losing a session over one would be the wrong trade.
+    const raw_signals = r['signals'];
+    let signals: SecuritySignals | undefined;
+    if (typeof raw_signals === 'object' && raw_signals !== null && !Array.isArray(raw_signals)) {
+      const candidate = raw_signals as Record<string, unknown>;
+      const picked: { userAgentHash?: string; ipHash?: string } = {};
+      if (typeof candidate['userAgentHash'] === 'string') {
+        picked.userAgentHash = candidate['userAgentHash'];
+      }
+      if (typeof candidate['ipHash'] === 'string') picked.ipHash = candidate['ipHash'];
+      if (picked.userAgentHash !== undefined || picked.ipHash !== undefined) signals = picked;
+    }
+
     return {
       sessionId: r['sessionId'],
       userId: r['userId'],
@@ -870,6 +961,7 @@ export class SessionManager {
       lastUsedAt: r['lastUsedAt'],
       expiresAt: r['expiresAt'],
       generation: r['generation'],
+      ...(signals !== undefined && { signals }),
     };
   }
 }

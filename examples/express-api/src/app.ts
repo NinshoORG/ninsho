@@ -3,6 +3,7 @@ import {
   Ninsho,
   MemoryStore,
   RedisStore,
+  clientIp,
   getAuth,
   isNinshoError,
   RefreshReuseError,
@@ -166,6 +167,24 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
     });
   }
 
+
+  /**
+   * Client signals for a request.
+   *
+   * Ninsho hashes these before storing them, so the raw address never reaches
+   * the store. They are recorded for one purpose: when a rotated refresh token
+   * is replayed, the alarm can say whether the replay came from the same
+   * client as the rest of the session. Nothing branches on them — a forged
+   * `User-Agent` must not be able to end anyone's session.
+   */
+  function signalsFor(req: Request): { userAgent?: string; ip?: string } {
+    const userAgent = req.headers['user-agent'];
+    return {
+      ...(typeof userAgent === 'string' ? { userAgent } : {}),
+      ip: clientIp(req, trustProxy),
+    };
+  }
+
   // ── Registration ─────────────────────────────────────────────────────────
 
   app.post(
@@ -192,12 +211,15 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
 
       try {
         const user = await createUser({ email, password });
-        const pair = await auth.createSession({
-          userId: user.id,
-          roles: user.roles,
-          scopes: user.scopes,
-          tenant: user.tenant,
-        });
+        const pair = await auth.createSession(
+          {
+            userId: user.id,
+            roles: user.roles,
+            scopes: user.scopes,
+            tenant: user.tenant,
+          },
+          { signals: signalsFor(req) },
+        );
 
         setRefreshCookie(res, pair.refreshToken, pair.refreshExpiresAt);
         res.status(201).json({
@@ -248,12 +270,15 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
         return;
       }
 
-      const pair = await auth.createSession({
-        userId: user.id,
-        roles: user.roles,
-        scopes: user.scopes,
-        tenant: user.tenant,
-      });
+      const pair = await auth.createSession(
+        {
+          userId: user.id,
+          roles: user.roles,
+          scopes: user.scopes,
+          tenant: user.tenant,
+        },
+        { signals: signalsFor(req) },
+      );
 
       setRefreshCookie(res, pair.refreshToken, pair.refreshExpiresAt);
       // The refresh token goes in the cookie only — never in the body, where
@@ -276,7 +301,7 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
     }
 
     try {
-      const pair = await auth.refresh(token);
+      const pair = await auth.refresh(token, { signals: signalsFor(req) });
       setRefreshCookie(res, pair.refreshToken, pair.refreshExpiresAt);
       res.json({ accessToken: pair.accessToken, expiresAt: pair.accessExpiresAt });
     } catch (error) {
