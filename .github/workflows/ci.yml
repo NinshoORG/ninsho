@@ -298,6 +298,22 @@ jobs:
           done
           echo "Verifier bundle is clean."
 
+      # The Fastify adapter is typed structurally and must stay that way: a
+      # real import would make every Express consumer install Fastify.
+      - name: Assert the Fastify adapter has no runtime dependency on Fastify
+        run: |
+          set -e
+          EXTERNAL=$(grep -oE "require\('[^.][^']*'\)" packages/server/dist/fastify.cjs | sort -u || true)
+          if [ -n "$EXTERNAL" ]; then
+            echo "::error::@ninsho/server/fastify must import nothing at runtime. Found: $EXTERNAL"
+            exit 1
+          fi
+          if grep -qF "toFastify" packages/server/dist/index.js; then
+            echo "::error::The Fastify adapter leaked into the main @ninsho/server bundle."
+            exit 1
+          fi
+          echo "Fastify adapter is dependency-free and separate."
+
       # The client ships to browsers, where every kilobyte and every dependency
       # is the application's problem. It must stay on Web APIs alone.
       - name: Assert the client has no dependencies at all

@@ -7,6 +7,43 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **A Fastify adapter — `@ninsho/server/fastify`.** The middleware was
+  Express-shaped, and the docs said plainly that no adapter existed. One does
+  now.
+
+  It is 1.5 KB and imports nothing at runtime — CI asserts both. A Fastify
+  *request* already satisfies `HttpRequest` structurally, so `headers`,
+  `params`, `query` and `body` need no translation at all, and `verify()`
+  attaches `auth` to the same object the route handler receives. Only the reply
+  differs, and that is all the adapter converts.
+
+  The part worth getting right is the return convention. Express middleware
+  signals "continue" by calling `next()`; a Fastify hook signals "already
+  answered" by returning the reply. Translating the first into the second
+  wrongly, in the direction of "continue", produces an authorization check that
+  logs a denial and then serves the resource anyway.
+
+  So it is tested against real Fastify rather than a stub reply — a stub would
+  confirm the author's expectations and nothing else — and every negative case
+  asserts the route handler did not run, not merely that the status was 403.
+
+  Hono and Koa still have no adapter, and are still not claimed.
+
+- **`WWW-Authenticate` on 401 responses.** RFC 7235 §3.1 requires it: "The
+  server generating a 401 response MUST send a WWW-Authenticate header field
+  containing at least one challenge." Ninsho cited that RFC and did not send
+  the header.
+
+  The challenge names `DPoP` when the deployment binds tokens (RFC 9449 §7.1)
+  and `Bearer` otherwise, so it advertises what would actually be accepted. It
+  carries the error *code* and never the `detail`, keeping the same separation
+  the response body does — asserted by a strict shape check rather than by
+  scanning for words, since the code itself is public.
+
+  A 403 deliberately sends no challenge: that caller authenticated fine and is
+  simply not permitted, so inviting them to re-authenticate would be wrong
+  advice.
+
 - **Step-up authentication — `requireFreshAuth()`.** Some operations should
   need more than a live session: changing an email address, adding a passkey,
   moving money. OWASP ASVS asks for re-authentication before them, and until

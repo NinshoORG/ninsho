@@ -73,13 +73,33 @@ function extractBearer(req: HttpRequest): string {
   return token;
 }
 
-/** Writes a Ninsho error as a JSON response, never leaking `detail`. */
-function sendError(res: HttpResponse, error: unknown): void {
+/**
+ * Writes a Ninsho error as a JSON response, never leaking `detail`.
+ *
+ * A 401 carries `WWW-Authenticate`, which RFC 7235 §3.1 requires: "The server
+ * generating a 401 response MUST send a WWW-Authenticate header field
+ * containing at least one challenge." Clients and HTTP libraries use it to
+ * decide how to retry, and omitting it makes a 401 indistinguishable from a
+ * generic refusal.
+ *
+ * The scheme names `DPoP` when the deployment binds tokens (RFC 9449 §7.1) and
+ * `Bearer` otherwise, so the challenge advertises what would actually be
+ * accepted. The `error` parameter is the code, not the `detail` — the same
+ * separation the body keeps.
+ */
+function sendError(res: HttpResponse, error: unknown, scheme = 'Bearer'): void {
   const { status, body } = toErrorResponse(error);
-  if (status === 429 && res.setHeader !== undefined) {
-    const retryAfter = (error as { retryAfter?: number }).retryAfter;
-    if (typeof retryAfter === 'number') res.setHeader('Retry-After', retryAfter);
+
+  if (res.setHeader !== undefined) {
+    if (status === 401) {
+      res.setHeader('WWW-Authenticate', `${scheme} error="${body.error.code}"`);
+    }
+    if (status === 429) {
+      const retryAfter = (error as { retryAfter?: number }).retryAfter;
+      if (typeof retryAfter === 'number') res.setHeader('Retry-After', retryAfter);
+    }
   }
+
   res.status(status).json(body);
 }
 
@@ -92,14 +112,17 @@ function sendError(res: HttpResponse, error: unknown): void {
  * A hung request on an auth route is worse than a 401: it looks like a network
  * fault rather than a refusal.
  */
-function guard(handler: (req: HttpRequest, res: HttpResponse) => Promise<boolean>): Middleware {
+function guard(
+  handler: (req: HttpRequest, res: HttpResponse) => Promise<boolean>,
+  scheme?: string,
+): Middleware {
   return (req: HttpRequest, res: HttpResponse, next: NextFunction): void => {
     handler(req, res)
       .then((shouldContinue) => {
         if (shouldContinue) next();
       })
       .catch((error: unknown) => {
-        sendError(res, error);
+        sendError(res, error, scheme);
       });
   };
 }
@@ -190,7 +213,9 @@ export function createVerify(options: MiddlewareOptions): Middleware {
 
     req.auth = auth;
     return true;
-  });
+    // The challenge advertises what would actually be accepted, so a client
+    // reading it learns whether a proof is required.
+  }, dpop === undefined ? 'Bearer' : 'DPoP');
 }
 
 // ─── Authorization ──────────────────────────────────────────────────────────

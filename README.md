@@ -92,6 +92,8 @@ Every claim below links to executable proof.
 | Every single-byte mutation of a token is rejected | Ed25519 signature | `fuzz.test.ts` › *rejects every single-byte mutation* |
 | Junk submitted in bulk cannot revoke a live session | tombstone required | `fuzz.test.ts` › *leaves a live session untouched* |
 | The whole system holds together over real HTTP | assembled app | `examples/express-api` — 75 end-to-end tests |
+| A denied request never reaches a Fastify route handler | `toFastify()` returns the reply, not undefined | `fastify.test.ts` — asserted against real Fastify |
+| A 401 carries a challenge, as RFC 7235 requires | `WWW-Authenticate`, scheme follows the binding | `middleware.test.ts` › *the 401 challenge* |
 | A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
 | **Sensitive operations can demand a recent login** | `requireFreshAuth()` reads the authentication time, not the token's | `fresh-auth.test.ts` |
@@ -158,9 +160,10 @@ refused rather than rubber-stamped. No root store ships with the package, and
 FIDO Metadata Service integration is not implemented: which manufacturers you
 trust is an operational decision, not library content.
 
-**Framework adapters.** None for Fastify, Hono or Koa: the middleware is
-Express-shaped, and while structural typing means anything matching those
-shapes works, other frameworks differ and are neither adapted nor tested.
+**Adapters beyond Express and Fastify.** The middleware is Express-shaped, and
+`@ninsho/server/fastify` adapts it for Fastify — 1.5 KB, no dependency on
+Fastify itself, tested against the real framework. Hono and Koa have no adapter
+and are therefore not claimed.
 
 ## Quick look
 
@@ -272,8 +275,9 @@ same ergonomics with neither cost.
 To be precise about what that does and does not mean: the shapes are
 **Express-shaped**, not universal. Anything matching them works — Connect,
 Restify, most Express-compatible routers. Fastify's reply uses `send()` rather
-than `json()`, and Hono's model differs more than that, so neither works
-without an adapter. None is written or tested, so neither is claimed.
+than `json()`, so it needs a translation; `@ninsho/server/fastify` is that
+translation, and it is tested against real Fastify rather than a stub. Hono's
+model differs more, has no adapter, and is not claimed.
 
 ---
 
@@ -293,6 +297,7 @@ packages/
     challenge.ts single-use challenges, scoped by ceremony
     ceremony.ts  §7.1 / §7.2 verification
   server/        @ninsho/server — store, engines, config, audit.
+    fastify.ts   @ninsho/server/fastify — adapter, no Fastify dependency
     store/       NinshoStore interface · RedisStore · MemoryStore
     engine/      TokenEngine interface · OpaqueEngine · PasetoEngine
     session/     SessionManager — rotation, families, reuse detection

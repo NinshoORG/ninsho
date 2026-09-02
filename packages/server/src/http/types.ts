@@ -9,9 +9,10 @@ import type { AuthContext } from '@ninsho/core';
  * runs — without Ninsho depending on Express, or on `@types/express`, at all.
  *
  * These are Express *shapes*, not a universal HTTP abstraction. Anything
- * matching them works; Fastify's reply uses `send()` rather than `json()`, and
- * Hono's model differs more than that. Adapters for those are possible and
- * small, but none is written or tested here, so none is claimed.
+ * matching them works. Fastify's reply uses `send()` rather than `json()`, so
+ * it needs a translation — `@ninsho/server/fastify` provides one, tested
+ * against real Fastify. Hono's model differs more than that and has no adapter
+ * here, so none is claimed.
  *
  * The predecessor took Express as a peer dependency and augmented
  * `express-serve-static-core` globally to add `req.auth`. That forces the

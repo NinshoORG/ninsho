@@ -126,6 +126,56 @@ beforeEach(() => {
 const verify = (onStoreError: 'closed' | 'open' = 'closed'): Middleware =>
   createVerify({ engine, onStoreError, audit });
 
+/**
+ * RFC 7235 §3.1: "The server generating a 401 response MUST send a
+ * WWW-Authenticate header field containing at least one challenge."
+ *
+ * Clients and HTTP libraries read it to decide how to retry. Omitting it makes
+ * a 401 indistinguishable from a generic refusal.
+ */
+describe('the 401 challenge', () => {
+  it('sends WWW-Authenticate on a missing credential', async () => {
+    const result = await run(verify(), request());
+
+    expect(result.res.statusCode).toBe(401);
+    expect(result.res.headers.get('WWW-Authenticate')).toBe('Bearer error="TOKEN_MISSING"');
+  });
+
+  it('sends it on an invalid credential too', async () => {
+    const result = await run(verify(), request({ token: 'garbage' }));
+
+    expect(result.res.statusCode).toBe(401);
+    expect(String(result.res.headers.get('WWW-Authenticate'))).toMatch(/^Bearer error="/);
+  });
+
+  it('carries only the code, never the detail', async () => {
+    // The header is as public as the body and keeps the same separation:
+    // `detail` explains the failure server-side and appears in neither. A
+    // strict shape check is the assertion that proves it — the code itself is
+    // meant to be public, so scanning for words inside it would test nothing.
+    const result = await run(verify(), request({ token: 'garbage' }));
+    const challenge = String(result.res.headers.get('WWW-Authenticate'));
+
+    expect(challenge).toMatch(/^Bearer error="[A-Z_]+"$/);
+  });
+
+  it('does not send a challenge on a 403', async () => {
+    // The caller authenticated; they are simply not permitted. Inviting them
+    // to re-authenticate would be wrong advice.
+    const issued = await engine.issue({
+      principal: ALICE,
+      sessionId: 's1',
+      authenticatedAt: new Date().toISOString(),
+    });
+    const req = request({ token: issued.token });
+    await run(verify(), req);
+
+    const result = await run(createRequireRole(audit)('admin'), req);
+    expect(result.res.statusCode).toBe(403);
+    expect(result.res.headers.get('WWW-Authenticate')).toBeUndefined();
+  });
+});
+
 describe('bearer extraction', () => {
   it('authenticates a valid token and populates req.auth', async () => {
     const issued = await engine.issue({ principal: ALICE, sessionId: 's1' , authenticatedAt: new Date().toISOString() });

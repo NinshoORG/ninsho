@@ -288,7 +288,7 @@ fail an authentication.
 - RFC 9449 — DPoP, proof-of-possession (implemented; `binding: 'dpop'`)
 - RFC 7638 — JWK thumbprint (implemented; verified against the specification's own vector)
 - RFC 8410 — Ed25519 in ASN.1
-- RFC 7235 — HTTP authentication framework
+- RFC 7235 — HTTP authentication framework (§3.1, the 401 `WWW-Authenticate` challenge)
 - RFC 9116 — `security.txt`
 - PASETO v4 specification
 - OWASP ASVS v5, OWASP API Security Top 10 (2023), OWASP Password Storage Cheat Sheet
