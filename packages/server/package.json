@@ -26,6 +26,16 @@
         "types": "./dist/fastify.d.cts",
         "default": "./dist/fastify.cjs"
       }
+    },
+    "./hono": {
+      "import": {
+        "types": "./dist/hono.d.ts",
+        "default": "./dist/hono.js"
+      },
+      "require": {
+        "types": "./dist/hono.d.cts",
+        "default": "./dist/hono.cjs"
+      }
     }
   },
   "files": [
@@ -57,6 +67,7 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "fastify": "^5.2.1"
+    "fastify": "^5.2.1",
+    "hono": "^4.13.5"
   }
 }

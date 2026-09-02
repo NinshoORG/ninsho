@@ -7,6 +7,42 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **A Hono adapter — `@ninsho/server/hono`.** The last framework gap the docs
+  admitted to. Around 2 KB, importing nothing at runtime; CI asserts both that
+  and that it stays out of the main bundle.
+
+  This one is real work where the Fastify adapter was not. A Fastify request
+  already satisfies `HttpRequest` structurally, so that adapter only translated
+  the reply. Hono differs more: a single `Context` carries both sides, headers
+  and params arrive through *functions* rather than properties, and a
+  middleware halts by returning a `Response` rather than by writing to an
+  object. So this builds a small request view over the context and turns "the
+  middleware wrote a response" into "return a Response".
+
+  Getting that translation wrong in the direction of "continue" produces an
+  authorization check that logs a denial and then serves the resource anyway.
+  Every negative test therefore asserts the route handler did not run, not
+  merely that the status was 403 — and runs against real Hono, since a stubbed
+  context would confirm my expectations of Hono and nothing else.
+
+  Body access is opt-in (`parseJsonBody`). Most guards need only headers and
+  route parameters, and parsing a body nothing reads costs time on every
+  request and fails on bodies that are not JSON. Where it is needed — a rate
+  limit keyed on an email, `requireOwner` reading a body field — Hono caches
+  the parse, so the route handler can still read the body afterwards. A
+  malformed body leaves the selector empty and fails its check, which is the
+  fail-closed outcome `ValueSelector` already specifies, rather than becoming a
+  500.
+
+  The identity lands on the context under a namespaced key rather than a plain
+  `auth`, because context variables are shared with every other middleware in
+  the application and a collision would silently replace an identity rather
+  than fail.
+
+  **It targets Hono on Node** (`@hono/node-server`). `@ninsho/server` depends on
+  `ioredis` and Node's crypto, so Workers and Deno are out of reach — said here
+  rather than left to be discovered at deploy time.
+
 - **Client signals, and an actionable reuse alarm.** `SecuritySignals` and
   `hashSignal` had been declared since the rebuild and were used by nothing —
   a feature described in the types and never implemented. It is implemented

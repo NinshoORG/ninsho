@@ -96,6 +96,7 @@ Every claim below links to executable proof.
 | Junk submitted in bulk cannot revoke a live session | tombstone required | `fuzz.test.ts` › *leaves a live session untouched* |
 | The whole system holds together over real HTTP | assembled app | `examples/express-api` — 93 end-to-end tests |
 | A denied request never reaches a Fastify route handler | `toFastify()` returns the reply, not undefined | `fastify.test.ts` — asserted against real Fastify |
+| A denied request never reaches a Hono route handler | `toHono()` returns a Response rather than calling `next()` | `hono.test.ts` — asserted against real Hono |
 | A 401 carries a challenge, as RFC 7235 requires | `WWW-Authenticate`, scheme follows the binding | `middleware.test.ts` › *the 401 challenge* |
 | A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
@@ -169,10 +170,14 @@ refused rather than rubber-stamped. No root store ships with the package, and
 FIDO Metadata Service integration is not implemented: which manufacturers you
 trust is an operational decision, not library content.
 
-**Adapters beyond Express and Fastify.** The middleware is Express-shaped, and
-`@ninsho/server/fastify` adapts it for Fastify — 1.5 KB, no dependency on
-Fastify itself, tested against the real framework. Hono and Koa have no adapter
-and are therefore not claimed.
+**Koa.** The middleware is Express-shaped; `@ninsho/server/fastify` and
+`@ninsho/server/hono` adapt it, each a couple of kilobytes, neither depending
+on the framework it adapts, both tested against the real thing. Koa has no
+adapter and is therefore not claimed.
+
+The Hono adapter targets **Hono on Node** (`@hono/node-server`). `@ninsho/server`
+depends on `ioredis` and Node's crypto, so Workers and Deno are out of reach —
+better said here than discovered at deploy time.
 
 ## Quick look
 
@@ -285,8 +290,10 @@ To be precise about what that does and does not mean: the shapes are
 **Express-shaped**, not universal. Anything matching them works — Connect,
 Restify, most Express-compatible routers. Fastify's reply uses `send()` rather
 than `json()`, so it needs a translation; `@ninsho/server/fastify` is that
-translation, and it is tested against real Fastify rather than a stub. Hono's
-model differs more, has no adapter, and is not claimed.
+translation. Hono's model differs more — one context object, headers and params
+behind functions, and halting by returning a `Response` — so
+`@ninsho/server/hono` does more work. Both are tested against the real
+framework rather than a stub.
 
 ---
 
@@ -307,6 +314,7 @@ packages/
     ceremony.ts  §7.1 / §7.2 verification
   server/        @ninsho/server — store, engines, config, audit.
     fastify.ts   @ninsho/server/fastify — adapter, no Fastify dependency
+    hono.ts      @ninsho/server/hono — adapter, no Hono dependency
     store/       NinshoStore interface · RedisStore · MemoryStore
     engine/      TokenEngine interface · OpaqueEngine · PasetoEngine
     session/     SessionManager — rotation, families, reuse detection

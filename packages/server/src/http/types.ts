@@ -9,10 +9,11 @@ import type { AuthContext } from '@ninsho/core';
  * runs — without Ninsho depending on Express, or on `@types/express`, at all.
  *
  * These are Express *shapes*, not a universal HTTP abstraction. Anything
- * matching them works. Fastify's reply uses `send()` rather than `json()`, so
- * it needs a translation — `@ninsho/server/fastify` provides one, tested
- * against real Fastify. Hono's model differs more than that and has no adapter
- * here, so none is claimed.
+ * matching them works. Fastify's reply uses `send()` rather than `json()`, and
+ * Hono differs more still — one context object, headers behind functions, and
+ * halting by returning a `Response`. Both have adapters here
+ * (`@ninsho/server/fastify`, `@ninsho/server/hono`), each tested against the
+ * real framework. Koa has none, so none is claimed.
  *
  * The predecessor took Express as a peer dependency and augmented
  * `express-serve-static-core` globally to add `req.auth`. That forces the
