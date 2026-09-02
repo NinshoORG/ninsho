@@ -412,6 +412,32 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Two separate `toHono()` calls did not compose.** Each call builds its own
+  request view over the Hono context, so an application written the way Hono
+  applications usually are —
+
+  ```ts
+  app.use('/admin', toHono(auth.verify()));
+  app.use('/admin', toHono(auth.requireRole('admin')));
+  ```
+
+  — gave the second call no identity to read. `getAuth` threw and a correctly
+  written application got a 500.
+
+  It failed closed, which is the right direction, and the chained form
+  (`toHono([verify, requireRole])`) always worked. But the composition a Hono
+  user would naturally reach for was broken, and the suite had only ever
+  exercised the chained form.
+
+  The request view is now seeded from the context, so the two forms behave
+  identically. Fastify never had the equivalent problem because there the
+  framework's own request object *is* the `HttpRequest` and `auth` persists on
+  it. Found by adversarial review rather than by a failing test, which is why
+  four regression tests now cover it — including that the fix does not turn the
+  composition into one that always passes, does not leak an identity between
+  requests, and still refuses a guard mounted without `verify()` ahead of it.
+
+
 - **Parallel tabs were spuriously signed out under a real store.** A caller
   that loses a refresh rotation race waits briefly for the winner to publish
   its tombstone, then adopts the same replacement — that wait is what stops a

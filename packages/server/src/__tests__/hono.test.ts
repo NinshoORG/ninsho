@@ -278,6 +278,85 @@ describe('step-up through the adapter', () => {
   });
 });
 
+/**
+ * Hono applications are usually written as separate `app.use()` calls rather
+ * than one chain, so both compositions have to work.
+ */
+describe('separate toHono() calls compose', () => {
+  it('carries the identity from one call to the next', async () => {
+    // REGRESSION (found by adversarial review, never by the suite above)
+    // Each toHono() builds its own request view, so the second call saw no
+    // identity: getAuth threw and a correctly written application got a 500.
+    // It failed closed, which is the right direction, but the composition a
+    // Hono user would naturally reach for was broken.
+    const local = new Hono();
+    let ran = false;
+
+    local.use('/admin', toHono(auth.verify()));
+    local.use('/admin', toHono(auth.requireRole('admin')));
+    local.get('/admin', (c) => {
+      ran = true;
+      return c.json({ ok: true });
+    });
+
+    const pair = await auth.createSession(ADMIN);
+    const res = await local.request('/admin', { headers: bearer(pair.accessToken) });
+
+    expect(res.status).toBe(200);
+    expect(ran).toBe(true);
+  });
+
+  it('still denies across separate calls', async () => {
+    // The fix must not turn the composition into one that always passes.
+    const local = new Hono();
+    let ran = false;
+
+    local.use('/admin', toHono(auth.verify()));
+    local.use('/admin', toHono(auth.requireRole('admin')));
+    local.get('/admin', (c) => {
+      ran = true;
+      return c.json({ ok: true });
+    });
+
+    const pair = await auth.createSession(ALICE);
+    const res = await local.request('/admin', { headers: bearer(pair.accessToken) });
+
+    expect(res.status).toBe(403);
+    expect(ran).toBe(false);
+  });
+
+  it('does not leak an identity between requests', async () => {
+    // The context is per-request, so seeding from it must not carry one
+    // caller's identity into the next request.
+    const local = new Hono();
+    local.use('/me', toHono(auth.verify()));
+    local.get('/me', (c) => c.json({ userId: getAuth(c as unknown as HonoLikeContext).userId }));
+
+    const pair = await auth.createSession(ALICE);
+    expect((await local.request('/me', { headers: bearer(pair.accessToken) })).status).toBe(200);
+
+    // A second request with no credential must not inherit the first's.
+    const anonymous = await local.request('/me');
+    expect(anonymous.status).toBe(401);
+  });
+
+  it('refuses a guard mounted without verify() ahead of it', async () => {
+    // Seeding from the context must not make an unauthenticated request look
+    // authenticated when verify() never ran.
+    const local = new Hono();
+    let ran = false;
+    local.use('/admin', toHono(auth.requireRole('admin')));
+    local.get('/admin', (c) => {
+      ran = true;
+      return c.json({ ok: true });
+    });
+
+    const res = await local.request('/admin');
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(ran).toBe(false);
+  });
+});
+
 describe('adapter contract', () => {
   it('refuses an empty chain rather than permitting everything', () => {
     expect(() => toHono([])).toThrow(/at least one middleware/);

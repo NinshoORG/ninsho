@@ -108,11 +108,25 @@ async function toHttpRequest(
     }
   }
 
+  // Seeded from the context so that separate `toHono()` calls compose:
+  //
+  //     app.use('/admin', toHono(auth.verify()));
+  //     app.use('/admin', toHono(auth.requireRole('admin')));
+  //
+  // Each call builds its own request view, so without this the second one sees
+  // no identity, `getAuth` throws, and a correctly written application gets a
+  // 500. Fastify does not need the equivalent because there the framework's
+  // own request object *is* the `HttpRequest`, and `auth` persists on it.
+  const established = c.get(AUTH_CONTEXT_KEY);
+
   return {
     headers: c.req.header(),
     params: c.req.param(),
     query: c.req.query(),
     ...(body !== undefined && { body }),
+    ...(established !== undefined && established !== null
+      ? { auth: established as AuthContext }
+      : {}),
   };
 }
 
