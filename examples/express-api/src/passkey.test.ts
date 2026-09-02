@@ -295,6 +295,94 @@ describe('registration requires a session', () => {
   });
 });
 
+/**
+ * Adding a passkey is adding a new way into the account, so a live session is
+ * not enough — someone at an unlocked laptop has one of those.
+ */
+describe('enrolling a passkey needs a recent login', () => {
+  it('refuses when the authentication is older than the window', async () => {
+    // A server whose step-up window has already passed by the time the user
+    // tries to enrol.
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    resetUsers();
+    resetCredentials();
+    store = new MemoryStore();
+    const { app } = createApp({
+      store,
+      secureCookies: false,
+      trustProxy: false,
+      rpId: RP_ID,
+      webauthnOrigin: ORIGIN,
+      passkeyStepUpSeconds: 1,
+    });
+    server = await new Promise((resolve) => {
+      const s = app.listen(0, () => resolve(s));
+    });
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+    const { token } = await signUp('ada@example.test');
+    // Wait past the one-second window.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    const res = await call('/auth/passkey/register/start', { method: 'POST', token });
+    expect(res.status).toBe(403);
+  });
+
+  it('allows enrolment immediately after signing in', async () => {
+    // The same route, inside the window — so the rejection above came from the
+    // freshness policy and not from something else being wrong.
+    const { token } = await signUp('ada@example.test');
+    const res = await call('/auth/passkey/register/start', { method: 'POST', token });
+    expect(res.status).toBe(200);
+  });
+
+  it('cannot be satisfied by refreshing', async () => {
+    // The point of reading the authentication time rather than the token's:
+    // a stale session that refreshes gets a brand-new access token and must
+    // still be refused.
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    resetUsers();
+    resetCredentials();
+    store = new MemoryStore();
+    const { app } = createApp({
+      store,
+      secureCookies: false,
+      trustProxy: false,
+      rpId: RP_ID,
+      webauthnOrigin: ORIGIN,
+      passkeyStepUpSeconds: 1,
+    });
+    server = await new Promise((resolve) => {
+      const s = app.listen(0, () => resolve(s));
+    });
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+    const registration = await call('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'ada@example.test', password: PASSWORD }),
+    });
+    const cookie = (registration.headers.getSetCookie?.() ?? [])
+      .find((c) => c.startsWith('ninsho_rt='))
+      ?.split(';')[0] as string;
+
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    const refreshed = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+    });
+    const body = (await refreshed.json()) as { accessToken: string };
+    expect(refreshed.status).toBe(200);
+
+    // A token minted seconds ago, on an authentication that is not.
+    const res = await call('/auth/passkey/register/start', {
+      method: 'POST',
+      token: body.accessToken,
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('replay and tampering', () => {
   it('refuses a replayed assertion', async () => {
     const { token } = await signUp('ada@example.test');

@@ -42,6 +42,14 @@ export interface AppOptions {
   /** Set false when serving over plain HTTP in local development. */
   readonly secureCookies?: boolean;
   /**
+   * How recently the user must have authenticated to add a passkey. Default
+   * 300 seconds.
+   *
+   * Exposed so the tests can exercise the expiry without waiting five minutes;
+   * a real deployment would simply take the default.
+   */
+  readonly passkeyStepUpSeconds?: number;
+  /**
    * The WebAuthn relying-party id — a registrable domain suffix of the origin.
    *
    * Credentials are scoped to it, so changing it invalidates every passkey
@@ -109,6 +117,7 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
   // The same store backs both. Challenges are short-lived and single-use, so
   // they belong wherever session state already lives rather than in a second
   // piece of infrastructure.
+  const stepUpSeconds = options.passkeyStepUpSeconds ?? 300;
   const rpId = options.rpId ?? 'localhost';
   const webauthn = new WebAuthnServer({
     rpId,
@@ -312,6 +321,12 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
   app.post(
     '/auth/passkey/register/start',
     auth.verify(),
+    // A live session is not enough. Someone who walked up to an unlocked
+    // laptop has a live session; enrolling a passkey from it would hand them
+    // permanent access. `requireFreshAuth` reads when the user actually
+    // authenticated, which a refresh does not reset — so a month-old session
+    // that has been quietly refreshing cannot satisfy it.
+    auth.requireFreshAuth(stepUpSeconds),
     route(async (req: Request, res: Response) => {
       const context = getAuth(req);
       const user = findById(context.userId);
@@ -335,6 +350,7 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
   app.post(
     '/auth/passkey/register/finish',
     auth.verify(),
+    auth.requireFreshAuth(stepUpSeconds),
     route(async (req: Request, res: Response) => {
       const context = getAuth(req);
       const body = req.body as { clientDataJSON?: unknown; attestationObject?: unknown };

@@ -25,7 +25,7 @@ Runs on `MemoryStore` by default, which refuses to start under
 | `GET /me` | A plainly protected route |
 | `GET /admin/reports` | Role-gated access |
 | `GET /users/:id/orders` | **Ownership** — the check that is most often missing |
-| `POST /auth/passkey/register/start` · `/finish` | Adding a passkey to an existing account, bound to the signed-in user |
+| `POST /auth/passkey/register/start` · `/finish` | Adding a passkey — bound to the signed-in user, and gated on a **recent** login |
 | `GET /auth/passkeys` | Listing credentials without returning key material |
 | `POST /auth/passkey/login/start` · `/finish` | Usernameless passkey sign-in, ending in an ordinary Ninsho session |
 
@@ -71,6 +71,27 @@ request was authenticated — so any signed-in user reads anyone's orders by
 changing the value. That is OWASP API Security #1. Verifying a token says who
 is calling; it says nothing about what they may address.
 
+## Step-up on passkey enrolment
+
+Adding a passkey is adding a new way into the account, so the enrolment routes
+require more than a live session:
+
+```ts
+app.post('/auth/passkey/register/start',
+  auth.verify(),
+  auth.requireFreshAuth(300),
+  handler);
+```
+
+Someone who walks up to an unlocked laptop *has* a live session. Enrolling a
+passkey from it would hand them permanent access, long after the laptop is
+locked again.
+
+`requireFreshAuth` reads when the user actually authenticated, which a refresh
+does not reset — so a month-old session that has been quietly refreshing in the
+background cannot satisfy it. The tests assert exactly that: refreshing gets a
+brand-new access token and is still refused.
+
 ## Password hashing
 
 scrypt with OWASP parameters (N=2¹⁷, r=8, p=1), built into Node so this example
@@ -90,7 +111,7 @@ established. Owning credential verification would mean owning your user model.
 npm run test --workspace @ninsho/example-express-api
 ```
 
-72 end-to-end tests over real HTTP. They exist to catch what unit tests
+75 end-to-end tests over real HTTP. They exist to catch what unit tests
 structurally cannot — a middleware mounted in the wrong order, a cookie flag
 that never reaches the wire, an error mapped to the wrong status by the
 framework.

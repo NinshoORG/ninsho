@@ -91,7 +91,7 @@ Every claim below links to executable proof.
 | No input produces an uncontrolled exception | every parser on the untrusted path | `fuzz.test.ts` — randomised and mutation testing |
 | Every single-byte mutation of a token is rejected | Ed25519 signature | `fuzz.test.ts` › *rejects every single-byte mutation* |
 | Junk submitted in bulk cannot revoke a live session | tombstone required | `fuzz.test.ts` › *leaves a live session untouched* |
-| The whole system holds together over real HTTP | assembled app | `examples/express-api` — 72 end-to-end tests |
+| The whole system holds together over real HTTP | assembled app | `examples/express-api` — 75 end-to-end tests |
 | A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
 | **Sensitive operations can demand a recent login** | `requireFreshAuth()` reads the authentication time, not the token's | `fresh-auth.test.ts` |
