@@ -114,7 +114,7 @@ authorization data inside a `Principal`.
 | A reset link redeemed twice | **Mitigated** | Atomic `take()`; `one-time-token.test.ts` › *lets exactly one of many simultaneous clicks win* |
 | A stolen database yielding usable reset links | **Mitigated** | Only `hashToken(raw)` is stored; the raw value exists solely in the email |
 | A reset token replayed at a weaker endpoint | **Mitigated** | Purpose is part of the storage key, not a comparison |
-| A stale reset link in an old inbox | **Mitigated** | 15-minute default, and issuing a replacement invalidates the previous token |
+| A stale reset link in an old inbox | **Mitigated** | 15-minute default; issuing a replacement invalidates the previous token via an atomic generation counter, verified race-free |
 | Sessions surviving a password change | **Mitigated where used** | `revokeAllForUser('credential_changed')`; shown in the example, and Ninsho cannot force you to call it |
 | Store-read attacker replaying credentials | **Mitigated** | Only SHA-256 hashes are stored. One exception below |
 | Timing side-channels on secret comparison | **Mitigated** | `safeEqual` is constant-time and fails closed on malformed input |

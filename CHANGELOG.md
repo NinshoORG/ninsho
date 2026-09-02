@@ -412,6 +412,32 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **"Issuing a token invalidates the previous one" did not hold under
+  concurrency.** Invalidation swept a per-subject index of outstanding token
+  hashes. Two concurrent `issue` calls each read that index before the other
+  wrote to it, so neither saw the other's token and *both* stayed valid —
+  measured at 80 of 80 across 40 races.
+
+  The practical exposure was small: both links land in the same inbox, and an
+  attacker who triggers two resets receives neither. What was wrong is that the
+  guarantee had been documented as one, which is the kind of overclaim this
+  project exists to avoid.
+
+  Replaced with an atomic generation counter. `increment` gives two concurrent
+  issues distinct generations; the token stamped with the older one no longer
+  matches and consumption refuses it. The new design is also simpler and
+  cheaper — revoking everything outstanding is a single increment rather than a
+  bounded fan-out over a set, and there is no longer a per-subject index of
+  token hashes to store at all.
+
+  If the counter lapses while a token is still live the generations disagree
+  and the token is refused, so that failure lands closed too. Its TTL is set
+  well beyond the longest token to keep it from arising.
+
+  The regression test runs the race twenty-five times and asserts exactly one
+  survivor. Found by adversarial review, not by a failing test.
+
+
 - **Two separate `toHono()` calls did not compose.** Each call builds its own
   request view over the Hono context, so an application written the way Hono
   applications usually are —

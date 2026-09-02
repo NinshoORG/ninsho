@@ -42,7 +42,6 @@ import {
 } from '@ninsho/core';
 import type { NinshoStore } from '../store/types.js';
 import { KEYS } from '../keys.js';
-import { mapConcurrent } from '../internal/concurrent.js';
 
 /**
  * A single-use token was not accepted.
@@ -128,6 +127,15 @@ export interface OneTimeTokenClaim {
   readonly issuedAt: string;
   readonly expiresAt: string;
   readonly metadata: Readonly<Record<string, string>>;
+  /**
+   * The subject's generation when this token was issued.
+   *
+   * Compared at consumption. A token stamped with an older generation has been
+   * superseded — by a replacement, or by an explicit revocation — and is
+   * refused. This is what makes invalidation race-free; see
+   * `KEYS.oneTimeTokenGeneration`.
+   */
+  readonly generation: number;
 }
 
 const DEFAULT_TTL_SECONDS = 900;
@@ -144,8 +152,14 @@ const MIN_TOKEN_BYTES = 16;
  */
 const MAX_TOKEN_INPUT = 512;
 
-/** Bound on how many outstanding tokens are cleaned up in one issue call. */
-const INVALIDATION_CONCURRENCY = 16;
+/**
+ * How long a subject's generation counter is kept.
+ *
+ * Comfortably beyond the longest token so a live token's generation is still
+ * there to compare against. If it does lapse, the mismatch refuses the token —
+ * a failure in the safe direction.
+ */
+const GENERATION_TTL_SECONDS = MAX_TTL_SECONDS + 3600;
 
 export interface OneTimeTokenManagerDeps {
   readonly store: NinshoStore;
@@ -204,11 +218,15 @@ export class OneTimeTokenManager {
       );
     }
 
-    if (this.#invalidatePrevious) {
-      // Before minting the replacement, so there is no instant at which both
-      // the old and the new link work.
-      await this.#invalidateFor(input.purpose, input.subject);
-    }
+    // Atomic, so two concurrent issues receive distinct generations and the
+    // older token stops matching. Reading without incrementing keeps every
+    // outstanding token in the same generation when replacement is disabled.
+    const generation = this.#invalidatePrevious
+      ? await this.#store.increment(
+          KEYS.oneTimeTokenGeneration(input.purpose, input.subject),
+          GENERATION_TTL_SECONDS,
+        )
+      : await this.#readGeneration(input.purpose, input.subject);
 
     const token = generateToken(this.#tokenBytes);
     const tokenHash = hashToken(token);
@@ -222,6 +240,7 @@ export class OneTimeTokenManager {
       issuedAt: isoFrom(now),
       expiresAt: isoFrom(now, ttlSeconds),
       metadata: input.metadata ?? {},
+      generation,
     };
 
     const stored = await this.#store.setIfAbsent(
@@ -238,14 +257,6 @@ export class OneTimeTokenManager {
         'one-time token collision — the random source is suspect',
       );
     }
-
-    // Indexed so a later issue can invalidate this one. The set outlives the
-    // token slightly; stale members are ignored on read.
-    await this.#store.sAdd(
-      KEYS.oneTimeTokenSubject(input.purpose, input.subject),
-      tokenHash,
-      ttlSeconds + 60,
-    );
 
     this.#audit.emit({
       type: 'onetime.issued',
@@ -315,7 +326,13 @@ export class OneTimeTokenManager {
       throw new OneTimeTokenError(`token was issued for ${claim.purpose}, not ${purpose}`);
     }
 
-    await this.#store.sRemove(KEYS.oneTimeTokenSubject(purpose, claim.subject), tokenHash);
+    // Superseded by a later issue, or by an explicit revocation. Checked at
+    // consumption rather than deleted at issue, which is what makes the
+    // invalidation race-free.
+    const current = await this.#readGeneration(purpose, claim.subject);
+    if (typeof claim.generation !== 'number' || claim.generation !== current) {
+      throw new OneTimeTokenError('token was superseded by a newer one');
+    }
 
     this.#audit.emit({
       type: 'onetime.consumed',
@@ -333,29 +350,27 @@ export class OneTimeTokenManager {
    * Worth calling when the reason for the token disappears — the user changed
    * their password by another route, or an administrator disabled the account.
    */
-  async revokeAllFor(purpose: string, subject: string): Promise<number> {
+  async revokeAllFor(purpose: string, subject: string): Promise<void> {
     this.#assertPurpose(purpose);
-    return this.#invalidateFor(purpose, subject);
+    // One atomic increment invalidates every outstanding token at once. The
+    // records themselves are left to expire; they can no longer be redeemed,
+    // and sweeping them would cost a fan-out to delete data that is already
+    // inert.
+    await this.#store.increment(
+      KEYS.oneTimeTokenGeneration(purpose, subject),
+      GENERATION_TTL_SECONDS,
+    );
   }
 
-  /** Removes the subject's outstanding tokens. Returns how many were cleared. */
-  async #invalidateFor(purpose: string, subject: string): Promise<number> {
-    const indexKey = KEYS.oneTimeTokenSubject(purpose, subject);
-    const hashes = await this.#store.sMembers(indexKey);
-    if (hashes.length === 0) return 0;
+  /** The subject's current generation. Absent counts as zero. */
+  async #readGeneration(purpose: string, subject: string): Promise<number> {
+    const raw = await this.#store.get(KEYS.oneTimeTokenGeneration(purpose, subject));
+    if (raw === null) return 0;
 
-    // Bounded fan-out rather than one round trip at a time: against a real
-    // store the difference is the whole latency budget for the request.
-    await mapConcurrent(
-      hashes,
-      async (hash) => {
-        await this.#store.delete(KEYS.oneTimeToken(purpose, hash));
-      },
-      INVALIDATION_CONCURRENCY,
-    );
-
-    await this.#store.delete(indexKey);
-    return hashes.length;
+    const value = Number(raw);
+    // A counter that cannot be read is treated as a mismatch rather than as
+    // agreement, so a corrupt value refuses tokens instead of accepting them.
+    return Number.isInteger(value) ? value : Number.NaN;
   }
 
   #assertPurpose(purpose: string): void {

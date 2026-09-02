@@ -104,7 +104,7 @@ Every claim below links to executable proof.
 | **A reset link works exactly once** | atomic `take()`, never read-then-delete | `one-time-token.test.ts` › *lets exactly one of many simultaneous clicks win* |
 | A reset token is never stored in plaintext | keyed by `hashToken()` | `one-time-token.test.ts` › *the raw token never reaches the store* |
 | A reset token cannot be used at a verification endpoint | purpose is part of the key, not a comparison | `one-time-token.test.ts` › *purpose scoping* |
-| Requesting a new reset link kills the old one | subject index, invalidated on issue | `one-time-token.test.ts` › *invalidating previous tokens* |
+| Requesting a new reset link kills the old one | atomic generation counter, race-free | `one-time-token.test.ts` › *leaves exactly one token valid when two issues race* |
 | A password reset ends every existing session | `revokeAllForUser('credential_changed')` | `password-reset.test.ts` › *revokes every existing session* |
 | The reset endpoint is not an enumeration oracle | identical answer for real and unknown addresses | `password-reset.test.ts` › *it does not reveal which accounts exist* |
 | Refreshing cannot masquerade as re-authenticating | `authenticatedAt` is carried unchanged through rotation | `fresh-auth.test.ts` › *refreshing does not count as authenticating* |

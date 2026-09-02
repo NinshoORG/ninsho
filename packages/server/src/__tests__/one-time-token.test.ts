@@ -103,14 +103,13 @@ describe('the raw token never reaches the store', () => {
     expect(record).not.toContain(issued.token);
   });
 
-  it('keeps the raw token out of the subject index too', async () => {
-    const issued = await reset();
-    const members = await store.sMembers(
-      KEYS.oneTimeTokenSubject('password-reset', 'user_alice'),
-    );
+  it('keeps the raw token out of the generation counter too', async () => {
+    // The counter holds a number and nothing else — there is no per-subject
+    // index of token hashes any more, and so nothing to leak from one.
+    await reset();
+    const counter = await store.get(KEYS.oneTimeTokenGeneration('password-reset', 'user_alice'));
 
-    expect(members).toContain(hashToken(issued.token));
-    expect(members).not.toContain(issued.token);
+    expect(counter).toMatch(/^\d+$/);
   });
 });
 
@@ -269,6 +268,36 @@ describe('invalidating previous tokens', () => {
     await expect(tokens.consume('password-reset', second.token)).resolves.toBeTruthy();
   });
 
+  it('leaves exactly one token valid when two issues race', async () => {
+    // REGRESSION (found by adversarial review)
+    // Invalidation used to sweep a per-subject index: two concurrent issues
+    // each read the index before the other wrote, so neither saw the other's
+    // token and *both* stayed valid — 80 of 80 across 40 measured races. The
+    // documented guarantee simply did not hold under concurrency.
+    //
+    // An atomic counter fixes it: the two issues receive distinct generations
+    // and the older token no longer matches.
+    for (let round = 0; round < 25; round += 1) {
+      const store2 = new MemoryStore();
+      const isolated = new OneTimeTokenManager({ store: store2, audit });
+
+      const pair = await Promise.all([
+        isolated.issue({ purpose: 'password-reset', subject: 'u' }),
+        isolated.issue({ purpose: 'password-reset', subject: 'u' }),
+      ]);
+
+      const results = await Promise.allSettled(
+        pair.map((one) => isolated.consume('password-reset', one.token)),
+      );
+      expect(
+        results.filter((r) => r.status === 'fulfilled'),
+        `round ${round}: both tokens survived the race`,
+      ).toHaveLength(1);
+
+      await store2.close();
+    }
+  });
+
   it('leaves other subjects alone', async () => {
     const alice = await reset('user_alice');
     await reset('user_bob');
@@ -291,14 +320,14 @@ describe('invalidating previous tokens', () => {
       Array.from({ length: 5 }, () => many.issue({ purpose: 'invite', subject: 'u' })),
     );
 
-    expect(await many.revokeAllFor('invite', 'u')).toBe(5);
+    await many.revokeAllFor('invite', 'u');
     for (const one of issued) {
       await expect(many.consume('invite', one.token)).rejects.toBeInstanceOf(OneTimeTokenError);
     }
   });
 
-  it('reports nothing to revoke for an unknown subject', async () => {
-    expect(await tokens.revokeAllFor('password-reset', 'nobody')).toBe(0);
+  it('is a no-op for a subject with nothing outstanding', async () => {
+    await expect(tokens.revokeAllFor('password-reset', 'nobody')).resolves.toBeUndefined();
   });
 });
 

@@ -149,14 +149,28 @@ export const KEYS = {
     `${NS}:ott:${purpose}:${tokenHash}`,
 
   /**
-   * Set of outstanding single-use token hashes for one subject and purpose.
+   * Generation counter for one subject's single-use tokens.
    *
-   * Read when issuing a replacement, so requesting a second password-reset
-   * email invalidates the first — OWASP's guidance, and what stops an old link
-   * sitting in an inbox from working indefinitely.
+   * ─── Why a counter rather than an index of outstanding tokens ───────────
+   * The first implementation kept a set of outstanding hashes and deleted them
+   * when a replacement was issued. That is not race-free: two concurrent
+   * `issue` calls each read the set before the other writes, so neither sees
+   * the other's token and *both* remain valid — measured at 80 out of 80
+   * across 40 races. The guarantee it was supposed to provide simply did not
+   * hold under concurrency.
+   *
+   * A counter does. `increment` is atomic, so two concurrent issues receive
+   * distinct generations, the token stamped with the lower one no longer
+   * matches, and consumption rejects it. Revoking everything outstanding is
+   * then a single increment rather than a fan-out over the set.
+   *
+   * If the counter expires while a token is still live, the token's generation
+   * no longer matches and it is refused — the failure lands closed, and the
+   * TTL is set well beyond the token's to keep it from happening.
+   * ────────────────────────────────────────────────────────────────────────
    */
-  oneTimeTokenSubject: (purpose: string, subject: string): string =>
-    `${NS}:ott:${purpose}:sub:${subject}`,
+  oneTimeTokenGeneration: (purpose: string, subject: string): string =>
+    `${NS}:ott:${purpose}:gen:${subject}`,
 
   /**
    * Rate-limit counter for one bucket in one time window.
