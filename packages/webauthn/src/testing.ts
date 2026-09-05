@@ -452,13 +452,24 @@ export class VirtualAuthenticator {
      * that breaks a §8.3.1 requirement while everything else stays genuine.
      */
     tpmAttestation?: { root: GeneratedCertificate; aik?: GeneratedCertificate };
+    /**
+     * Produces a FIDO U2F attestation instead — the shape a CTAP1 security key
+     * gives.
+     *
+     * The signature is over a flat concatenation naming the credential
+     * explicitly, and the AAGUID is zeroed, because U2F has no model
+     * identifier and the browser does not invent one.
+     */
+    u2fAttestation?: { root: GeneratedCertificate; leaf?: GeneratedCertificate };
   }): Promise<RegistrationResult> {
     const authData = await buildAuthenticatorData({
       rpId: options.rpId,
       flags: options.flags ?? FLAG_UP | FLAG_UV | FLAG_AT,
       signCount: this.#signCount,
       attestedCredential: {
-        aaguid: this.aaguid,
+        // U2F has no model identifier; the browser zeroes the field rather
+        // than inventing one, and the fixture does the same.
+        aaguid: options.u2fAttestation ? new Uint8Array(16) : this.aaguid,
         credentialId: this.credentialId,
         credentialPublicKey: await this.coseKey(),
       },
@@ -500,6 +511,42 @@ export class VirtualAuthenticator {
       attStmt.set('x5c', [credCert.der]);
     }
 
+    if (options.u2fAttestation) {
+      const jwk = await crypto.subtle.exportKey('jwk', this.#keyPair.publicKey);
+      const publicKeyU2F = concat([
+        new Uint8Array([0x04]),
+        new Uint8Array(Buffer.from(jwk.x as string, 'base64url')),
+        new Uint8Array(Buffer.from(jwk.y as string, 'base64url')),
+      ]);
+
+      // §8.6: a flat concatenation, not `authData`. The leading zero is a
+      // reserved constant that keeps this from being replayable as a U2F
+      // authentication response.
+      const verificationData = concat([
+        new Uint8Array([0x00]),
+        authData.subarray(0, 32),
+        clientDataHash,
+        this.credentialId,
+        publicKeyU2F,
+      ]);
+
+      const attCert =
+        options.u2fAttestation.leaf ??
+        createCertificate({
+          subject: 'Ninsho U2F Attestation',
+          issuer: options.u2fAttestation.root,
+        });
+
+      const signature = new Uint8Array(
+        createSign('SHA256').update(verificationData).sign(attCert.privateKey),
+      );
+      if (options.breakAttestationSignature) signature[0] = (signature[0] as number) ^ 0xff;
+
+      format = options.attestationFormat ?? 'fido-u2f';
+      attStmt.set('sig', signature);
+      attStmt.set('x5c', [attCert.der]);
+    }
+
     if (options.tpmAttestation) {
       const jwk = await crypto.subtle.exportKey('jwk', this.#keyPair.publicKey);
       const x = new Uint8Array(Buffer.from(jwk.x as string, 'base64url'));
@@ -530,7 +577,7 @@ export class VirtualAuthenticator {
       attStmt.set('certInfo', certInfo);
       attStmt.set('pubArea', pubArea);
       attStmt.set('x5c', [aik.der]);
-    } else if (options.appleAttestation) {
+    } else if (options.appleAttestation || options.u2fAttestation) {
       // Already assembled above.
     } else if (options.attestationChain) {
       format = options.attestationFormat ?? 'packed';

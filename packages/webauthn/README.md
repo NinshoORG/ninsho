@@ -173,17 +173,22 @@ verified.aaguidVerified    // true only when a trusted chain vouched for the AAG
 verified.attestationSubject
 ```
 
-**Trust anchors are mandatory.** `packed`, `apple` and `tpm` are refused outright without them. A
-chain checked against no root proves nothing — anyone can self-sign a CA and put any AAGUID they like in a certificate
+**Trust anchors are mandatory.** `packed`, `apple`, `tpm` and `fido-u2f` are refused outright
+without them. A chain checked against no root proves nothing — anyone can self-sign a CA and put any AAGUID they like in a certificate
 they issued to themselves — and a verifier reporting success there would manufacture confidence.
 If you have no roots, you have no attestation, and saying so is the honest answer.
 
 ## What is *not* verified
 
-**Attestation formats other than `packed`, `apple` and `tpm`.** `android-key`,
-`android-safetynet` and `fido-u2f` are not implemented and are refused rather than
-parsed-and-ignored — allowlisting one still fails closed. `packed` covers most security keys
-including the YubiKey line; `apple` covers Touch ID and Face ID; `tpm` covers Windows Hello.
+**The Android attestation formats.** `android-key` and `android-safetynet` are not implemented and
+are refused rather than parsed-and-ignored — allowlisting one still fails closed. What *is*
+verified: `packed` covers most security keys including the YubiKey line, `apple` covers Touch ID
+and Face ID, `tpm` covers Windows Hello, and `fido-u2f` covers CTAP1 security keys.
+
+**`fido-u2f` conveys no AAGUID.** U2F has no model identifier, so a verified statement proves the
+credential lives on hardware a trusted root vouched for and says nothing about which model.
+`aaguidVerified` stays `false`, and combining the format with `allowedAaguids` is refused rather
+than quietly failing against sixteen zero bytes.
 
 **No root store ships here.** Which manufacturers you trust is an operational decision that changes
 without this package changing. FIDO's Metadata Service is where most relying parties draw roots

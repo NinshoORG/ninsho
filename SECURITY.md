@@ -146,20 +146,26 @@ have been reassured about is not.
 
 ### WebAuthn attestation does not cover the Android formats
 
-`@ninsho/webauthn` verifies the `none`, `packed`, `apple` and `tpm` formats. It
-does **not** verify `android-key`, `android-safetynet` or `fido-u2f`, and
+`@ninsho/webauthn` verifies the `none`, `packed`, `apple`, `tpm` and `fido-u2f`
+formats. It does **not** verify `android-key` or `android-safetynet`, and
 allowlisting one of those does not change that — the ceremony refuses it
 regardless. There is deliberately no arrangement of options that turns an
 unverified attestation into a verified one.
 
 `packed` covers most security keys, the YubiKey line included; `apple` covers
-Touch ID and Face ID; `tpm` covers Windows Hello. What remains uncovered is
-principally Android platform authenticators (`android-key`,
-`android-safetynet`); if your policy has to cover those devices' attestation,
-that work is not done.
+Touch ID and Face ID; `tpm` covers Windows Hello; `fido-u2f` covers CTAP1
+security keys. What remains uncovered is Android platform authenticators
+(`android-key`, `android-safetynet`); if your policy has to cover those
+devices' attestation, that work is not done.
 
-**Trust anchors are mandatory, not optional.** `packed`, `apple` and `tpm` are
-refused unless the relying party supplies the root certificates it trusts. A chain checked against
+`fido-u2f` is verified but conveys no AAGUID — U2F has no model identifier.
+A verified U2F statement proves the credential lives on vouched-for hardware
+and nothing about which model, so `aaguidVerified` stays `false` and pairing
+the format with `allowedAaguids` is refused rather than silently unenforceable.
+
+**Trust anchors are mandatory, not optional.** `packed`, `apple`, `tpm` and
+`fido-u2f` are refused unless the relying party supplies the root certificates
+it trusts. A chain checked against
 no root proves nothing — anyone can self-sign a CA and put any AAGUID they like
 in a certificate they issued to themselves — and a verifier reporting
 "attestation verified" in that situation manufactures confidence.

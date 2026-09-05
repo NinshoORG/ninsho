@@ -19,9 +19,10 @@
  *
  * A verifier that reports "attestation verified" in that situation is worse
  * than one with no attestation support: it manufactures confidence. So every
- * format that carries a chain — `packed`, `apple` and `tpm` — is accepted only
- * when the relying party supplies the roots it trusts. If you do not have
- * roots, you do not have attestation, and saying so is the honest answer.
+ * format that carries a chain — `packed`, `apple`, `tpm` and `fido-u2f` — is
+ * accepted only when the relying party supplies the roots it trusts. If you do
+ * not have roots, you do not have attestation, and saying so is the honest
+ * answer.
  * ──────────────────────────────────────────────────────────────────────────
  */
 
@@ -69,7 +70,7 @@ export type AttestationType =
 export const FIDO_AAGUID_OID = '1.3.6.1.4.1.45724.1.1.4';
 
 /** Formats this package can actually verify. */
-export const VERIFIABLE_FORMATS: readonly string[] = ['none', 'packed', 'apple', 'tpm'];
+export const VERIFIABLE_FORMATS: readonly string[] = ['none', 'packed', 'apple', 'tpm', 'fido-u2f'];
 
 /** How deep an attestation chain may be, counting the leaf. */
 const MAX_CHAIN_DEPTH = 6;
@@ -81,8 +82,9 @@ export interface AttestationPolicy {
   /**
    * Formats to accept. Default `['none']`.
    *
-   * Adding `'packed'`, `'apple'` or `'tpm'` requires `trustAnchors`; see the
-   * note at the top of this file for why that is not optional.
+   * Adding `'packed'`, `'apple'`, `'tpm'` or `'fido-u2f'` requires
+   * `trustAnchors`; see the note at the top of this file for why that is not
+   * optional.
    */
   readonly formats?: readonly string[];
   /**
@@ -98,7 +100,8 @@ export interface AttestationPolicy {
    * AAGUIDs permitted, lowercase hex without separators.
    *
    * Setting this implies a trusted chain: an AAGUID that no manufacturer
-   * vouched for is a number the client chose.
+   * vouched for is a number the client chose. It cannot be combined with
+   * `fido-u2f`, which conveys no AAGUID at all.
    */
   readonly allowedAaguids?: readonly string[];
   /**
@@ -137,6 +140,13 @@ export interface VerifyAttestationInput {
   readonly aaguid: Uint8Array;
   /** The credential's COSE key, needed for self-attestation. */
   readonly credentialPublicKey: Uint8Array;
+  /**
+   * The credential id from the attested credential data.
+   *
+   * `fido-u2f` signs over it explicitly, so it is not derivable from anything
+   * else here.
+   */
+  readonly credentialId: Uint8Array;
   /** The algorithm the credential key uses. */
   readonly credentialAlgorithm: CoseAlgorithm;
 }
@@ -476,6 +486,112 @@ function credentialKeyMaterial(
 }
 
 /**
+ * The raw uncompressed P-256 point U2F signs over: `0x04 || x || y`.
+ *
+ * U2F predates COSE. The signature is over the key in the shape a U2F
+ * authenticator had it in, so the COSE key has to be converted back rather
+ * than hashed or re-encoded — a mismatch here would look like a bad signature
+ * and be blamed on the wrong thing.
+ */
+function u2fPublicKey(credentialPublicKey: Uint8Array): Uint8Array {
+  const { jwk } = parseCoseKey(credentialPublicKey, [ES256]);
+  const x = Buffer.from((jwk.x as string | undefined) ?? '', 'base64url');
+  const y = Buffer.from((jwk.y as string | undefined) ?? '', 'base64url');
+
+  // §8.6 assumes P-256 throughout; a coordinate of any other length is not a
+  // key this format can describe.
+  if (x.length !== 32 || y.length !== 32) {
+    throw new AttestationError('the credential key is not a P-256 point');
+  }
+
+  const out = new Uint8Array(65);
+  out[0] = 0x04;
+  out.set(x, 1);
+  out.set(y, 33);
+  return out;
+}
+
+/**
+ * Verifies FIDO U2F attestation — WebAuthn §8.6.
+ *
+ * ─── What this format is, and what it is not ──────────────────────────────
+ * This is the shape a CTAP1 security key produces: the older YubiKeys and
+ * everything else that shipped before CTAP2. The signature is over a flat
+ * concatenation rather than over `authData`, and it names the credential
+ * explicitly — `0x00 || rpIdHash || clientDataHash || credentialId ||
+ * publicKeyU2F` — so the binding to this credential and this ceremony is
+ * direct, with none of the indirection TPM attestation carries.
+ *
+ * What it does *not* carry is an AAGUID. U2F has no model identifier, and the
+ * browser zeroes the field. So a verified U2F attestation proves the credential
+ * lives on hardware a trusted manufacturer vouched for, and proves nothing
+ * about *which model* — `aaguidVerified` stays false, and an `allowedAaguids`
+ * policy can never be satisfied by this format. Reporting otherwise would put
+ * a manufacturer's name behind sixteen zero bytes the client chose.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+async function verifyU2fAttestation(
+  input: VerifyAttestationInput,
+  chain: X509Certificate[],
+  anchors: X509Certificate[],
+): Promise<void> {
+  const sig = input.statement.get('sig');
+  if (!(sig instanceof Uint8Array) || sig.length === 0) {
+    throw new AttestationError('the u2f statement has no signature');
+  }
+
+  // §8.6 step 1: exactly one certificate. U2F has no intermediates in the
+  // statement, and accepting a longer chain would mean accepting a leaf chosen
+  // from a list the client supplied.
+  if (chain.length !== 1) {
+    throw new AttestationError(
+      `u2f attestation carries ${chain.length} certificates; §8.6 permits exactly one`,
+    );
+  }
+
+  const attCert = chain[0] as X509Certificate;
+
+  // §8.6 step 2. The algorithm is fixed by the format, not chosen by the
+  // statement — there is no `alg` field here to be talked out of.
+  const details = attCert.publicKey.asymmetricKeyDetails;
+  if (attCert.publicKey.asymmetricKeyType !== 'ec' || details?.namedCurve !== 'prime256v1') {
+    throw new AttestationError('the u2f attestation certificate is not P-256');
+  }
+  if (input.credentialAlgorithm !== ES256) {
+    throw new AttestationError('u2f credentials are P-256 only');
+  }
+
+  const publicKeyU2F = u2fPublicKey(input.credentialPublicKey);
+
+  // §8.6 step 4. The leading zero byte is a reserved constant, not padding:
+  // it is what stops this signature being replayed as a U2F *authentication*
+  // response, which is signed over a different structure with a different
+  // first byte.
+  const rpIdHash = input.authData.subarray(0, 32);
+  const verificationData = new Uint8Array(
+    1 + rpIdHash.length + input.clientDataHash.length + input.credentialId.length + 65,
+  );
+  let offset = 0;
+  verificationData[offset] = 0x00;
+  offset += 1;
+  verificationData.set(rpIdHash, offset);
+  offset += rpIdHash.length;
+  verificationData.set(input.clientDataHash, offset);
+  offset += input.clientDataHash.length;
+  verificationData.set(input.credentialId, offset);
+  offset += input.credentialId.length;
+  verificationData.set(publicKeyU2F, offset);
+
+  if (!verifySignature(ES256, attCert.publicKey, verificationData, sig)) {
+    throw new AttestationError('the u2f attestation signature did not verify');
+  }
+
+  if (!chainReachesAnchor(chain, anchors)) {
+    throw new AttestationError('the attestation chain does not reach a trusted root');
+  }
+}
+
+/**
  * Verifies TPM attestation — WebAuthn §8.3.
  *
  * A TPM does not sign the ceremony. It signs a statement about a key it
@@ -706,6 +822,52 @@ export async function verifyAttestation(
       aaguidVerified: true,
       aaguid: aaguidHex,
       attestationSubject: (tpmChain[0] as X509Certificate).issuer,
+    };
+  }
+
+  // ── fido-u2f ─────────────────────────────────────────────────────────────
+  // Also handled before `packed`: the statement has no `alg`, because §8.6
+  // fixes the algorithm rather than letting the statement name it.
+
+  if (input.format === 'fido-u2f') {
+    const u2fChain = readX5c(input.statement);
+    if (u2fChain === undefined) {
+      throw new AttestationError('u2f attestation requires an x5c chain');
+    }
+
+    const u2fAnchors = policy.trustAnchors ?? [];
+    if (u2fAnchors.length === 0) {
+      throw new AttestationError(
+        'u2f attestation requires trustAnchors; without roots, a chain proves nothing',
+      );
+    }
+
+    let anchorCerts: X509Certificate[];
+    try {
+      anchorCerts = u2fAnchors.map((der) => new X509Certificate(Buffer.from(der)));
+    } catch {
+      throw new AttestationError('a configured trust anchor is not a valid certificate');
+    }
+
+    await verifyU2fAttestation(input, u2fChain, anchorCerts);
+
+    // U2F conveys no AAGUID — see `verifyU2fAttestation`. An allowlist cannot
+    // be applied to sixteen zero bytes, and refusing here says so rather than
+    // reporting a model mismatch the caller would misread.
+    if (policy.allowedAaguids !== undefined) {
+      throw new AttestationError(
+        'allowedAaguids cannot be enforced on fido-u2f; the format conveys no AAGUID',
+      );
+    }
+
+    return {
+      format: 'fido-u2f',
+      type: 'basic',
+      // The chain vouches for the hardware, but there is no model identifier
+      // for it to vouch for.
+      aaguidVerified: false,
+      aaguid: aaguidHex,
+      attestationSubject: (u2fChain[0] as X509Certificate).subject,
     };
   }
 

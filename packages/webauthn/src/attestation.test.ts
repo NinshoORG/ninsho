@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
 import { AttestationError } from './attestation.js';
 import { WebAuthnError, verifyRegistration, type RegistrationExpectations } from './ceremony.js';
-import { ES256 } from './cose.js';
+import { ES256, EdDSA } from './cose.js';
 import { VirtualAuthenticator, buildTpmPublic, encodeCbor, type Encodable } from './testing.js';
 import { decodeCbor } from './cbor.js';
 import {
@@ -1389,5 +1390,458 @@ describe('tpm attestation', () => {
       ),
     );
     expect(error.detail).toMatch(/tpm/);
+  });
+});
+
+/**
+ * FIDO U2F attestation — WebAuthn §8.6. What a CTAP1 security key produces.
+ *
+ * The oldest of the formats and the plainest: one signature over a flat
+ * concatenation that names the credential outright, with none of the
+ * indirection TPM attestation carries. The interesting part is what it does
+ * *not* say — U2F has no AAGUID, so a verified statement proves the hardware
+ * and says nothing about the model, and the result has to report that
+ * honestly rather than putting a manufacturer's name behind sixteen zero
+ * bytes the client chose.
+ */
+describe('fido-u2f attestation', () => {
+  const u2fRoot = (): GeneratedCertificate =>
+    createCertificate({ subject: 'U2F Vendor Root', isCa: true });
+
+  it('verifies a real U2F statement', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+    });
+
+    const verified = await verifyRegistration(
+      response,
+      expectations(challenge, {
+        attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+      }),
+    );
+
+    expect(verified.attestationFormat).toBe('fido-u2f');
+    expect(verified.attestationType).toBe('basic');
+    expect(verified.attestationSubject).toContain('Ninsho U2F Attestation');
+  });
+
+  it('reports no verified AAGUID, because U2F conveys none', async () => {
+    // The claim worth being careful about. The chain vouches for hardware;
+    // nothing in it vouches for a model, and the AAGUID in the authenticator
+    // data is sixteen zero bytes the client supplied.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const challenge = challengeBytes();
+    const verified = await verifyRegistration(
+      await authenticator.register({
+        challenge,
+        origin: ORIGIN,
+        rpId: RP_ID,
+        u2fAttestation: { root },
+      }),
+      expectations(challenge, {
+        attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+      }),
+    );
+
+    expect(verified.aaguidVerified).toBe(false);
+    expect(toHex(verified.aaguid)).toBe('0'.repeat(32));
+  });
+
+  it('refuses an AAGUID allowlist rather than failing it obscurely', async () => {
+    // "0000… is not on the allowed list" would be true and useless. The
+    // policy cannot be enforced on this format at all, and saying which is
+    // the difference between a caller fixing their config and a caller
+    // adding zeroes to their allowlist.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: {
+            formats: ['fido-u2f'],
+            trustAnchors: [root.der],
+            allowedAaguids: ['0'.repeat(32)],
+          },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/cannot be enforced on fido-u2f/);
+  });
+
+  it('accepts the credential the ceremony produced', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const challenge = challengeBytes();
+    const verified = await verifyRegistration(
+      await authenticator.register({
+        challenge,
+        origin: ORIGIN,
+        rpId: RP_ID,
+        u2fAttestation: { root },
+      }),
+      expectations(challenge, {
+        attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+      }),
+    );
+
+    const { verifyAuthentication } = await import('./ceremony.js');
+    const assertionChallenge = challengeBytes();
+    const assertion = await authenticator.authenticate({
+      challenge: assertionChallenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+    });
+
+    await expect(
+      verifyAuthentication(assertion, {
+        rpId: RP_ID,
+        origin: ORIGIN,
+        challenge: b64u(assertionChallenge),
+        credential: {
+          credentialId: verified.credentialId,
+          publicKey: verified.credentialPublicKey,
+          signCount: verified.signCount,
+        },
+      }),
+    ).resolves.toBeTruthy();
+  });
+
+  it('refuses a tampered signature', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+      breakAttestationSignature: true,
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/signature did not verify/);
+  });
+
+  it('refuses a statement replayed onto another ceremony', async () => {
+    // Same authenticator twice, so the authenticator data is byte-identical
+    // and only the client data hash differs. The signature covers it, so the
+    // splice fails on the signature rather than on anything incidental.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const first = await authenticator.register({
+      challenge: challengeBytes(),
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+    });
+
+    const secondChallenge = challengeBytes();
+    const second = await authenticator.register({
+      challenge: secondChallenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+    });
+
+    const stolen = decodeCbor(first.attestationObject) as Map<string, unknown>;
+    const target = decodeCbor(second.attestationObject) as Map<string, unknown>;
+
+    const swapped = encodeCbor(
+      new Map<string, Encodable>([
+        ['fmt', 'fido-u2f'],
+        ['attStmt', stolen.get('attStmt') as Encodable],
+        ['authData', target.get('authData') as Uint8Array],
+      ]),
+    );
+
+    const error = await rejection(
+      verifyRegistration(
+        { clientDataJSON: second.clientDataJSON, attestationObject: swapped },
+        expectations(secondChallenge, {
+          attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/signature did not verify/);
+  });
+
+  it('refuses a chain that reaches no configured root', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const attackerRoot = createCertificate({ subject: 'Not A Vendor', isCa: true });
+    const realRoot = u2fRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root: attackerRoot },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['fido-u2f'], trustAnchors: [realRoot.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/does not reach a trusted root/);
+  });
+
+  it('refuses fido-u2f with no trust anchors configured', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, { attestation: { formats: ['fido-u2f'] } }),
+      ),
+    );
+    expect(error.detail).toMatch(/requires trustAnchors/);
+  });
+
+  it('refuses more than one certificate', async () => {
+    // §8.6 permits exactly one. Accepting a list would mean accepting whichever
+    // leaf the client picked out of certificates it supplied itself.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+    const spare = createCertificate({ subject: 'Spare', issuer: root });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+    });
+
+    const decoded = decodeCbor(response.attestationObject) as Map<string, unknown>;
+    const attStmt = decoded.get('attStmt') as Map<string | number, unknown>;
+    const rebuilt = new Map<string | number, Encodable>();
+    for (const [k, v] of attStmt) rebuilt.set(k, v as Encodable);
+    rebuilt.set('x5c', [...(attStmt.get('x5c') as Uint8Array[]), spare.der]);
+
+    const swapped = encodeCbor(
+      new Map<string, Encodable>([
+        ['fmt', 'fido-u2f'],
+        ['attStmt', rebuilt],
+        ['authData', decoded.get('authData') as Uint8Array],
+      ]),
+    );
+
+    const error = await rejection(
+      verifyRegistration(
+        { clientDataJSON: response.clientDataJSON, attestationObject: swapped },
+        expectations(challenge, {
+          attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/permits exactly one/);
+  });
+
+  it('refuses an attestation certificate that is not P-256', async () => {
+    // §8.6 fixes the curve. There is no `alg` field here to negotiate with, so
+    // a certificate on another curve is a certificate this format cannot use.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+    const wrongCurve = createCertificate({
+      subject: 'Wrong Curve',
+      issuer: root,
+      keyPair: generateKeyPairSync('ec', { namedCurve: 'P-384' }),
+    });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root, leaf: wrongCurve },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/is not P-256/);
+  });
+
+  it('refuses a credential key that is not P-256', async () => {
+    // The other half of the same rule: U2F keys are P-256, and a statement
+    // presented beside an Ed25519 credential is describing something U2F
+    // could not have produced.
+    const ed = await VirtualAuthenticator.create(EdDSA);
+    const root = u2fRoot();
+    const leaf = createCertificate({ subject: 'Ninsho U2F Attestation', issuer: root });
+
+    const challenge = challengeBytes();
+    const response = await ed.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      attestationFormat: 'fido-u2f',
+    });
+
+    const decoded = decodeCbor(response.attestationObject) as Map<string, unknown>;
+    const swapped = encodeCbor(
+      new Map<string, Encodable>([
+        ['fmt', 'fido-u2f'],
+        [
+          'attStmt',
+          new Map<string | number, Encodable>([
+            // Never checked: the curve rule is reached first, which is the
+            // point — the credential is refused for what it is, not for a
+            // signature that happens not to verify.
+            ['sig', new Uint8Array(64)],
+            ['x5c', [leaf.der]],
+          ]),
+        ],
+        ['authData', decoded.get('authData') as Uint8Array],
+      ]),
+    );
+
+    const error = await rejection(
+      verifyRegistration(
+        { clientDataJSON: response.clientDataJSON, attestationObject: swapped },
+        expectations(challenge, {
+          attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/P-256 only/);
+  });
+
+  it('refuses a statement with no signature', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+    });
+
+    const decoded = decodeCbor(response.attestationObject) as Map<string, unknown>;
+    const attStmt = decoded.get('attStmt') as Map<string | number, unknown>;
+
+    const swapped = encodeCbor(
+      new Map<string, Encodable>([
+        ['fmt', 'fido-u2f'],
+        ['attStmt', new Map<string | number, Encodable>([['x5c', [(attStmt.get('x5c') as Uint8Array[])[0] as Uint8Array]]])],
+        ['authData', decoded.get('authData') as Uint8Array],
+      ]),
+    );
+
+    const error = await rejection(
+      verifyRegistration(
+        { clientDataJSON: response.clientDataJSON, attestationObject: swapped },
+        expectations(challenge, {
+          attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/no signature/);
+  });
+
+  it('refuses a statement with no x5c chain', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+    });
+
+    const decoded = decodeCbor(response.attestationObject) as Map<string, unknown>;
+    const attStmt = decoded.get('attStmt') as Map<string | number, unknown>;
+
+    const swapped = encodeCbor(
+      new Map<string, Encodable>([
+        ['fmt', 'fido-u2f'],
+        ['attStmt', new Map<string | number, Encodable>([['sig', attStmt.get('sig') as Uint8Array]])],
+        ['authData', decoded.get('authData') as Uint8Array],
+      ]),
+    );
+
+    const error = await rejection(
+      verifyRegistration(
+        { clientDataJSON: response.clientDataJSON, attestationObject: swapped },
+        expectations(challenge, {
+          attestation: { formats: ['fido-u2f'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/requires an x5c chain/);
+  });
+
+  it('refuses fido-u2f when the policy does not list the format', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = u2fRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      u2fAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['packed'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/is not accepted/);
   });
 });
