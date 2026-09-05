@@ -75,6 +75,27 @@ export const KEYS = {
   refreshGrace: (tokenHash: string): string => `${NS}:rtg:${tokenHash}`,
 
   /**
+   * Marks a refresh token whose family was deliberately ended.
+   *
+   * Revocation deletes the live record, the tombstone and the grace mapping,
+   * which leaves a presented token indistinguishable from one that never
+   * existed — and the rotation-race backoff then holds the request open for
+   * its full budget before saying so. Every tab still open after a
+   * sign-out-everywhere pays that, which is both a slow answer and a needless
+   * way to occupy request slots.
+   *
+   * This marker is what revocation leaves behind instead: enough to answer
+   * "that session ended" at once, and nothing else.
+   *
+   * TTL: the refresh lifetime, so it outlives any token it could be asked
+   * about.
+   *
+   * SECURITY: holds no principal and no token — only the fact of revocation,
+   * keyed by a hash the presenter already knows.
+   */
+  refreshRevoked: (tokenHash: string): string => `${NS}:rtx:${tokenHash}`,
+
+  /**
    * Set of refresh token hashes belonging to one session (the family).
    * Read when a family must be revoked wholesale on reuse detection.
    */

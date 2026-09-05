@@ -53,9 +53,13 @@ import type {
  * one or two steps.
  *
  * The cost is paid only by a token that never had a tombstone — genuinely
- * unknown or forged — which now occupies a request for up to ~126ms before
- * being refused. That is a bounded amplification, and the refresh endpoint
- * should be rate-limited regardless; `auth.rateLimit()` is there for it.
+ * unknown or forged — which occupies a request for up to ~126ms before being
+ * refused. A token whose family was *deliberately* revoked is answered at once
+ * from the marker revocation leaves (`KEYS.refreshRevoked`), because otherwise
+ * every tab still open after a sign-out-everywhere would pay this, and that is
+ * a routine event rather than a suspect one. What remains is a bounded
+ * amplification on unrecognised input, and the refresh endpoint should be
+ * rate-limited regardless; `auth.rateLimit()` is there for it.
  * ──────────────────────────────────────────────────────────────────────────
  */
 const TOMBSTONE_BACKOFF_MS = [2, 4, 8, 16, 32, 64] as const;
@@ -648,7 +652,9 @@ export class SessionManager {
    *
    * The wait is bounded and returns the instant the tombstone appears, so a
    * caller that genuinely lost a race usually pauses once or twice. A
-   * genuinely unknown token pays the full backoff before being rejected — see
+   * genuinely unknown token pays the full backoff before being rejected; a
+   * token from a revoked family is refused immediately, since a family that
+   * was deliberately ended has no rotation in flight to wait for — see
    * `TOMBSTONE_BACKOFF_MS` for the measurements behind the numbers.
    *
    * Skipped entirely when the grace window is disabled — `refreshGraceSeconds:
@@ -660,6 +666,15 @@ export class SessionManager {
     const first = await this.#store.get(key);
     if (first !== null || this.#options.refreshGraceSeconds <= 0) {
       return first;
+    }
+
+    // Nothing is in flight to wait for if the family was deliberately ended,
+    // and a signed-out tab retrying is a routine event rather than a suspect
+    // one. Answering it here keeps the backoff for the case it was written
+    // for — a token that might still be mid-rotation — instead of charging it
+    // to every stale tab after a sign-out.
+    if (await this.#store.exists(KEYS.refreshRevoked(hash))) {
+      throw new RefreshInvalidError('the session for this refresh token has been revoked');
     }
 
     for (const delayMs of TOMBSTONE_BACKOFF_MS) {
@@ -754,6 +769,14 @@ export class SessionManager {
 
     const hashes = await this.#store.sMembers(KEYS.sessionRefresh(sessionId));
     if (hashes.length > 0) {
+      // Written before the deletes, for the same reason the session marker is:
+      // a token presented mid-revocation should find the marker rather than an
+      // empty keyspace. See `KEYS.refreshRevoked` for what it costs and buys.
+      await Promise.all(
+        hashes.map((h) =>
+          this.#store.set(KEYS.refreshRevoked(h), '1', this.#options.refreshTokenTtl),
+        ),
+      );
       await this.#store.delete(
         ...hashes.map((h) => KEYS.refreshToken(h)),
         ...hashes.map((h) => KEYS.refreshConsumed(h)),

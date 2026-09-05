@@ -446,21 +446,29 @@ describe('revoke', () => {
     expect(events[0]).toMatchObject({ sessionId: pair.sessionId, reason: 'logout' });
   });
 
-  it('leaves nothing behind but the revocation tombstone', async () => {
+  it('leaves nothing usable behind — only the markers that keep it that way', async () => {
     const before = store.size();
     const pair = await sessions.create(ALICE);
-    await sessions.refresh(pair.refreshToken);
+    const rotated = await sessions.refresh(pair.refreshToken);
     await sessions.revoke(pair.sessionId);
 
     // The user-sessions index entry is pruned on the next listing.
     await sessions.listSessions(ALICE.userId);
 
-    // Exactly one key remains: the tombstone proving this session is dead.
-    // It is deliberately retained for the refresh lifetime — it is what stops
-    // a rotation that raced the revocation from leaving a usable orphan, so
-    // cleaning it up eagerly would reintroduce the bug it exists to prevent.
-    expect(store.size()).toBe(before + 1);
+    // Three keys remain and all three are markers: the session tombstone, plus
+    // one per refresh token in the family — the original and the replacement
+    // the rotation produced. Both kinds are deliberately retained for the
+    // refresh lifetime. The session tombstone is what stops a rotation that
+    // raced the revocation from leaving a usable orphan; the per-token markers
+    // are what let a tab still holding a token after a sign-out be answered at
+    // once rather than waiting out the rotation-race backoff. Cleaning either
+    // up eagerly would reintroduce the problem it exists to prevent.
+    expect(store.size()).toBe(before + 3);
     await expect(store.exists(KEYS.sessionRevoked(pair.sessionId))).resolves.toBe(true);
+
+    // Markers, not credentials. Neither token is redeemable.
+    await expect(sessions.refresh(pair.refreshToken)).rejects.toThrow();
+    await expect(sessions.refresh(rotated.refreshToken)).rejects.toThrow();
   });
 });
 
