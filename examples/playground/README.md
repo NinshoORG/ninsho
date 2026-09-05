@@ -69,6 +69,24 @@ verifier saw. A decoder that disagreed with the verifier would be worse than non
 **The audit trail.** The structured events, whose shape is deliberately narrow — no free-form
 payload that could accidentally carry a token, a password, or a request body.
 
+## Tested
+
+```bash
+npm run test --workspace @ninsho/playground
+```
+
+21 tests over real HTTP. A demo does not usually get tests, and this one needs
+them: every panel restates a claim from the README to an audience with no way
+to check it. A demonstration that quietly stopped demonstrating would be worse
+than a broken test — a page telling visitors something untrue while looking
+entirely convincing.
+
+So each claim the UI prints is asserted: that the raw token is absent from the
+store and its SHA-256 present, that the trace shown beside it leaks no
+credential either, that the replay is refused *and* classified as coming from a
+different client, that exactly one of two raced reset links survives, and that
+the byte offsets in the anatomy view are the ones the specification gives.
+
 ## What it is not
 
 A production integration. It keeps one shared in-memory session for everyone who opens the page,

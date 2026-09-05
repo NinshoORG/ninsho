@@ -46,6 +46,13 @@ This project uses [Semantic Versioning](https://semver.org/).
   what a visitor reads is what the verifier saw; a decoder that disagreed with
   the verifier would be worse than none.
 
+  It is tested — 21 cases over real HTTP. A demo does not usually get tests,
+  and this one needs them: every panel restates a README claim to an audience
+  with no way to check it, so a demonstration that quietly stopped
+  demonstrating would be a page telling visitors something untrue while looking
+  entirely convincing. The assertions are the claims themselves, including that
+  the byte offsets in the anatomy view are the ones the specification gives.
+
   It deliberately exposes each error's `detail`, which a real deployment never
   sends to a client. Showing it beside the client-facing message is the
   clearest way to make that separation concrete, and it is also exactly why the

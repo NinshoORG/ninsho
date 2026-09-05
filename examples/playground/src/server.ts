@@ -121,7 +121,15 @@ async function traced<T>(run: () => Promise<T>): Promise<{ result: T; trace: Tra
   };
 }
 
-const app = express();
+/**
+ * The playground app.
+ *
+ * Exported so the tests can drive the real routes over a real socket. The
+ * demonstrations make security claims — "the raw token is never in the store",
+ * "the replay is refused" — and one that silently stopped demonstrating would
+ * be a page telling visitors something untrue.
+ */
+export const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '64kb' }));
 const localPath = (relative: string): string =>
@@ -683,6 +691,19 @@ app.use((error: unknown, _req: Request, res: Response, _next: express.NextFuncti
   res.status(500).json({ ok: false, ...describe(error) });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n  Ninsho playground → http://localhost:${PORT}\n`);
-});
+/** Resets every session the playground holds. Used by the tests. */
+export async function resetWorld(): Promise<void> {
+  await world.store.close();
+  world = build();
+  for (const session of boundSessions.values()) await session.store.close();
+  boundSessions.clear();
+}
+
+// Guarded so importing this module for a test does not bind a port.
+if (process.env['PLAYGROUND_NO_LISTEN'] !== '1') {
+  app.listen(PORT, () => {
+    console.log(`
+  Ninsho playground → http://localhost:${PORT}
+`);
+  });
+}
