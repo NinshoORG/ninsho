@@ -33,8 +33,8 @@ import {
   type Principal,
   type SecurityEvent,
 } from '@ninsho/server';
-import { decodeCbor } from '@ninsho/webauthn';
-import { VirtualAuthenticator } from '@ninsho/webauthn/testing';
+import { decodeCbor, verifyRegistration } from '@ninsho/webauthn';
+import { VirtualAuthenticator, createCertificate } from '@ninsho/webauthn/testing';
 import { RecordingStore, type StoreOperation } from './store-recorder.ts';
 import { VisitorRegistry } from './visitors.ts';
 import {
@@ -42,6 +42,7 @@ import {
   decodeAuthenticatorData,
   decodeDpopProof,
   decodePaseto,
+  describeAttestationStatement,
 } from './decode.ts';
 
 const PORT = Number(process.env['PORT'] ?? 4000);
@@ -671,6 +672,182 @@ app.post(
 );
 
 // ─── Inspection ────────────────────────────────────────────────────────────
+
+
+// ─── Attestation: what the hardware proves, and what it does not ───────────
+// Every format below runs a genuine ceremony through the shipped verifier.
+// The certificates are generated here rather than shipped, which is the honest
+// arrangement for a demo — and it is also the reason the "no roots" scenario
+// matters: a chain checked against a root the same process invented proves
+// exactly nothing, and the verifier says so instead of reporting success.
+
+/** Formats the page offers, with what each one actually is. */
+const ATTESTATION_FORMATS: Record<
+  string,
+  { label: string; hardware: string; verified: boolean }
+> = {
+  none: {
+    label: 'none',
+    hardware: 'Nothing. The browser substitutes this whenever the relying party asks for `none`.',
+    verified: true,
+  },
+  packed: {
+    label: 'packed',
+    hardware: 'Most security keys, the YubiKey line included.',
+    verified: true,
+  },
+  apple: {
+    label: 'apple',
+    hardware: 'Touch ID and Face ID.',
+    verified: true,
+  },
+  tpm: {
+    label: 'tpm',
+    hardware: 'Windows Hello, through the machine’s TPM.',
+    verified: true,
+  },
+  'fido-u2f': {
+    label: 'fido-u2f',
+    hardware: 'CTAP1 security keys — the generation before CTAP2.',
+    verified: true,
+  },
+  'android-key': {
+    label: 'android-key',
+    hardware: 'Android platform authenticators.',
+    verified: false,
+  },
+};
+
+/** What each scenario does to an otherwise genuine ceremony. */
+const ATTESTATION_SCENARIOS: Record<string, string> = {
+  genuine: 'A real ceremony, verified against the root that issued the chain.',
+  'no-anchors': 'The same ceremony, with no trust anchors configured.',
+  'wrong-root': 'The same ceremony, checked against a root that did not issue it.',
+  tampered: 'The same ceremony with one byte of the attestation signature flipped.',
+};
+
+app.post(
+  '/api/attestation',
+  route(async (req, res) => {
+    const body = (req.body ?? {}) as { format?: unknown; scenario?: unknown };
+    const format = typeof body.format === 'string' ? body.format : 'packed';
+    const scenario = typeof body.scenario === 'string' ? body.scenario : 'genuine';
+
+    const meta = ATTESTATION_FORMATS[format];
+    if (meta === undefined || ATTESTATION_SCENARIOS[scenario] === undefined) {
+      res.status(400).json({ error: 'unknown format or scenario' });
+      return;
+    }
+
+    const device = await VirtualAuthenticator.create();
+    const challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+
+    const rpId = 'example.com';
+    const origin = 'https://example.com';
+    const tampered = scenario === 'tampered';
+
+    // The root that really issues the chain, and one that does not. Both are
+    // minted here; which is why the "no anchors" answer is the interesting one.
+    const root = createCertificate({ subject: `${meta.label} Vendor Root`, isCa: true });
+    const decoy = createCertificate({ subject: 'Unrelated CA', isCa: true });
+
+    const common = {
+      challenge,
+      origin,
+      rpId,
+      ...(tampered ? { breakAttestationSignature: true } : {}),
+    };
+
+    let registration;
+    if (format === 'packed') {
+      // The AAGUID in the certificate has to match the one in the
+      // authenticator data, or the model the chain vouches for is not the
+      // model that signed.
+      const leaf = createCertificate({
+        subject: 'Playground Authenticator',
+        issuer: root,
+        aaguid: device.aaguid,
+      });
+      registration = await device.register({ ...common, attestationChain: { root, leaf } });
+    } else if (format === 'apple') {
+      registration = await device.register({ ...common, appleAttestation: { root } });
+    } else if (format === 'tpm') {
+      registration = await device.register({ ...common, tpmAttestation: { root } });
+    } else if (format === 'fido-u2f') {
+      registration = await device.register({ ...common, u2fAttestation: { root } });
+    } else if (format === 'android-key') {
+      // Nothing to build: the point is that allowlisting an unimplemented
+      // format still fails closed.
+      registration = await device.register({ ...common, attestationFormat: 'android-key' });
+    } else {
+      registration = await device.register({ challenge, origin, rpId });
+    }
+
+    const trustAnchors =
+      scenario === 'no-anchors' ? [] : scenario === 'wrong-root' ? [decoy.der] : [root.der];
+
+    const expectations = {
+      rpId,
+      origin,
+      challenge: Buffer.from(challenge).toString('base64url'),
+      attestation: {
+        formats: [format],
+        ...(trustAnchors.length > 0 ? { trustAnchors } : {}),
+      },
+    };
+
+    let verdict;
+    try {
+      const verified = await verifyRegistration(registration, expectations);
+      verdict = {
+        accepted: true,
+        format: verified.attestationFormat,
+        type: verified.attestationType,
+        aaguid: Buffer.from(verified.aaguid).toString('hex'),
+        aaguidVerified: verified.aaguidVerified,
+        subject: verified.attestationSubject ?? null,
+      };
+    } catch (error) {
+      verdict = {
+        accepted: false,
+        detail: isNinshoError(error) ? error.detail : String(error),
+      };
+    }
+
+    const inner = decodeCbor(registration.attestationObject) as Map<string, unknown>;
+    const statement = inner.get('attStmt');
+    const authData = inner.get('authData') as Uint8Array;
+
+    // Stated before the verdict is read, so the page reports whether reality
+    // matched the claim rather than narrating whatever happened as correct.
+    const expected = scenario === 'genuine' && meta.verified ? 'accepted' : 'refused';
+
+    res.json({
+      summary: `${meta.label} — ${ATTESTATION_SCENARIOS[scenario] as string}`,
+      expected,
+      note:
+        meta.verified === false
+          ? 'Ninsho does not verify this format. Allowlisting it does not change that: there is ' +
+            'deliberately no arrangement of options that turns an unverified attestation into a ' +
+            'verified one.'
+          : 'The ceremony, the key pair, the certificates and the signature are all real, and the ' +
+            'verdict below came from the shipped verifier rather than from this page.',
+      format,
+      hardware: meta.hardware,
+      scenario,
+      verdict,
+      statement: describeAttestationStatement(format, statement),
+      decodes: [
+        {
+          title: 'attestationObject (CBOR wrapper)',
+          ...decodeAttestationObject(registration.attestationObject),
+        },
+        { title: 'authenticatorData', ...decodeAuthenticatorData(authData) },
+      ],
+    });
+  }),
+);
 
 app.get(
   '/api/store',

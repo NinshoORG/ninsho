@@ -64,6 +64,22 @@ and annotates it field by field: offset, width, raw hex, value, and why the fiel
 The parsing is done by the shipped parsers rather than reimplemented, so what you read is what the
 verifier saw. A decoder that disagreed with the verifier would be worse than none.
 
+**Attestation — what the hardware proves.** Pick a format and a scenario; each run is a real
+ceremony with real keys and real certificates, put through the shipped verifier. `packed`, `apple`,
+`tpm` and `fido-u2f` are verified; `android-key` is there to show that allowlisting a format the
+library cannot check still fails closed.
+
+The scenarios are where the panel earns its place. The roots are minted by the demo process, which
+is exactly why **no trust anchors** is worth trying: the chain is genuine, the signature verifies,
+and the ceremony is refused anyway, because a chain checked against no root proves nothing. The
+same ceremony against the *wrong* root, and with one byte of the signature flipped, are both there
+for contrast — and `apple` has no signature to flip, which is itself the thing to notice about the
+format.
+
+The panel also prints what each verified statement does *not* say. `fido-u2f` reports
+`aaguidVerified: false` against sixteen zero bytes, because U2F has no model identifier: the chain
+vouches for the hardware and for nothing about which device it is.
+
 **The keyspace.** Every live key, namespaced `ninsho:v1:`, with its value.
 
 **The audit trail.** The structured events, whose shape is deliberately narrow — no free-form
@@ -89,7 +105,7 @@ URL — an unfortunate thing for a security demo to be.
 npm run test --workspace @ninsho/playground
 ```
 
-24 tests over real HTTP. A demo does not usually get tests, and this one needs
+47 tests over real HTTP. A demo does not usually get tests, and this one needs
 them: every panel restates a claim from the README to an audience with no way
 to check it. A demonstration that quietly stopped demonstrating would be worse
 than a broken test — a page telling visitors something untrue while looking

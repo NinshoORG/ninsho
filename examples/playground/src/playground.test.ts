@@ -367,3 +367,145 @@ describe('the demonstration surface itself', () => {
     expect(((await get('/api/store')) as { keys: unknown[] }).keys).toHaveLength(0);
   });
 });
+
+/**
+ * The attestation panel prints a verdict beside a claim about what *should*
+ * have happened. If the panel ever printed "refused, as expected" while the
+ * verifier had in fact accepted the ceremony, the page would be reassuring
+ * visitors with the opposite of the truth — so the two are checked against
+ * each other here rather than only rendered next to each other.
+ */
+describe('the attestation panel demonstrates real verification', () => {
+  const attest = (format: string, scenario: string): Promise<Record<string, unknown>> =>
+    call('/api/attestation', { format, scenario });
+
+  type Verdict = { accepted: boolean; type?: string; format?: string; detail?: string; aaguidVerified?: boolean; aaguid?: string };
+
+  it.each(['packed', 'apple', 'tpm', 'fido-u2f'])(
+    'accepts a genuine %s ceremony against the root that issued it',
+    async (format) => {
+      const result = await attest(format, 'genuine');
+      const verdict = result['verdict'] as Verdict;
+
+      expect(result['expected']).toBe('accepted');
+      expect(verdict.accepted).toBe(true);
+      expect(verdict.format).toBe(format);
+      expect(verdict.type).toBe('basic');
+    },
+  );
+
+  it.each(['packed', 'apple', 'tpm', 'fido-u2f'])(
+    'refuses a %s ceremony with no trust anchors',
+    async (format) => {
+      // The scenario the panel exists to make vivid: the chain is genuine and
+      // the verifier still refuses, because a chain checked against no root
+      // proves nothing.
+      const result = await attest(format, 'no-anchors');
+      const verdict = result['verdict'] as Verdict;
+
+      expect(result['expected']).toBe('refused');
+      expect(verdict.accepted).toBe(false);
+      expect(String(verdict.detail)).toMatch(/requires trustAnchors/);
+    },
+  );
+
+  it.each(['packed', 'apple', 'tpm', 'fido-u2f'])(
+    'refuses a %s ceremony checked against the wrong root',
+    async (format) => {
+      const result = await attest(format, 'wrong-root');
+      const verdict = result['verdict'] as Verdict;
+
+      expect(verdict.accepted).toBe(false);
+      expect(String(verdict.detail)).toMatch(/does not reach a trusted root/);
+    },
+  );
+
+  it.each(['packed', 'tpm', 'fido-u2f'])(
+    'refuses a %s ceremony whose signature was tampered with',
+    async (format) => {
+      // `apple` is absent on purpose: the format carries no signature to
+      // tamper with, which is itself worth knowing.
+      const result = await attest(format, 'tampered');
+      const verdict = result['verdict'] as Verdict;
+
+      expect(verdict.accepted).toBe(false);
+      expect(String(verdict.detail)).toMatch(/did not verify/);
+    },
+  );
+
+  it('refuses android-key even when it is allowlisted', async () => {
+    const result = await attest('android-key', 'genuine');
+    const verdict = result['verdict'] as Verdict;
+
+    expect(result['expected']).toBe('refused');
+    expect(verdict.accepted).toBe(false);
+    expect(String(verdict.detail)).toMatch(/cannot be verified/);
+  });
+
+  it('reports fido-u2f as conveying no verified AAGUID', async () => {
+    // The panel's most easily-overstated claim. U2F has no model identifier,
+    // so a verified statement proves the hardware and says nothing about which
+    // device it is.
+    const result = await attest('fido-u2f', 'genuine');
+    const verdict = result['verdict'] as Verdict;
+
+    expect(verdict.accepted).toBe(true);
+    expect(verdict.aaguidVerified).toBe(false);
+    expect(verdict.aaguid).toBe('0'.repeat(32));
+  });
+
+  it('reports packed as vouching for the AAGUID', async () => {
+    const result = await attest('packed', 'genuine');
+    const verdict = result['verdict'] as Verdict;
+
+    expect(verdict.aaguidVerified).toBe(true);
+    expect(verdict.aaguid).not.toBe('0'.repeat(32));
+  });
+
+  it('annotates the statement fields the format actually carries', async () => {
+    const result = await attest('tpm', 'genuine');
+    const statement = result['statement'] as { name: string; note: string }[];
+
+    expect(statement.map((f) => f.name)).toEqual(
+      expect.arrayContaining(['ver', 'alg', 'sig', 'certInfo', 'pubArea', 'x5c']),
+    );
+    // Every field carries an explanation, or the table is a hex dump with
+    // extra steps.
+    for (const field of statement) expect(field.note.length).toBeGreaterThan(20);
+  });
+
+  it('shows apple carrying a certificate and no signature', async () => {
+    const result = await attest('apple', 'genuine');
+    const statement = result['statement'] as { name: string }[];
+
+    expect(statement.map((f) => f.name)).toEqual(['x5c']);
+  });
+
+  it('shows the none statement as empty', async () => {
+    const result = await attest('none', 'genuine');
+    const statement = result['statement'] as { name: string }[];
+
+    expect(statement.map((f) => f.name)).toEqual(['(empty)']);
+    expect((result['verdict'] as Verdict).accepted).toBe(true);
+    expect((result['verdict'] as Verdict).type).toBe('none');
+  });
+
+  it('decodes the bytes of whichever ceremony it just ran', async () => {
+    const result = await attest('tpm', 'genuine');
+    const decodes = result['decodes'] as { title: string; fields: { name: string }[] }[];
+
+    const authData = decodes.find((d) => d.title.includes('authenticatorData'));
+    expect(authData?.fields.map((f) => f.name)).toEqual(
+      expect.arrayContaining(['rpIdHash', 'flags', 'signCount', 'aaguid']),
+    );
+  });
+
+  it('refuses a format or scenario it does not offer', async () => {
+    const response = await fetch(`${baseUrl}/api/attestation`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ format: 'android-safetynet', scenario: 'genuine' }),
+    });
+    expect(response.status).toBe(400);
+  });
+});

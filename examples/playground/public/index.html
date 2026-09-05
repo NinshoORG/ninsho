@@ -134,7 +134,41 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>5 · What is actually in the store</h2>
+        <h2>5 · Attestation — what the hardware proves</h2>
+        <p class="explain">
+          A passkey ceremony proves someone holds a private key. Attestation proves something
+          else: that the key was generated inside a particular piece of hardware, vouched for by
+          a chain the manufacturer signed. Pick a format and a scenario — every run below is a
+          real ceremony with real keys and real certificates, put through the shipped verifier.
+        </p>
+        <p class="explain">
+          The roots are minted by this process, which is exactly why
+          <em>no trust anchors</em> is the scenario worth trying: a chain checked against no root
+          proves nothing at all, and the verifier refuses rather than reporting success.
+        </p>
+        <div class="row">
+          <select id="attest-format">
+            <option value="packed">packed — most security keys</option>
+            <option value="apple">apple — Touch ID and Face ID</option>
+            <option value="tpm">tpm — Windows Hello</option>
+            <option value="fido-u2f">fido-u2f — CTAP1 security keys</option>
+            <option value="none">none — what passkeys use</option>
+            <option value="android-key">android-key — not implemented</option>
+          </select>
+          <select id="attest-scenario">
+            <option value="genuine">a genuine ceremony</option>
+            <option value="no-anchors">with no trust anchors</option>
+            <option value="wrong-root">against the wrong root</option>
+            <option value="tampered">with a tampered signature</option>
+          </select>
+          <button id="attest-run">Run the ceremony</button>
+        </div>
+        <div id="out-attestation" class="out"></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel">
+        <h2>6 · What is actually in the store</h2>
         <p class="explain">
           The live keyspace. Paste any token this page has shown you into the box and search for
           it — the claim is that you will not find it, because only
@@ -151,7 +185,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>6 · The audit trail</h2>
+        <h2>7 · The audit trail</h2>
         <p class="explain">
           Structured security events. The shape is deliberately narrow — there is no free-form
           payload that could accidentally carry a token, a password, or a request body.

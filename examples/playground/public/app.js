@@ -108,7 +108,7 @@ function renderDecode(decode) {
   const rows = decode.fields
     .map((f) => {
       const indent = f.depth ? ' style="padding-left:2rem"' : '';
-      const span = f.length > 0 ? `${f.offset} … ${f.offset + f.length - 1}` : '';
+      const span = f.length > 0 && !f.sizeOnly ? `${f.offset} … ${f.offset + f.length - 1}` : '';
       return `<tr>
         <td class="dim">${escape(span)}</td>
         <td class="dim">${f.length > 0 ? escape(f.length) : ''}</td>
@@ -150,12 +150,31 @@ function render(data) {
     );
   }
 
+  if (data.verdict) {
+    const outcome = data.verdict.accepted ? 'accepted' : 'refused';
+    const asExpected = outcome === data.expected;
+    const detail = data.verdict.accepted
+      ? `Accepted — ${data.verdict.type} attestation, format ${data.verdict.format}`
+      : `Refused — ${data.verdict.detail}`;
+    html += renderVerdict(
+      asExpected ? `${detail} (as expected)` : `${detail} — expected it to be ${data.expected}`,
+      asExpected,
+    );
+  }
+
   html += renderNote(data.note);
   html += renderTokens(data.tokens);
 
+  if (data.verdict && data.verdict.accepted) {
+    html += `<dl class="kv">${Object.entries(data.verdict)
+      .filter(([k]) => k !== 'accepted' && k !== 'format')
+      .map(([k, v]) => `<dt>${escape(k)}</dt><dd>${escape(v === null ? '—' : v)}</dd>`)
+      .join('')}</dl>`;
+  }
+
   const scalars = {};
   for (const [k, v] of Object.entries(data)) {
-    if (['note', 'trace', 'tokens', 'ok', 'rejected', 'keys', 'events', 'decodes', 'summary', 'clientDataJSON'].includes(k)) continue;
+    if (['note', 'trace', 'tokens', 'ok', 'rejected', 'keys', 'events', 'decodes', 'summary', 'clientDataJSON', 'expected', 'statement'].includes(k)) continue;
     if (v === null || typeof v === 'object') continue;
     scalars[k] = v;
   }
@@ -198,6 +217,15 @@ function render(data) {
     )}</td></tr></tbody></table></div>`;
   }
 
+  if (data.statement) {
+    html += renderDecode({
+      title: 'attStmt — the attestation statement',
+      summary: 'What the format actually carries, and which field is load-bearing.',
+      totalBytes: data.statement.reduce((sum, f) => sum + f.length, 0),
+      fields: data.statement,
+    });
+  }
+
   if (data.decodes) {
     for (const decode of data.decodes) html += renderDecode(decode);
   }
@@ -232,6 +260,27 @@ for (const button of document.querySelectorAll('[data-post], [data-get]')) {
     }
   });
 }
+
+$('attest-run').addEventListener('click', async () => {
+  const button = $('attest-run');
+  const target = $('out-attestation');
+
+  button.disabled = true;
+  setStatus('running…');
+  try {
+    const data = await call('POST', '/api/attestation', {
+      format: $('attest-format').value,
+      scenario: $('attest-scenario').value,
+    });
+    target.innerHTML = render(data);
+    setStatus('');
+  } catch (error) {
+    target.innerHTML = renderVerdict(`Request failed: ${error.message}`, false);
+    setStatus('');
+  } finally {
+    button.disabled = false;
+  }
+});
 
 $('search').addEventListener('click', async () => {
   const needle = $('needle').value.trim();

@@ -33,6 +33,14 @@ export interface Field {
   readonly note: string;
   /** Nesting level, for indentation in the table. */
   readonly depth?: number;
+  /**
+   * Report the size without a byte range.
+   *
+   * Entries of a CBOR map have a size but no meaningful offset into anything
+   * the reader can see, and printing `0 … 70` for each of them would invite
+   * exactly the wrong reading.
+   */
+  readonly sizeOnly?: boolean;
 }
 
 export interface Decoded {
@@ -234,7 +242,7 @@ export function decodeAttestationObject(bytes: Uint8Array): Decoded {
       value: String(fmt),
       note: fmt === 'none'
         ? 'No attestation conveyed — the normal case for passkeys, and what the browser substitutes when the relying party asks for `none`.'
-        : 'A statement format. Ninsho verifies `packed` against roots you supply, and refuses the rest rather than parsing them without checking.',
+        : 'A statement format. Ninsho verifies `packed`, `apple`, `tpm` and `fido-u2f` against roots you supply, and refuses the rest rather than parsing them without checking.',
       depth: 1,
     },
     {
@@ -414,3 +422,103 @@ export function decodeDpopProof(proof: string): Decoded {
 
 /** Re-exported so the server can locate a COSE key inside a larger buffer. */
 export { decodeCborPrefix };
+
+// ─── Attestation statements ────────────────────────────────────────────────
+
+/**
+ * What each field of an attestation statement carries, per format.
+ *
+ * Written out rather than generated, because the interesting part of a
+ * statement is not its shape but what each field is *for* — and in particular
+ * which field is the one holding the whole format together.
+ */
+const STATEMENT_NOTES: Record<string, Record<string, string>> = {
+  packed: {
+    alg: 'The COSE algorithm the signature uses. The verifier takes the digest from here, never from the signature or the certificate.',
+    sig: 'Signed over `authData || SHA-256(clientDataJSON)` — the ceremony itself, directly.',
+    x5c: 'The certificate chain, leaf first. Verified to a root you supply; without roots it is refused, because anyone can self-sign a CA and claim any AAGUID.',
+  },
+  apple: {
+    x5c: 'The whole format. There is no signature field: Apple mints this certificate for one ceremony and puts SHA-256(authData || clientDataHash) in an extension, so the certificate itself is the binding.',
+  },
+  tpm: {
+    ver: 'TPM 2.0 and nothing else.',
+    alg: 'The COSE algorithm of the attestation key’s signature.',
+    sig: 'Signed over `certInfo` — not over the ceremony. Everything tying this to your registration runs through the two structures below.',
+    certInfo:
+      'A TPMS_ATTEST. `extraData` holds SHA-256(authData || clientDataHash), which is the tie to this ceremony; `attested.name` holds nameAlg || digest(pubArea), which is the tie to a particular key.',
+    pubArea:
+      'A TPMT_PUBLIC describing the key the TPM certified. It has to *be* the credential key — check `certInfo` without checking this and a genuine TPM signature vouches for a key nobody attested to.',
+    x5c: 'The attestation identity key certificate. §8.3.1 requires an empty subject and the tcg-kp-AIKCertificate usage, and it must not be a CA.',
+  },
+  'fido-u2f': {
+    sig: 'Signed over `0x00 || rpIdHash || clientDataHash || credentialId || (0x04 || x || y)`. The leading zero is a reserved constant, not padding — it is what stops this being replayed as a U2F authentication response.',
+    x5c: 'Exactly one certificate. §8.6 permits no more: accepting a list would mean accepting whichever leaf the client picked out of certificates it supplied itself.',
+  },
+};
+
+/** Annotates the entries of an `attStmt` map. */
+export function describeAttestationStatement(format: string, statement: unknown): Field[] {
+  if (!(statement instanceof Map)) return [];
+
+  if (statement.size === 0) {
+    return [
+      {
+        offset: 0,
+        length: 0,
+        name: '(empty)',
+        hex: '—',
+        value: 'no entries',
+        note:
+          format === 'none'
+            ? 'Required to be empty for `none`. Data hiding in a field nobody reads is data nobody is checking.'
+            : 'Nothing to verify. A format this package cannot check is refused rather than parsed and ignored.',
+      },
+    ];
+  }
+
+  const notes = STATEMENT_NOTES[format] ?? {};
+  const fields: Field[] = [];
+
+  for (const [key, value] of statement as Map<unknown, unknown>) {
+    const name = String(key);
+    let hex = '—';
+    let described: string;
+
+    if (value instanceof Uint8Array) {
+      hex = shortHex(value, 16);
+      described = `${value.length} bytes`;
+    } else if (Array.isArray(value)) {
+      const total = value.reduce(
+        (sum: number, entry: unknown) => sum + (entry instanceof Uint8Array ? entry.length : 0),
+        0,
+      );
+      const first = value[0];
+      if (first instanceof Uint8Array) hex = shortHex(first, 16);
+      described = `${value.length} certificate${value.length === 1 ? '' : 's'}, ${total} bytes`;
+    } else {
+      described = String(value);
+    }
+
+    let byteLength = 0;
+    if (value instanceof Uint8Array) byteLength = value.length;
+    else if (Array.isArray(value)) {
+      byteLength = value.reduce(
+        (sum: number, entry: unknown) => sum + (entry instanceof Uint8Array ? entry.length : 0),
+        0,
+      );
+    }
+
+    fields.push({
+      offset: 0,
+      length: byteLength,
+      sizeOnly: true,
+      name,
+      hex,
+      value: described,
+      note: notes[name] ?? 'Not consulted by the verifier.',
+    });
+  }
+
+  return fields;
+}
