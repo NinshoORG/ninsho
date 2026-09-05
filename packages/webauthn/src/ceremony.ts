@@ -14,11 +14,12 @@
  * Attestation is verified only on terms that mean something. `none` is the
  * default and conveys nothing, which is correct for passkeys — the browser
  * substitutes it whenever the relying party requests `none` conveyance.
- * `packed` is verified against certificate roots the relying party supplies,
- * and is refused outright without them: a chain checked against no trust
- * anchor proves nothing, because anyone can self-sign a CA and claim any
- * AAGUID. `tpm`, `android-key` and `apple` remain unimplemented and are
- * refused rather than parsed-and-ignored. See `attestation.ts`.
+ * `packed`, `apple` and `tpm` are verified against certificate roots the
+ * relying party supplies, and are refused outright without them: a chain
+ * checked against no trust anchor proves nothing, because anyone can self-sign
+ * a CA and claim any AAGUID. `android-key`, `android-safetynet` and `fido-u2f`
+ * remain unimplemented and are refused rather than parsed-and-ignored. See
+ * `attestation.ts`.
  * ──────────────────────────────────────────────────────────────────────────
  */
 

@@ -110,7 +110,12 @@ function utcTime(date: Date): Uint8Array {
 
 /** A Name carrying a single CN. Enough to distinguish fixtures from each other. */
 const name = (commonName: string): Uint8Array =>
-  sequence(set(sequence(oid('2.5.4.3'), utf8String(commonName))));
+  commonName.length === 0
+    ? // An empty Name — no RDNs at all. WebAuthn 8.3.1 requires it of an AIK
+      // certificate, so that the certificate does not itself become a device
+      // identifier.
+      sequence()
+    : sequence(set(sequence(oid('2.5.4.3'), utf8String(commonName))));
 
 // ─── Certificate construction ──────────────────────────────────────────────
 
@@ -123,6 +128,7 @@ export const FIDO_AAGUID_OID = '1.3.6.1.4.1.45724.1.1.4';
 /** Apple's ceremony-nonce extension (`id-apple-anonymous-attestation`). */
 export const APPLE_NONCE_OID = '1.2.840.113635.100.8.2';
 const BASIC_CONSTRAINTS_OID = '2.5.29.19';
+const EKU_OID = '2.5.29.37';
 
 function extension(oidText: string, value: Uint8Array, critical = false): Uint8Array {
   return sequence(
@@ -159,6 +165,14 @@ export interface CreateCertificateOptions {
    * certificate and one ceremony.
    */
   readonly appleNonce?: Uint8Array;
+  /**
+   * Extended key usages, as dotted OIDs.
+   *
+   * A TPM attestation identity key must declare `tcg-kp-AIKCertificate`
+   * (2.23.133.8.3); §8.3.1 also wants an empty subject, which `subject: ''`
+   * produces.
+   */
+  readonly extendedKeyUsage?: readonly string[];
   readonly notBefore?: Date;
   readonly notAfter?: Date;
   /** Reuse an existing key instead of generating one. */
@@ -194,6 +208,12 @@ export function createCertificate(options: CreateCertificateOptions): GeneratedC
     // FIDO wraps the AAGUID in its own OCTET STRING inside the extension's
     // OCTET STRING value.
     extensions.push(extension(FIDO_AAGUID_OID, octetString(options.aaguid)));
+  }
+
+  if (options.extendedKeyUsage && options.extendedKeyUsage.length > 0) {
+    extensions.push(
+      extension(EKU_OID, sequence(...options.extendedKeyUsage.map((usage) => oid(usage)))),
+    );
   }
 
   if (options.appleNonce) {

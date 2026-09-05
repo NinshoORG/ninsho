@@ -173,17 +173,17 @@ verified.aaguidVerified    // true only when a trusted chain vouched for the AAG
 verified.attestationSubject
 ```
 
-**Trust anchors are mandatory.** `packed` is refused outright without them. A chain checked against
-no root proves nothing — anyone can self-sign a CA and put any AAGUID they like in a certificate
+**Trust anchors are mandatory.** `packed`, `apple` and `tpm` are refused outright without them. A
+chain checked against no root proves nothing — anyone can self-sign a CA and put any AAGUID they like in a certificate
 they issued to themselves — and a verifier reporting success there would manufacture confidence.
 If you have no roots, you have no attestation, and saying so is the honest answer.
 
 ## What is *not* verified
 
-**Attestation formats other than `packed` and `apple`.** `tpm` (Windows Hello), `android-key`,
+**Attestation formats other than `packed`, `apple` and `tpm`.** `android-key`,
 `android-safetynet` and `fido-u2f` are not implemented and are refused rather than
 parsed-and-ignored — allowlisting one still fails closed. `packed` covers most security keys
-including the YubiKey line; `apple` covers Touch ID and Face ID.
+including the YubiKey line; `apple` covers Touch ID and Face ID; `tpm` covers Windows Hello.
 
 **No root store ships here.** Which manufacturers you trust is an operational decision that changes
 without this package changing. FIDO's Metadata Service is where most relying parties draw roots

@@ -167,10 +167,11 @@ core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express depe
 
 ### What does not exist yet
 
-**Attestation beyond `packed` and `apple`.** `@ninsho/webauthn` verifies
-`none`, `packed` (most security keys) and `apple` (Touch ID and Face ID), each
-against roots you supply. `tpm` (Windows Hello) and `android-key` are not
-implemented and are refused rather than rubber-stamped. No root store ships
+**Attestation beyond `packed`, `apple` and `tpm`.** `@ninsho/webauthn`
+verifies `none`, `packed` (most security keys), `apple` (Touch ID and Face ID)
+and `tpm` (Windows Hello), each against roots you supply. `android-key`,
+`android-safetynet` and `fido-u2f` are not implemented and are refused rather
+than rubber-stamped. No root store ships
 with the package, and FIDO Metadata Service integration is not implemented:
 which manufacturers you trust is an operational decision, not library content.
 

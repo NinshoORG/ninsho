@@ -114,3 +114,8 @@ export { CborError, decodeCbor, decodeCborPrefix } from './cbor.js';
 export type { CborValue } from './cbor.js';
 
 export { DerError, derToRawSignature } from './der.js';
+
+// TPM 2.0 structures, for the same reason: an application that wants to report
+// which TPM certified a credential should not have to re-parse `pubArea`.
+export { TpmError, parseTpmAttest, parseTpmPublic } from './tpm.js';
+export type { TpmAttest, TpmPublic } from './tpm.js';

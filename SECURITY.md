@@ -144,21 +144,22 @@ authorization data inside a `Principal`.
 Stated plainly, because a limitation you know about is manageable and one you
 have been reassured about is not.
 
-### WebAuthn attestation covers `packed` only
+### WebAuthn attestation does not cover the Android formats
 
-`@ninsho/webauthn` verifies the `none`, `packed` and `apple` formats. It does
-**not** verify `tpm`, `android-key`, `android-safetynet` or `fido-u2f`, and
+`@ninsho/webauthn` verifies the `none`, `packed`, `apple` and `tpm` formats. It
+does **not** verify `android-key`, `android-safetynet` or `fido-u2f`, and
 allowlisting one of those does not change that — the ceremony refuses it
 regardless. There is deliberately no arrangement of options that turns an
 unverified attestation into a verified one.
 
-`packed` covers most security keys, the YubiKey line included, and `apple`
-covers Touch ID and Face ID. What remains uncovered is principally Windows
-Hello's TPM path (`tpm`) and Android platform authenticators (`android-key`);
-if your policy has to cover those devices' attestation, that work is not done.
+`packed` covers most security keys, the YubiKey line included; `apple` covers
+Touch ID and Face ID; `tpm` covers Windows Hello. What remains uncovered is
+principally Android platform authenticators (`android-key`,
+`android-safetynet`); if your policy has to cover those devices' attestation,
+that work is not done.
 
-**Trust anchors are mandatory, not optional.** `packed` is refused unless the
-relying party supplies the root certificates it trusts. A chain checked against
+**Trust anchors are mandatory, not optional.** `packed`, `apple` and `tpm` are
+refused unless the relying party supplies the root certificates it trusts. A chain checked against
 no root proves nothing — anyone can self-sign a CA and put any AAGUID they like
 in a certificate they issued to themselves — and a verifier reporting
 "attestation verified" in that situation manufactures confidence.

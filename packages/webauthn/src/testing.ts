@@ -171,6 +171,82 @@ export function rawToDerSignature(raw: Uint8Array): Uint8Array {
   return concat([header, body]);
 }
 
+// ─── TPM structures, for the attestation fixtures ──────────────────────────
+
+/** Big-endian u16, as every TPM length field is. */
+function u16(value: number): Uint8Array {
+  return new Uint8Array([(value >> 8) & 0xff, value & 0xff]);
+}
+
+/** Big-endian u32. */
+function u32(value: number): Uint8Array {
+  return new Uint8Array([
+    (value >>> 24) & 0xff,
+    (value >>> 16) & 0xff,
+    (value >>> 8) & 0xff,
+    value & 0xff,
+  ]);
+}
+
+/** A `TPM2B_*`: a two-byte length followed by the bytes. */
+function sized(bytes: Uint8Array): Uint8Array {
+  return concat([u16(bytes.length), bytes]);
+}
+
+/**
+ * Builds a `TPMT_PUBLIC` describing a P-256 key.
+ *
+ * Written out rather than captured from a device, so the tests exercise the
+ * parser against a structure whose every field is known — including the ones
+ * the parser skips, which is where an offset error would hide.
+ */
+export function buildTpmPublic(x: Uint8Array, y: Uint8Array): Uint8Array {
+  const TPM_ALG_ECC = 0x0023;
+  const TPM_ALG_SHA256 = 0x000b;
+  const TPM_ALG_NULL = 0x0010;
+  const TPM_ECC_NIST_P256 = 0x0003;
+
+  return concat([
+    u16(TPM_ALG_ECC), // type
+    u16(TPM_ALG_SHA256), // nameAlg
+    u32(0x00050472), // objectAttributes — not consulted, but realistic
+    sized(new Uint8Array(0)), // authPolicy
+    u16(TPM_ALG_NULL), // symmetric
+    u16(TPM_ALG_NULL), // scheme
+    u16(TPM_ECC_NIST_P256), // curveID
+    u16(TPM_ALG_NULL), // kdf
+    sized(x),
+    sized(y),
+  ]);
+}
+
+/** Builds a `TPMS_ATTEST` certifying `pubArea` for one ceremony. */
+export async function buildTpmCertInfo(
+  pubArea: Uint8Array,
+  attToBeSigned: Uint8Array,
+): Promise<Uint8Array> {
+  const TPM_GENERATED = 0xff544347;
+  const TPM_ST_ATTEST_CERTIFY = 0x8017;
+  const TPM_ALG_SHA256 = 0x000b;
+
+  const extraData = new Uint8Array(await crypto.subtle.digest('SHA-256', attToBeSigned));
+  // The name is `nameAlg || digest(pubArea)` — the tie between this statement
+  // and a particular key.
+  const nameDigest = new Uint8Array(await crypto.subtle.digest('SHA-256', pubArea));
+  const attestedName = concat([u16(TPM_ALG_SHA256), nameDigest]);
+
+  return concat([
+    u32(TPM_GENERATED),
+    u16(TPM_ST_ATTEST_CERTIFY),
+    sized(new Uint8Array(2)), // qualifiedSigner
+    sized(extraData),
+    new Uint8Array(17), // clockInfo
+    new Uint8Array(8), // firmwareVersion
+    sized(attestedName),
+    sized(new Uint8Array(0)), // qualifiedName
+  ]);
+}
+
 /** Authenticator data flags, WebAuthn §6.1. */
 export const FLAG_UP = 0x01;
 export const FLAG_UV = 0x04;
@@ -364,6 +440,18 @@ export class VirtualAuthenticator {
      * the shape it will really see.
      */
     appleAttestation?: { root: GeneratedCertificate };
+    /**
+     * Produces a TPM attestation instead.
+     *
+     * A TPM signs a statement *about* a key rather than the ceremony, so the
+     * fixture builds both structures: a TPMT_PUBLIC describing the credential
+     * key, and a TPMS_ATTEST certifying it whose extraData hashes this
+     * ceremony. The AIK signs the statement.
+     *
+     * `aik` overrides the attestation identity key, so a test can present one
+     * that breaks a §8.3.1 requirement while everything else stays genuine.
+     */
+    tpmAttestation?: { root: GeneratedCertificate; aik?: GeneratedCertificate };
   }): Promise<RegistrationResult> {
     const authData = await buildAuthenticatorData({
       rpId: options.rpId,
@@ -412,7 +500,37 @@ export class VirtualAuthenticator {
       attStmt.set('x5c', [credCert.der]);
     }
 
-    if (options.appleAttestation) {
+    if (options.tpmAttestation) {
+      const jwk = await crypto.subtle.exportKey('jwk', this.#keyPair.publicKey);
+      const x = new Uint8Array(Buffer.from(jwk.x as string, 'base64url'));
+      const y = new Uint8Array(Buffer.from(jwk.y as string, 'base64url'));
+
+      const pubArea = buildTpmPublic(x, y);
+      const certInfo = await buildTpmCertInfo(pubArea, signedData);
+
+      // The attestation identity key is separate from the credential key —
+      // that is the point of a TPM: a device key certifies keys it generated.
+      const aik =
+        options.tpmAttestation.aik ??
+        createCertificate({
+          subject: '',
+          issuer: options.tpmAttestation.root,
+          extendedKeyUsage: ['2.23.133.8.3'],
+        });
+
+      const signature = new Uint8Array(
+        createSign('SHA256').update(certInfo).sign(aik.privateKey),
+      );
+      if (options.breakAttestationSignature) signature[0] = (signature[0] as number) ^ 0xff;
+
+      format = options.attestationFormat ?? 'tpm';
+      attStmt.set('ver', '2.0');
+      attStmt.set('alg', ES256);
+      attStmt.set('sig', signature);
+      attStmt.set('certInfo', certInfo);
+      attStmt.set('pubArea', pubArea);
+      attStmt.set('x5c', [aik.der]);
+    } else if (options.appleAttestation) {
       // Already assembled above.
     } else if (options.attestationChain) {
       format = options.attestationFormat ?? 'packed';

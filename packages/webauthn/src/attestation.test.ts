@@ -2,9 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { AttestationError } from './attestation.js';
 import { WebAuthnError, verifyRegistration, type RegistrationExpectations } from './ceremony.js';
 import { ES256 } from './cose.js';
-import { VirtualAuthenticator, encodeCbor, type Encodable } from './testing.js';
+import { VirtualAuthenticator, buildTpmPublic, encodeCbor, type Encodable } from './testing.js';
 import { decodeCbor } from './cbor.js';
-import { createCertificate, createChain, type CertificateChain } from './x509-fixtures.js';
+import {
+  createCertificate,
+  createChain,
+  type CertificateChain,
+  type GeneratedCertificate,
+} from './x509-fixtures.js';
 
 const RP_ID = 'example.com';
 const ORIGIN = 'https://example.com';
@@ -684,5 +689,705 @@ describe('the credential still works after attestation', () => {
         },
       }),
     ).resolves.toBeTruthy();
+  });
+});
+
+// ─── TPM attestation helpers ───────────────────────────────────────────────
+
+/** `tcg-kp-AIKCertificate` — the usage §8.3.1 requires of an attestation key. */
+const AIK_EKU = '2.23.133.8.3';
+
+/** The `attStmt` fields and `authData`, as a shape the tests can rebuild from. */
+function tpmParts(attestationObject: Uint8Array): {
+  fields: Map<string | number, Encodable>;
+  authData: Uint8Array;
+} {
+  const decoded = decodeCbor(attestationObject) as Map<string, unknown>;
+  const attStmt = decoded.get('attStmt') as Map<string | number, unknown>;
+  const fields = new Map<string | number, Encodable>();
+  for (const [key, value] of attStmt) fields.set(key, value as Encodable);
+  return { fields, authData: decoded.get('authData') as Uint8Array };
+}
+
+/** Re-encodes an attestation object around edited `attStmt` fields. */
+function packTpm(fields: Map<string | number, Encodable>, authData: Uint8Array): Uint8Array {
+  return encodeCbor(
+    new Map<string, Encodable>([
+      ['fmt', 'tpm'],
+      ['attStmt', fields],
+      ['authData', authData],
+    ]),
+  );
+}
+
+/** Where `needle` starts in `haystack`, or -1. Used to find fields by content. */
+function indexOfBytes(haystack: Uint8Array, needle: Uint8Array): number {
+  outer: for (let i = 0; i + needle.length <= haystack.length; i += 1) {
+    for (let j = 0; j < needle.length; j += 1) {
+      if (haystack[i + j] !== needle[j]) continue outer;
+    }
+    return i;
+  }
+  return -1;
+}
+
+/**
+ * TPM attestation — WebAuthn §8.3. The path Windows Hello takes.
+ *
+ * A TPM signs neither the ceremony nor the credential key. It signs a
+ * `TPMS_ATTEST` describing a key it certifies, and the tie back to this
+ * registration runs through two indirections that both have to hold:
+ * `certInfo.extraData` hashes `authData || clientDataHash`, and
+ * `certInfo.attested.name` hashes `pubArea`. Check one without the other, or
+ * skip the comparison of `pubArea` against the credential key, and a genuine
+ * TPM signature ends up vouching for something no TPM ever attested to. Most
+ * of what follows is about those three joins.
+ */
+describe('tpm attestation', () => {
+  const vendorRoot = (): GeneratedCertificate =>
+    createCertificate({ subject: 'TPM Vendor Root', isCa: true });
+
+  it('verifies a real TPM statement', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const verified = await verifyRegistration(
+      response,
+      expectations(challenge, {
+        attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+      }),
+    );
+
+    expect(verified.attestationFormat).toBe('tpm');
+    expect(verified.attestationType).toBe('basic');
+    expect(verified.aaguidVerified).toBe(true);
+    expect(verified.attestationSubject).toContain('TPM Vendor Root');
+  });
+
+  it('accepts the credential the ceremony produced', async () => {
+    // A verifier that returned a key nobody attested to would still pass every
+    // assertion above, so this walks the credential through an authentication.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const verified = await verifyRegistration(
+      await authenticator.register({
+        challenge,
+        origin: ORIGIN,
+        rpId: RP_ID,
+        tpmAttestation: { root },
+      }),
+      expectations(challenge, {
+        attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+      }),
+    );
+
+    const { verifyAuthentication } = await import('./ceremony.js');
+    const assertionChallenge = challengeBytes();
+    const assertion = await authenticator.authenticate({
+      challenge: assertionChallenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+    });
+
+    await expect(
+      verifyAuthentication(assertion, {
+        rpId: RP_ID,
+        origin: ORIGIN,
+        challenge: b64u(assertionChallenge),
+        credential: {
+          credentialId: verified.credentialId,
+          publicKey: verified.credentialPublicKey,
+          signCount: verified.signCount,
+        },
+      }),
+    ).resolves.toBeTruthy();
+  });
+
+  it('refuses a tampered signature', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+      breakAttestationSignature: true,
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/signature did not verify/);
+  });
+
+  it('refuses a chain that reaches no configured root', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const attackerRoot = createCertificate({ subject: 'Not A Vendor', isCa: true });
+    const realRoot = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root: attackerRoot },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [realRoot.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/does not reach a trusted root/);
+  });
+
+  it('refuses tpm with no trust anchors configured', async () => {
+    // A chain nobody roots proves only that its own leaf signed something.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(response, expectations(challenge, { attestation: { formats: ['tpm'] } })),
+    );
+    expect(error.detail).toMatch(/requires trustAnchors/);
+  });
+
+  it('refuses an AIK certificate without the tcg-kp-AIKCertificate usage', async () => {
+    // §8.3.1. Without the usage restriction, any leaf the vendor root ever
+    // issued — a TLS certificate, say — could sign TPM attestations.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+    const plainLeaf = createCertificate({ subject: '', issuer: root });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root, aik: plainLeaf },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/tcg-kp-AIKCertificate/);
+  });
+
+  it('refuses an AIK certificate with a non-empty subject', async () => {
+    // §8.3.1 wants the subject empty so the certificate does not itself become
+    // a device identifier the relying party can track.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+    const named = createCertificate({
+      subject: 'Device 12345',
+      issuer: root,
+      extendedKeyUsage: [AIK_EKU],
+    });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root, aik: named },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/subject must be empty/);
+  });
+
+  it('refuses a CA certificate as the AIK', async () => {
+    // An attestation key that can also issue certificates is a key that can
+    // mint more attestation keys.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+    const caAik = createCertificate({
+      subject: '',
+      issuer: root,
+      isCa: true,
+      extendedKeyUsage: [AIK_EKU],
+    });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root, aik: caAik },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/must not be a CA certificate/);
+  });
+
+  it('refuses a signed statement replayed onto another ceremony', async () => {
+    // Both registrations use the same authenticator, so `pubArea`, the
+    // attested name and `authData` are identical and only `extraData` can tell
+    // the two ceremonies apart. That is exactly the check under test.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+    const aik = createCertificate({ subject: '', issuer: root, extendedKeyUsage: [AIK_EKU] });
+
+    const first = await authenticator.register({
+      challenge: challengeBytes(),
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root, aik },
+    });
+
+    const secondChallenge = challengeBytes();
+    const second = await authenticator.register({
+      challenge: secondChallenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root, aik },
+    });
+
+    const { fields } = tpmParts(first.attestationObject);
+    const { authData } = tpmParts(second.attestationObject);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: second.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(secondChallenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/extraData does not hash this ceremony/);
+  });
+
+  it('refuses a pubArea describing a key that is not the credential', async () => {
+    // The join an implementation can silently skip. Without it, a genuine TPM
+    // statement stands beside a credential key the attacker generated, and
+    // every signature in sight still verifies.
+    const authenticator = await VirtualAuthenticator.create();
+    const stranger = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const strangerJwk = await stranger.publicKeyJwk();
+    const otherPubArea = buildTpmPublic(
+      new Uint8Array(Buffer.from(strangerJwk.x as string, 'base64url')),
+      new Uint8Array(Buffer.from(strangerJwk.y as string, 'base64url')),
+    );
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    fields.set('pubArea', otherPubArea);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/is not the credential key/);
+  });
+
+  it('refuses an attested name that does not describe the supplied pubArea', async () => {
+    // Corrupting the digest inside `certInfo` breaks the name/pubArea join
+    // while leaving `extraData` and the credential-key comparison intact.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    const pubArea = fields.get('pubArea') as Uint8Array;
+    const certInfo = Uint8Array.from(fields.get('certInfo') as Uint8Array);
+
+    const nameDigest = new Uint8Array(await crypto.subtle.digest('SHA-256', pubArea));
+    const at = indexOfBytes(certInfo, nameDigest);
+    expect(at).toBeGreaterThan(0);
+    certInfo[at] = (certInfo[at] as number) ^ 0xff;
+    fields.set('certInfo', certInfo);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/attested name does not describe/);
+  });
+
+  it('refuses a SHA-1 name algorithm', async () => {
+    // TPM 2.0 permits SHA-1 as a nameAlg. A name is a hash whose only job is
+    // to identify one key, which makes it precisely where a collision pays.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    const pubArea = fields.get('pubArea') as Uint8Array;
+    const certInfo = Uint8Array.from(fields.get('certInfo') as Uint8Array);
+
+    // The two bytes ahead of the digest are the name algorithm.
+    const nameDigest = new Uint8Array(await crypto.subtle.digest('SHA-256', pubArea));
+    const at = indexOfBytes(certInfo, nameDigest);
+    expect(at).toBeGreaterThan(1);
+    certInfo[at - 2] = 0x00;
+    certInfo[at - 1] = 0x04; // TPM_ALG_SHA1
+    fields.set('certInfo', certInfo);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/SHA-1 name algorithm is not accepted/);
+  });
+
+  it('refuses certInfo without TPM_GENERATED_VALUE', async () => {
+    // The marker only a TPM is supposed to be able to place.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    const certInfo = Uint8Array.from(fields.get('certInfo') as Uint8Array);
+    certInfo[0] = 0x00;
+    fields.set('certInfo', certInfo);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/TPM_GENERATED_VALUE/);
+  });
+
+  it('refuses an attestation that is not a TPM_ST_ATTEST_CERTIFY', async () => {
+    // Other attestation types describe other things — a quote over PCRs, say.
+    // Reading one of those as a key certification would be reading a different
+    // sentence than the TPM signed.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    const certInfo = Uint8Array.from(fields.get('certInfo') as Uint8Array);
+    certInfo[4] = 0x80;
+    certInfo[5] = 0x18; // TPM_ST_ATTEST_QUOTE
+    fields.set('certInfo', certInfo);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/not a TPM_ST_ATTEST_CERTIFY/);
+  });
+
+  it.each([['pubArea'], ['certInfo']])('refuses a statement with no %s', async (field) => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    fields.delete(field);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/missing certInfo or pubArea/);
+  });
+
+  it('refuses a truncated pubArea', async () => {
+    // Every length in these structures drives a read, which is the shape an
+    // out-of-bounds bug takes. A structure cut short should be refused, with a
+    // message about the structure rather than a stray runtime error.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    const pubArea = fields.get('pubArea') as Uint8Array;
+    fields.set('pubArea', pubArea.subarray(0, pubArea.length - 10));
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toBeTruthy();
+    expect(error.detail).not.toMatch(/Cannot read|RangeError|undefined/);
+  });
+
+  it('refuses a version other than 2.0', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    fields.set('ver', '1.2');
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/unsupported TPM version/);
+  });
+
+  it('refuses an unsupported attestation algorithm', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    fields.set('alg', -8); // EdDSA, which the TPM formats do not carry
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/unsupported TPM attestation algorithm/);
+  });
+
+  it('refuses a statement with no x5c chain', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const { fields, authData } = tpmParts(response.attestationObject);
+    fields.delete('x5c');
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packTpm(fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['tpm'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/requires an x5c chain/);
+  });
+
+  it('enforces an AAGUID allowlist', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: {
+            formats: ['tpm'],
+            trustAnchors: [root.der],
+            allowedAaguids: ['0'.repeat(32)],
+          },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/is not on the allowed list/);
+  });
+
+  it('refuses tpm when the policy does not list the format', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = vendorRoot();
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      tpmAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['packed'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/tpm/);
   });
 });

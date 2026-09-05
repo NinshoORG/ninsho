@@ -18,10 +18,10 @@
  * AAGUID they like in a certificate they issued to themselves.
  *
  * A verifier that reports "attestation verified" in that situation is worse
- * than one with no attestation support: it manufactures confidence. So
- * `packed` attestation is accepted only when the relying party supplies the
- * roots it trusts. If you do not have roots, you do not have attestation, and
- * saying so is the honest answer.
+ * than one with no attestation support: it manufactures confidence. So every
+ * format that carries a chain — `packed`, `apple` and `tpm` — is accepted only
+ * when the relying party supplies the roots it trusts. If you do not have
+ * roots, you do not have attestation, and saying so is the honest answer.
  * ──────────────────────────────────────────────────────────────────────────
  */
 
@@ -31,7 +31,14 @@ import {
   verify as nodeVerify,
   type JsonWebKey as NodeJsonWebKey,
 } from 'node:crypto';
-import { findExtension, readTlv, Asn1Error } from './asn1.js';
+import { findExtension, readTlv, encodeOid, Asn1Error } from './asn1.js';
+import {
+  TpmError,
+  parseTpmAttest,
+  parseTpmPublic,
+  verifyAttestedName,
+  verifyPublicKeyMatches,
+} from './tpm.js';
 import { ES256, EdDSA, RS256, parseCoseKey, type CoseAlgorithm } from './cose.js';
 import type { CborValue } from './cbor.js';
 
@@ -62,7 +69,7 @@ export type AttestationType =
 export const FIDO_AAGUID_OID = '1.3.6.1.4.1.45724.1.1.4';
 
 /** Formats this package can actually verify. */
-export const VERIFIABLE_FORMATS: readonly string[] = ['none', 'packed', 'apple'];
+export const VERIFIABLE_FORMATS: readonly string[] = ['none', 'packed', 'apple', 'tpm'];
 
 /** How deep an attestation chain may be, counting the leaf. */
 const MAX_CHAIN_DEPTH = 6;
@@ -74,8 +81,8 @@ export interface AttestationPolicy {
   /**
    * Formats to accept. Default `['none']`.
    *
-   * Adding `'packed'` requires `trustAnchors`; see the note at the top of this
-   * file for why that is not optional.
+   * Adding `'packed'`, `'apple'` or `'tpm'` requires `trustAnchors`; see the
+   * note at the top of this file for why that is not optional.
    */
   readonly formats?: readonly string[];
   /**
@@ -382,6 +389,198 @@ async function verifyAppleAttestation(
   }
 }
 
+/** `extendedKeyUsage`. */
+const EKU_OID = '2.5.29.37';
+
+/** `tcg-kp-AIKCertificate` — the usage an attestation identity key must declare. */
+const AIK_CERTIFICATE_OID = '2.23.133.8.3';
+
+/**
+ * Whether a certificate declares an extended key usage.
+ *
+ * The extension is a `SEQUENCE OF OID`, and the comparison is on encoded bytes
+ * rather than on decoded strings — the same reasoning as `findExtension`, where
+ * decoding introduces a second place for two implementations to disagree.
+ */
+function hasExtendedKeyUsage(certificate: Uint8Array, oid: string): boolean {
+  let extension: Uint8Array | undefined;
+  try {
+    extension = findExtension(certificate, EKU_OID);
+  } catch {
+    return false;
+  }
+  if (extension === undefined) return false;
+
+  const target = encodeOid(oid);
+  try {
+    const sequence = readTlv(extension, 0);
+    if (sequence.tag !== 0x30) return false;
+
+    let offset = sequence.start;
+    while (offset < sequence.end) {
+      const entry = readTlv(extension, offset);
+      if (
+        entry.tag === 0x06 &&
+        entry.end - entry.start === target.length &&
+        extension.subarray(entry.start, entry.end).every((b, i) => b === target[i])
+      ) {
+        return true;
+      }
+      offset = entry.next;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+/**
+ * The credential key as raw material, for comparison against `pubArea`.
+ *
+ * Goes through `parseCoseKey` so the same validation applies — an undersized
+ * RSA modulus is refused here exactly as it is anywhere else.
+ */
+function credentialKeyMaterial(
+  credentialPublicKey: Uint8Array,
+  alg: CoseAlgorithm,
+): { kty: string; n?: Uint8Array; e?: number; x?: Uint8Array; y?: Uint8Array } {
+  const { jwk } = parseCoseKey(credentialPublicKey, [alg]);
+  const decode = (value: string | undefined): Uint8Array | undefined =>
+    value === undefined ? undefined : new Uint8Array(Buffer.from(value, 'base64url'));
+
+  if (jwk.kty === 'RSA') {
+    const exponentBytes = decode(jwk.e as string | undefined);
+    let exponent: number | undefined;
+    if (exponentBytes !== undefined) {
+      exponent = 0;
+      for (const byte of exponentBytes) exponent = exponent * 256 + byte;
+    }
+    return {
+      kty: 'RSA',
+      ...(decode(jwk.n as string | undefined) !== undefined && {
+        n: decode(jwk.n as string | undefined) as Uint8Array,
+      }),
+      ...(exponent !== undefined && { e: exponent }),
+    };
+  }
+
+  return {
+    kty: 'EC',
+    ...(decode(jwk.x as string | undefined) !== undefined && {
+      x: decode(jwk.x as string | undefined) as Uint8Array,
+    }),
+    ...(decode(jwk.y as string | undefined) !== undefined && {
+      y: decode(jwk.y as string | undefined) as Uint8Array,
+    }),
+  };
+}
+
+/**
+ * Verifies TPM attestation — WebAuthn §8.3.
+ *
+ * A TPM does not sign the ceremony. It signs a statement about a key it
+ * certifies, and the tie to the ceremony runs through two indirections that
+ * both have to be checked: `extraData` binds the statement to this
+ * registration, and `attested.name` binds it to a particular key. Verifying
+ * one without the other leaves a genuine TPM signature vouching for something
+ * it never attested to.
+ */
+async function verifyTpmAttestation(
+  input: VerifyAttestationInput,
+  chain: X509Certificate[],
+  anchors: X509Certificate[],
+  alg: CoseAlgorithm,
+): Promise<void> {
+  const statement = input.statement;
+
+  const ver = statement.get('ver');
+  const sig = statement.get('sig');
+  const certInfo = statement.get('certInfo');
+  const pubArea = statement.get('pubArea');
+
+  if (ver !== '2.0') {
+    throw new AttestationError(`unsupported TPM version: ${String(ver)}`);
+  }
+  if (!(sig instanceof Uint8Array) || sig.length === 0) {
+    throw new AttestationError('the TPM statement has no signature');
+  }
+  if (!(certInfo instanceof Uint8Array) || !(pubArea instanceof Uint8Array)) {
+    throw new AttestationError('the TPM statement is missing certInfo or pubArea');
+  }
+
+  // §8.3 step 2: the key the TPM certified must be the credential key.
+  let parsedPublic;
+  try {
+    parsedPublic = parseTpmPublic(pubArea);
+    verifyPublicKeyMatches(parsedPublic, credentialKeyMaterial(input.credentialPublicKey, alg));
+  } catch (error) {
+    // Either the TPM structure was malformed, or the credential key it claims
+    // to certify was not acceptable. Both are "this attestation is not good".
+    throw new AttestationError(
+      error instanceof TpmError || error instanceof Error
+        ? (error as Error).message
+        : 'pubArea could not be read',
+    );
+  }
+
+  // §8.3 steps 3-4.
+  const attToBeSigned = new Uint8Array(input.authData.length + input.clientDataHash.length);
+  attToBeSigned.set(input.authData, 0);
+  attToBeSigned.set(input.clientDataHash, input.authData.length);
+
+  let attest;
+  try {
+    attest = parseTpmAttest(certInfo);
+  } catch (error) {
+    throw new AttestationError(
+      error instanceof TpmError ? error.message : 'certInfo could not be read',
+    );
+  }
+
+  const expectedExtraData = new Uint8Array(await crypto.subtle.digest('SHA-256', attToBeSigned));
+  if (!bytesEqual(attest.extraData, expectedExtraData)) {
+    throw new AttestationError('certInfo.extraData does not hash this ceremony');
+  }
+
+  try {
+    await verifyAttestedName(attest.attestedName, pubArea);
+  } catch (error) {
+    throw new AttestationError(
+      error instanceof TpmError ? error.message : 'the attested name could not be checked',
+    );
+  }
+
+  // §8.3 step 5: the signature is over certInfo, not over the ceremony.
+  const aikCert = chain[0] as X509Certificate;
+  if (!verifySignature(alg, aikCert.publicKey, certInfo, sig)) {
+    throw new AttestationError('the TPM attestation signature did not verify');
+  }
+
+  // §8.3.1: what an attestation identity key certificate must look like.
+  const aikRaw = new Uint8Array(aikCert.raw);
+  if (aikCert.ca) {
+    throw new AttestationError('the AIK certificate must not be a CA certificate');
+  }
+  // §8.3.1 requires an empty subject; the identity lives in the SAN so the
+  // certificate does not become a device identifier. node reports an empty
+  // distinguished name as `undefined` rather than '', and the empty case is
+  // the *expected* one here — so this cannot take the declared type at its
+  // word without turning every genuine TPM registration into a TypeError.
+  const aikSubject = (aikCert.subject as string | undefined) ?? '';
+  if (aikSubject.trim().length > 0) {
+    throw new AttestationError('the AIK certificate subject must be empty');
+  }
+  if (!hasExtendedKeyUsage(aikRaw, AIK_CERTIFICATE_OID)) {
+    throw new AttestationError(
+      'the AIK certificate does not declare the tcg-kp-AIKCertificate extended key usage',
+    );
+  }
+
+  if (!chainReachesAnchor(chain, anchors)) {
+    throw new AttestationError('the attestation chain does not reach a trusted root');
+  }
+}
+
 /**
  * Verifies an attestation statement against a relying party's policy.
  *
@@ -465,6 +664,48 @@ export async function verifyAttestation(
       aaguidVerified: true,
       aaguid: aaguidHex,
       attestationSubject: (appleChain[0] as X509Certificate).subject,
+    };
+  }
+
+  // ── tpm ──────────────────────────────────────────────────────────────────
+
+  if (input.format === 'tpm') {
+    const tpmAlg = input.statement.get('alg');
+    if (typeof tpmAlg !== 'number' || ![ES256, RS256].includes(tpmAlg as CoseAlgorithm)) {
+      throw new AttestationError(`unsupported TPM attestation algorithm: ${String(tpmAlg)}`);
+    }
+
+    const tpmChain = readX5c(input.statement);
+    if (tpmChain === undefined) {
+      throw new AttestationError('tpm attestation requires an x5c chain');
+    }
+
+    const tpmAnchors = policy.trustAnchors ?? [];
+    if (tpmAnchors.length === 0) {
+      throw new AttestationError(
+        'tpm attestation requires trustAnchors; without roots, a chain proves nothing',
+      );
+    }
+
+    let anchorCerts: X509Certificate[];
+    try {
+      anchorCerts = tpmAnchors.map((der) => new X509Certificate(Buffer.from(der)));
+    } catch {
+      throw new AttestationError('a configured trust anchor is not a valid certificate');
+    }
+
+    await verifyTpmAttestation(input, tpmChain, anchorCerts, tpmAlg as CoseAlgorithm);
+
+    if (policy.allowedAaguids !== undefined && !policy.allowedAaguids.includes(aaguidHex)) {
+      throw new AttestationError(`authenticator model ${aaguidHex} is not on the allowed list`);
+    }
+
+    return {
+      format: 'tpm',
+      type: 'basic',
+      aaguidVerified: true,
+      aaguid: aaguidHex,
+      attestationSubject: (tpmChain[0] as X509Certificate).issuer,
     };
   }
 
