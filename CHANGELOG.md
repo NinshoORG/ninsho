@@ -7,6 +7,34 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **An interactive protocol explorer — `examples/playground`.** The README
+  makes claims and each has a test behind it, which is the right evidence for a
+  maintainer and the wrong evidence for someone deciding whether to adopt the
+  thing. Nobody should have to read `session.test.ts` to believe that a
+  replayed refresh token kills a family.
+
+  So the playground runs the real library in-process and shows what happens:
+  the credentials handed to the client, the keys written to the store, the
+  audit events, and four attacks failing. A `RecordingStore` wraps the real
+  store and logs every operation, so each response carries the trace that
+  produced it.
+
+  The headline demonstration is one anyone can check: create a session, paste
+  the token into the search box, and watch it not appear among the live keys —
+  because what was written is `SHA-256(token)`. Verified programmatically as
+  well as visually.
+
+  The four attacks are a rotated refresh token replayed (family revoked, with
+  `signalMatch: different` identifying the thief as another client), a
+  single-character mutation of an access token, a reset link redeemed twice,
+  and two reset requests raced — that last one being the case that found a real
+  bug earlier in the week.
+
+  It deliberately exposes each error's `detail`, which a real deployment never
+  sends to a client. Showing it beside the client-facing message is the
+  clearest way to make that separation concrete, and it is also exactly why the
+  README says not to deploy this one.
+
 - **A Hono adapter — `@ninsho/server/hono`.** The last framework gap the docs
   admitted to. Around 2 KB, importing nothing at runtime; CI asserts both that
   and that it stays out of the main bundle.

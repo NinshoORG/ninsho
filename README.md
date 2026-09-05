@@ -155,6 +155,8 @@ core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express depe
   the architecture
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — the rule this project runs on, and
   the design constraints that are settled
+- **[examples/playground](./examples/playground)** — an interactive protocol
+  explorer: run the attacks, watch them fail, and read the store underneath
 - **[packages/webauthn](./packages/webauthn)** — passkeys: what is verified,
   and what deliberately is not
 - **[examples/express-api](./examples/express-api)** — a complete integration

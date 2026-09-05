@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ninsho — protocol explorer</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="wrap">
+        <h1>Ninsho <span class="dim">protocol explorer</span></h1>
+        <p class="lede">
+          Every button below runs the <strong>real library</strong> — not a mock, not a
+          re-implementation. What you get back is the actual bytes on the wire, the actual keys
+          written to the store, and the actual audit events. Where a claim is made, the evidence
+          for it is on the screen next to it.
+        </p>
+        <div class="actions">
+          <button id="reset" class="ghost">Start over</button>
+          <span id="status" class="status"></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel">
+        <h2>1 · A session, end to end</h2>
+        <p class="explain">
+          Creating a session mints two credentials: a short-lived access token for requests, and a
+          refresh token that rotates. Watch what reaches the store.
+        </p>
+        <div class="row">
+          <button data-post="/api/session/create" data-target="out-session">Create session</button>
+          <button data-post="/api/session/verify" data-target="out-session">Verify access token</button>
+          <button data-post="/api/session/refresh" data-target="out-session">Refresh (rotate)</button>
+        </div>
+        <div id="out-session" class="out"></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel danger">
+        <h2>2 · Attacks, and what stops them</h2>
+        <p class="explain">
+          The interesting part of an auth library is not that the happy path works. It is what
+          happens when someone attacks it. Each of these is a real attempt against the running
+          system.
+        </p>
+
+        <div class="attack">
+          <h3>Replay a rotated refresh token</h3>
+          <p class="explain">
+            A thief steals a refresh token, the legitimate client rotates it, and the thief
+            presents the old one. Refresh at least once first, then run this.
+          </p>
+          <button data-post="/api/attack/replay-refresh" data-target="out-replay" class="attack-btn">
+            Replay the stolen token
+          </button>
+          <div id="out-replay" class="out"></div>
+        </div>
+
+        <div class="attack">
+          <h3>Tamper with an access token</h3>
+          <p class="explain">Flip a single character and present it.</p>
+          <button data-post="/api/attack/tamper-token" data-target="out-tamper" class="attack-btn">
+            Flip one character
+          </button>
+          <div id="out-tamper" class="out"></div>
+        </div>
+
+        <div class="attack">
+          <h3>Use a password-reset link twice</h3>
+          <p class="explain">
+            A forwarded email, or a corporate mail scanner that pre-fetches links.
+          </p>
+          <button data-post="/api/attack/replay-reset-link" data-target="out-reset" class="attack-btn">
+            Redeem the same link twice
+          </button>
+          <div id="out-reset" class="out"></div>
+        </div>
+
+        <div class="attack">
+          <h3>Race two reset requests</h3>
+          <p class="explain">
+            Asking for a second reset email must invalidate the first — including when both
+            requests arrive at the same instant. This one found a real bug.
+          </p>
+          <button data-post="/api/attack/race-reset-links" data-target="out-race" class="attack-btn">
+            Issue two links simultaneously
+          </button>
+          <div id="out-race" class="out"></div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel">
+        <h2>3 · What is actually in the store</h2>
+        <p class="explain">
+          The live keyspace. Paste any token this page has shown you into the box and search for
+          it — the claim is that you will not find it, because only
+          <code>SHA-256(token)</code> is ever written.
+        </p>
+        <div class="row">
+          <button data-get="/api/store" data-target="out-store">Show the keyspace</button>
+          <input id="needle" type="text" placeholder="Paste a token to search for…" />
+          <button id="search" class="ghost">Search</button>
+        </div>
+        <div id="search-result"></div>
+        <div id="out-store" class="out"></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel">
+        <h2>4 · The audit trail</h2>
+        <p class="explain">
+          Structured security events. The shape is deliberately narrow — there is no free-form
+          payload that could accidentally carry a token, a password, or a request body.
+        </p>
+        <button data-get="/api/events" data-target="out-events">Show events</button>
+        <div id="out-events" class="out"></div>
+      </section>
+    </main>
+
+    <footer class="wrap">
+      <p class="dim">
+        Runs <code>@ninsho/server</code> in-process with <code>MemoryStore</code>. One shared
+        session for everyone on the page, internals exposed over HTTP — a demonstration, not an
+        integration. Copy <code>examples/express-api</code> instead.
+      </p>
+    </footer>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
