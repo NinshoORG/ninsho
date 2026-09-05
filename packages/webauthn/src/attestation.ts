@@ -31,7 +31,7 @@ import {
   verify as nodeVerify,
   type JsonWebKey as NodeJsonWebKey,
 } from 'node:crypto';
-import { findExtension, Asn1Error } from './asn1.js';
+import { findExtension, readTlv, Asn1Error } from './asn1.js';
 import { ES256, EdDSA, RS256, parseCoseKey, type CoseAlgorithm } from './cose.js';
 import type { CborValue } from './cbor.js';
 
@@ -62,7 +62,7 @@ export type AttestationType =
 export const FIDO_AAGUID_OID = '1.3.6.1.4.1.45724.1.1.4';
 
 /** Formats this package can actually verify. */
-export const VERIFIABLE_FORMATS: readonly string[] = ['none', 'packed'];
+export const VERIFIABLE_FORMATS: readonly string[] = ['none', 'packed', 'apple'];
 
 /** How deep an attestation chain may be, counting the leaf. */
 const MAX_CHAIN_DEPTH = 6;
@@ -270,6 +270,119 @@ function readX5c(statement: Map<string | number, CborValue>): X509Certificate[] 
 }
 
 /**
+ * `id-apple-anonymous-attestation` — where Apple puts the ceremony nonce.
+ *
+ * The extension value is `SEQUENCE { [1] { OCTET STRING nonce } }`.
+ */
+const APPLE_NONCE_OID = '1.2.840.113635.100.8.2';
+
+/**
+ * Reads the nonce Apple embeds in the credential certificate.
+ *
+ * Parsed rather than pattern-matched: the nonce is the entire binding between
+ * the certificate and this ceremony, so reading it out of the wrong place — or
+ * accepting a structure that merely happens to contain the right bytes — would
+ * make the check pass for a certificate issued for something else.
+ */
+function appleNonce(certificate: Uint8Array): Uint8Array {
+  let extension: Uint8Array | undefined;
+  try {
+    extension = findExtension(certificate, APPLE_NONCE_OID);
+  } catch (error) {
+    throw new AttestationError(
+      `credential certificate could not be read: ${
+        error instanceof Asn1Error ? error.message : 'unknown error'
+      }`,
+    );
+  }
+  if (extension === undefined) {
+    throw new AttestationError('the credential certificate carries no Apple nonce extension');
+  }
+
+  try {
+    // SEQUENCE → [1] → OCTET STRING.
+    const outer = readTlv(extension, 0);
+    if (outer.tag !== 0x30) throw new Asn1Error('nonce extension is not a SEQUENCE');
+
+    const context = readTlv(extension, outer.start);
+    if (context.tag !== 0xa1) throw new Asn1Error('nonce extension has no [1] element');
+
+    const octets = readTlv(extension, context.start);
+    if (octets.tag !== 0x04) throw new Asn1Error('nonce is not an OCTET STRING');
+
+    return extension.subarray(octets.start, octets.end);
+  } catch (error) {
+    throw new AttestationError(
+      `the Apple nonce extension is malformed: ${
+        error instanceof Asn1Error ? error.message : 'unknown error'
+      }`,
+    );
+  }
+}
+
+/**
+ * Verifies Apple Anonymous Attestation — WebAuthn §8.8.
+ *
+ * ─── Why this format has no signature field ───────────────────────────────
+ * `packed` carries a signature over `authData || clientDataHash`, and checking
+ * it is what ties the statement to the ceremony. Apple's format has no `sig`
+ * at all, which looks alarming until you see what replaces it: the certificate
+ * itself carries a nonce equal to `SHA-256(authData || clientDataHash)`, put
+ * there by Apple when it issued the certificate for *this* ceremony.
+ *
+ * So the binding is the same strength and arrives differently. A certificate
+ * from another ceremony carries another nonce and is refused; the relying
+ * party still has to trust the chain, which is why anchors remain mandatory.
+ *
+ * The second check is the one easy to leave out: the certificate's public key
+ * must be the credential's public key. Without it a valid Apple certificate
+ * could be presented alongside a credential key an attacker controls.
+ */
+async function verifyAppleAttestation(
+  input: VerifyAttestationInput,
+  chain: X509Certificate[],
+  anchors: X509Certificate[],
+): Promise<void> {
+  const credCert = chain[0] as X509Certificate;
+
+  // §8.8 steps 2-3: the nonce is a hash of exactly what was signed elsewhere.
+  const nonceToHash = new Uint8Array(input.authData.length + input.clientDataHash.length);
+  nonceToHash.set(input.authData, 0);
+  nonceToHash.set(input.clientDataHash, input.authData.length);
+  const expected = new Uint8Array(await crypto.subtle.digest('SHA-256', nonceToHash));
+
+  // §8.8 step 4.
+  if (!bytesEqual(appleNonce(new Uint8Array(credCert.raw)), expected)) {
+    throw new AttestationError('the Apple attestation nonce does not match this ceremony');
+  }
+
+  // §8.8 step 5. Without this a genuine Apple certificate could be presented
+  // beside a credential key the attacker holds, and everything else would
+  // still check out.
+  let credentialSpki: Buffer;
+  try {
+    const { jwk } = parseCoseKey(input.credentialPublicKey, [input.credentialAlgorithm]);
+    credentialSpki = createPublicKey({ key: jwk as NodeJsonWebKey, format: 'jwk' }).export({
+      type: 'spki',
+      format: 'der',
+    });
+  } catch {
+    throw new AttestationError('the credential public key could not be read');
+  }
+
+  const certificateSpki = credCert.publicKey.export({ type: 'spki', format: 'der' });
+  if (!bytesEqual(new Uint8Array(credentialSpki), new Uint8Array(certificateSpki))) {
+    throw new AttestationError(
+      'the credential public key does not match the attestation certificate',
+    );
+  }
+
+  if (!chainReachesAnchor(chain, anchors)) {
+    throw new AttestationError('the attestation chain does not reach a trusted root');
+  }
+}
+
+/**
  * Verifies an attestation statement against a relying party's policy.
  *
  * @throws {AttestationError} whenever the statement is not acceptable. There
@@ -310,6 +423,48 @@ export async function verifyAttestation(
       aaguidVerified: false,
       aaguid: aaguidHex,
       attestationSubject: undefined,
+    };
+  }
+
+  // ── apple ────────────────────────────────────────────────────────────────
+  // Handled before `packed`, because it carries no `alg` or `sig` and the
+  // checks below would reject it for lacking fields it never has.
+
+  if (input.format === 'apple') {
+    const appleChain = readX5c(input.statement);
+    if (appleChain === undefined) {
+      throw new AttestationError('apple attestation requires an x5c chain');
+    }
+
+    const appleAnchors = policy.trustAnchors ?? [];
+    if (appleAnchors.length === 0) {
+      throw new AttestationError(
+        'apple attestation requires trustAnchors; without roots, a chain proves nothing',
+      );
+    }
+
+    let anchorCerts: X509Certificate[];
+    try {
+      anchorCerts = appleAnchors.map((der) => new X509Certificate(Buffer.from(der)));
+    } catch {
+      throw new AttestationError('a configured trust anchor is not a valid certificate');
+    }
+
+    await verifyAppleAttestation(input, appleChain, anchorCerts);
+
+    if (policy.allowedAaguids !== undefined && !policy.allowedAaguids.includes(aaguidHex)) {
+      throw new AttestationError(`authenticator model ${aaguidHex} is not on the allowed list`);
+    }
+
+    return {
+      format: 'apple',
+      // Apple issues these through an anonymization CA, so the chain vouches
+      // for the platform rather than for an individual device — which is the
+      // point: it attests without being a tracking identifier.
+      type: 'basic',
+      aaguidVerified: true,
+      aaguid: aaguidHex,
+      attestationSubject: (appleChain[0] as X509Certificate).subject,
     };
   }
 

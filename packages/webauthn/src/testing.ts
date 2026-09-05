@@ -26,9 +26,9 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { createSign, type webcrypto } from 'node:crypto';
+import { createSign, KeyObject, type webcrypto } from 'node:crypto';
 import { ES256, EdDSA, RS256, type CoseAlgorithm } from './cose.js';
-import type { CertificateChain } from './x509-fixtures.js';
+import { createCertificate, type CertificateChain, type GeneratedCertificate } from './x509-fixtures.js';
 
 // ─── CBOR encoding ─────────────────────────────────────────────────────────
 
@@ -354,6 +354,16 @@ export class VirtualAuthenticator {
     selfAttested?: boolean;
     /** Corrupts the attestation signature, to test that it is checked. */
     breakAttestationSignature?: boolean;
+    /**
+     * Produces an Apple Anonymous Attestation instead.
+     *
+     * Apple's format carries no signature: a certificate is minted for this
+     * ceremony with `SHA-256(authData || clientDataHash)` in its nonce
+     * extension, and the credential's own public key as its subject key. Both
+     * are built here rather than faked, so the verifier is exercised against
+     * the shape it will really see.
+     */
+    appleAttestation?: { root: GeneratedCertificate };
   }): Promise<RegistrationResult> {
     const authData = await buildAuthenticatorData({
       rpId: options.rpId,
@@ -379,7 +389,32 @@ export class VirtualAuthenticator {
     const attStmt = new Map<string | number, Encodable>();
     let format = options.attestationFormat ?? 'none';
 
-    if (options.attestationChain) {
+    if (options.appleAttestation) {
+      const nonce = new Uint8Array(await crypto.subtle.digest('SHA-256', signedData));
+      // The certificate's subject key *is* the credential key — the check a
+      // verifier must make, and one an implementation can silently skip.
+      // The certificate builder works in node KeyObjects; the authenticator
+      // holds WebCrypto CryptoKeys. `KeyObject.from` is the bridge, and it
+      // keeps the *same* key rather than generating a parallel one — which is
+      // the whole point of this check.
+      const credentialKey = {
+        privateKey: KeyObject.from(this.#keyPair.privateKey),
+        publicKey: KeyObject.from(this.#keyPair.publicKey),
+      };
+      const credCert = createCertificate({
+        subject: 'Apple Anonymous Attestation',
+        issuer: options.appleAttestation.root,
+        keyPair: credentialKey,
+        appleNonce: nonce,
+      });
+
+      format = options.attestationFormat ?? 'apple';
+      attStmt.set('x5c', [credCert.der]);
+    }
+
+    if (options.appleAttestation) {
+      // Already assembled above.
+    } else if (options.attestationChain) {
       format = options.attestationFormat ?? 'packed';
       const signature = new Uint8Array(
         createSign('SHA256').update(signedData).sign(options.attestationChain.leaf.privateKey),

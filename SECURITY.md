@@ -146,16 +146,16 @@ have been reassured about is not.
 
 ### WebAuthn attestation covers `packed` only
 
-`@ninsho/webauthn` verifies the `none` and `packed` formats. It does **not**
-verify `tpm`, `android-key`, `android-safetynet`, `apple` or `fido-u2f`, and
+`@ninsho/webauthn` verifies the `none`, `packed` and `apple` formats. It does
+**not** verify `tpm`, `android-key`, `android-safetynet` or `fido-u2f`, and
 allowlisting one of those does not change that — the ceremony refuses it
 regardless. There is deliberately no arrangement of options that turns an
 unverified attestation into a verified one.
 
-`packed` covers most security keys, the YubiKey line included. The formats
-above are principally Windows Hello's TPM path (`tpm`), Android platform
-authenticators (`android-key`) and Apple platform authenticators (`apple`); if
-your policy has to cover those devices' attestation, that work is not done.
+`packed` covers most security keys, the YubiKey line included, and `apple`
+covers Touch ID and Face ID. What remains uncovered is principally Windows
+Hello's TPM path (`tpm`) and Android platform authenticators (`android-key`);
+if your policy has to cover those devices' attestation, that work is not done.
 
 **Trust anchors are mandatory, not optional.** `packed` is refused unless the
 relying party supplies the root certificates it trusts. A chain checked against

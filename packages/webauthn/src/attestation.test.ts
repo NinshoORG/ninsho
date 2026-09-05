@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { AttestationError } from './attestation.js';
 import { WebAuthnError, verifyRegistration, type RegistrationExpectations } from './ceremony.js';
 import { ES256 } from './cose.js';
-import { VirtualAuthenticator } from './testing.js';
+import { VirtualAuthenticator, encodeCbor, type Encodable } from './testing.js';
+import { decodeCbor } from './cbor.js';
 import { createCertificate, createChain, type CertificateChain } from './x509-fixtures.js';
 
 const RP_ID = 'example.com';
@@ -266,6 +267,213 @@ describe('attestation that must be refused', () => {
       }),
     );
     expect(error.detail).toMatch(/trust anchor is not a valid certificate/);
+  });
+});
+
+/**
+ * Apple Anonymous Attestation — WebAuthn §8.8.
+ *
+ * The format carries no signature, which looks alarming until you see what
+ * replaces it: the certificate itself holds a nonce equal to
+ * SHA-256(authData || clientDataHash), put there by Apple when it issued the
+ * certificate for *this* ceremony. Same binding strength, arriving differently.
+ */
+describe('apple attestation', () => {
+  it('verifies a ceremony-bound certificate', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = createCertificate({ subject: 'Apple WebAuthn Root CA', isCa: true });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      appleAttestation: { root },
+    });
+
+    const verified = await verifyRegistration(
+      response,
+      expectations(challenge, {
+        attestation: { formats: ['apple'], trustAnchors: [root.der] },
+      }),
+    );
+
+    expect(verified.attestationFormat).toBe('apple');
+    expect(verified.attestationType).toBe('basic');
+    expect(verified.aaguidVerified).toBe(true);
+    expect(verified.attestationSubject).toContain('Apple Anonymous Attestation');
+  });
+
+  it('refuses a statement replayed against a different ceremony', async () => {
+    // The nonce is the binding. A statement lifted from another registration
+    // carries another ceremony's hash.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = createCertificate({ subject: 'Apple WebAuthn Root CA', isCa: true });
+
+    const first = await authenticator.register({
+      challenge: challengeBytes(),
+      origin: ORIGIN,
+      rpId: RP_ID,
+      appleAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        first,
+        expectations(challengeBytes(), {
+          attestation: { formats: ['apple'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toBeTruthy();
+  });
+
+  it('refuses a chain that reaches no configured root', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const attackerRoot = createCertificate({ subject: 'Not Apple', isCa: true });
+    const realRoot = createCertificate({ subject: 'Apple WebAuthn Root CA', isCa: true });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      appleAttestation: { root: attackerRoot },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['apple'], trustAnchors: [realRoot.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/does not reach a trusted root/);
+  });
+
+  it('refuses apple with no trust anchors configured', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = createCertificate({ subject: 'Apple WebAuthn Root CA', isCa: true });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      appleAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(response, expectations(challenge, { attestation: { formats: ['apple'] } })),
+    );
+    expect(error.detail).toMatch(/requires trustAnchors/);
+  });
+
+  it('refuses a certificate carrying no nonce extension', async () => {
+    // Without the extension nothing ties the certificate to this ceremony —
+    // and the format has no signature to fall back on.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = createCertificate({ subject: 'Apple WebAuthn Root CA', isCa: true });
+    const bare = createCertificate({ subject: 'No Nonce', issuer: root });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      attestationFormat: 'apple',
+      attestationChain: { root, leaf: bare },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['apple'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/no Apple nonce extension/);
+  });
+
+  it('refuses a certificate whose subject key is not the credential key', async () => {
+    // The check an implementation can silently skip. Without it a genuine
+    // Apple certificate could be presented beside a credential key the
+    // attacker holds, and every other check would still pass.
+    const authenticator = await VirtualAuthenticator.create();
+    const root = createCertificate({ subject: 'Apple WebAuthn Root CA', isCa: true });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      appleAttestation: { root },
+    });
+
+    // Rebuild the statement around a certificate holding a different key,
+    // keeping the correct nonce so only the key check can catch it.
+    const decoded = decodeCbor(response.attestationObject) as Map<string, unknown>;
+    const authData = decoded.get('authData') as Uint8Array;
+    const clientDataHash = new Uint8Array(
+      await crypto.subtle.digest('SHA-256', response.clientDataJSON),
+    );
+    const nonceInput = new Uint8Array(authData.length + clientDataHash.length);
+    nonceInput.set(authData, 0);
+    nonceInput.set(clientDataHash, authData.length);
+    const nonce = new Uint8Array(await crypto.subtle.digest('SHA-256', nonceInput));
+
+    const impostor = createCertificate({
+      subject: 'Right Nonce, Wrong Key',
+      issuer: root,
+      appleNonce: nonce,
+    });
+
+    const swapped = encodeCbor(
+      new Map<string, Encodable>([
+        ['fmt', 'apple'],
+        ['attStmt', new Map<string | number, Encodable>([['x5c', [impostor.der]]])],
+        ['authData', authData],
+      ]),
+    );
+
+    const error = await rejection(
+      verifyRegistration(
+        { clientDataJSON: response.clientDataJSON, attestationObject: swapped },
+        expectations(challenge, {
+          attestation: { formats: ['apple'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/does not match the attestation certificate/);
+  });
+
+  it('enforces an AAGUID allowlist', async () => {
+    const authenticator = await VirtualAuthenticator.create();
+    const root = createCertificate({ subject: 'Apple WebAuthn Root CA', isCa: true });
+
+    const challenge = challengeBytes();
+    const response = await authenticator.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      appleAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: {
+            formats: ['apple'],
+            trustAnchors: [root.der],
+            allowedAaguids: ['0'.repeat(32)],
+          },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/is not on the allowed list/);
   });
 });
 

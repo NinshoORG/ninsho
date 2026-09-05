@@ -180,10 +180,10 @@ If you have no roots, you have no attestation, and saying so is the honest answe
 
 ## What is *not* verified
 
-**Attestation formats other than `packed`.** `tpm` (Windows Hello), `android-key`,
-`android-safetynet`, `apple` and `fido-u2f` are not implemented and are refused rather than
-parsed-and-ignored — allowlisting one still fails closed. `packed` covers most security keys,
-including the YubiKey line.
+**Attestation formats other than `packed` and `apple`.** `tpm` (Windows Hello), `android-key`,
+`android-safetynet` and `fido-u2f` are not implemented and are refused rather than
+parsed-and-ignored — allowlisting one still fails closed. `packed` covers most security keys
+including the YubiKey line; `apple` covers Touch ID and Face ID.
 
 **No root store ships here.** Which manufacturers you trust is an operational decision that changes
 without this package changing. FIDO's Metadata Service is where most relying parties draw roots

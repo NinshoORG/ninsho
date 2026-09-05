@@ -7,6 +7,33 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Apple Anonymous Attestation — WebAuthn §8.8.** Touch ID and Face ID, which
+  is a large share of real passkey users and the platform authenticators most
+  people actually have.
+
+  The format has no signature field, which looks alarming until you see what
+  replaces it: the credential certificate itself carries a nonce equal to
+  `SHA-256(authData || clientDataHash)`, placed there by Apple when it issued
+  the certificate for *this* ceremony. Same binding strength, arriving
+  differently — a certificate from another ceremony carries another nonce and
+  is refused.
+
+  Two checks matter and one of them is easy to skip. The nonce ties the
+  certificate to the ceremony; the certificate's **subject public key must be
+  the credential's public key**. Without the second, a genuine Apple
+  certificate could be presented beside a credential key an attacker controls
+  and every other check would still pass. There is a test that builds exactly
+  that — right nonce, wrong key — and asserts it is refused.
+
+  Trust anchors remain mandatory, for the same reason as `packed`: a chain
+  checked against no root proves nothing. Apple issues these through an
+  anonymisation CA, so the chain vouches for the platform rather than for an
+  individual device, which is the point — it attests without becoming a
+  tracking identifier.
+
+  Still unimplemented and refused rather than rubber-stamped: `tpm` (Windows
+  Hello), `android-key`, `android-safetynet`, `fido-u2f`.
+
 - **An interactive protocol explorer — `examples/playground`.** The README
   makes claims and each has a test behind it, which is the right evidence for a
   maintainer and the wrong evidence for someone deciding whether to adopt the

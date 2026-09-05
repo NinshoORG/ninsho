@@ -119,6 +119,9 @@ const ECDSA_SHA256 = sequence(oid('1.2.840.10045.4.3.2'));
 
 /** FIDO's AAGUID extension (`id-fido-gen-ce-aaguid`). */
 export const FIDO_AAGUID_OID = '1.3.6.1.4.1.45724.1.1.4';
+
+/** Apple's ceremony-nonce extension (`id-apple-anonymous-attestation`). */
+export const APPLE_NONCE_OID = '1.2.840.113635.100.8.2';
 const BASIC_CONSTRAINTS_OID = '2.5.29.19';
 
 function extension(oidText: string, value: Uint8Array, critical = false): Uint8Array {
@@ -148,6 +151,14 @@ export interface CreateCertificateOptions {
   readonly isCa?: boolean;
   /** Embeds the FIDO AAGUID extension carrying these 16 bytes. */
   readonly aaguid?: Uint8Array;
+  /**
+   * Embeds Apple's nonce extension, `SEQUENCE { [1] { OCTET STRING nonce } }`.
+   *
+   * Apple's format has no signature field: this nonce, equal to
+   * `SHA-256(authData || clientDataHash)`, is the entire binding between the
+   * certificate and one ceremony.
+   */
+  readonly appleNonce?: Uint8Array;
   readonly notBefore?: Date;
   readonly notAfter?: Date;
   /** Reuse an existing key instead of generating one. */
@@ -183,6 +194,12 @@ export function createCertificate(options: CreateCertificateOptions): GeneratedC
     // FIDO wraps the AAGUID in its own OCTET STRING inside the extension's
     // OCTET STRING value.
     extensions.push(extension(FIDO_AAGUID_OID, octetString(options.aaguid)));
+  }
+
+  if (options.appleNonce) {
+    extensions.push(
+      extension(APPLE_NONCE_OID, sequence(context(1, octetString(options.appleNonce)))),
+    );
   }
 
   const serial = new Uint8Array(8);

@@ -134,6 +134,8 @@ Every claim below links to executable proof.
 | CBOR decoding matches the specification | RFC 8949 Appendix A vectors | `cbor.test.ts` |
 | DER signature conversion matches OpenSSL | differential: OpenSSL signs, WebCrypto verifies | `der.test.ts` › *converts 200 OpenSSL P-256 signatures* |
 | **Approved-hardware-only enrolment** | `packed` attestation, chain verified to your roots | `attestation.test.ts` › *enforces an AAGUID allowlist* |
+| Touch ID and Face ID attestation | `apple` — the ceremony nonce is carried in the certificate | `attestation.test.ts` › *apple attestation* |
+| An Apple certificate cannot vouch for someone else's key | subject key must equal the credential key | `attestation.test.ts` › *refuses a certificate whose subject key is not the credential key* |
 | A self-signed CA cannot forge attestation | trust anchors are mandatory | `attestation.test.ts` › *refuses a chain that does not reach a configured root* |
 | An attestation lifted from another device is refused | certificate AAGUID must match the authenticator data | `attestation.test.ts` |
 | Unimplemented attestation formats are refused, not rubber-stamped | allowlisting one still fails closed | `ceremony.test.ts` › *cannot be verified* |
@@ -165,12 +167,12 @@ core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express depe
 
 ### What does not exist yet
 
-**Attestation beyond `packed`.** `@ninsho/webauthn` verifies `none` and
-`packed` — the latter against roots you supply, which covers most security keys.
-`tpm` (Windows Hello), `android-key` and `apple` are not implemented and are
-refused rather than rubber-stamped. No root store ships with the package, and
-FIDO Metadata Service integration is not implemented: which manufacturers you
-trust is an operational decision, not library content.
+**Attestation beyond `packed` and `apple`.** `@ninsho/webauthn` verifies
+`none`, `packed` (most security keys) and `apple` (Touch ID and Face ID), each
+against roots you supply. `tpm` (Windows Hello) and `android-key` are not
+implemented and are refused rather than rubber-stamped. No root store ships
+with the package, and FIDO Metadata Service integration is not implemented:
+which manufacturers you trust is an operational decision, not library content.
 
 **Koa.** The middleware is Express-shaped; `@ninsho/server/fastify` and
 `@ninsho/server/hono` adapt it, each a couple of kilobytes, neither depending
