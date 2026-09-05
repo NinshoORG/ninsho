@@ -69,13 +69,27 @@ verifier saw. A decoder that disagreed with the verifier would be worse than non
 **The audit trail.** The structured events, whose shape is deliberately narrow — no free-form
 payload that could accidentally carry a token, a password, or a request body.
 
+## Each visitor gets their own world
+
+A cookie identifies a visitor; each one has their own store, audit sink and `Ninsho`. Sharing a
+single world was fine on a laptop and wrong the moment two people open the page — one visitor's
+session would appear in another's store trace, and the replay demonstration would revoke a session
+someone else was midway through.
+
+It would also have misrepresented the library. Someone seeing keys they did not create would
+reasonably conclude Ninsho leaks state between callers, when what leaked was the demo's own
+variable.
+
+Worlds are capped and idle ones swept, because a public page without that is a memory leak with a
+URL — an unfortunate thing for a security demo to be.
+
 ## Tested
 
 ```bash
 npm run test --workspace @ninsho/playground
 ```
 
-21 tests over real HTTP. A demo does not usually get tests, and this one needs
+24 tests over real HTTP. A demo does not usually get tests, and this one needs
 them: every panel restates a claim from the README to an audience with no way
 to check it. A demonstration that quietly stopped demonstrating would be worse
 than a broken test — a page telling visitors something untrue while looking
@@ -89,9 +103,9 @@ the byte offsets in the anatomy view are the ones the specification gives.
 
 ## What it is not
 
-A production integration. It keeps one shared in-memory session for everyone who opens the page,
-records every value that passes through the store, and hands out internals — including each
-error's `detail`, which a real deployment never sends to a client — over HTTP.
+A production integration. It records every value that passes through the store and hands out
+internals — including each error's `detail`, which a real deployment never sends to a client —
+over HTTP.
 
 Showing `detail` next to the client-facing message is deliberate: seeing what the server knows
 beside what the caller is told is the clearest way to make that separation concrete. It is also

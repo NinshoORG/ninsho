@@ -36,6 +36,7 @@ import {
 import { decodeCbor } from '@ninsho/webauthn';
 import { VirtualAuthenticator } from '@ninsho/webauthn/testing';
 import { RecordingStore, type StoreOperation } from './store-recorder.ts';
+import { VisitorRegistry } from './visitors.ts';
 import {
   decodeAttestationObject,
   decodeAuthenticatorData,
@@ -72,11 +73,17 @@ interface World {
   spent: string[];
   /** The last single-use token issued, for the reset demo. */
   resetToken: string | null;
+  /** DPoP sessions bound to a key this visitor generated in their browser. */
+  bound: Map<string, { auth: Ninsho; store: RecordingStore; accessToken: string }>;
+  /** Releases the stores. The registry calls this on eviction. */
+  close(): Promise<void>;
 }
 
 function build(): World {
   const audit = new MemoryAuditSink();
   const store = new RecordingStore(new MemoryStore());
+  const bound = new Map<string, { auth: Ninsho; store: RecordingStore; accessToken: string }>();
+
   return {
     store,
     audit,
@@ -84,10 +91,31 @@ function build(): World {
     latest: null,
     spent: [],
     resetToken: null,
+    bound,
+    async close(): Promise<void> {
+      await store.close();
+      for (const session of bound.values()) await session.store.close();
+      bound.clear();
+    },
   };
 }
 
-let world = build();
+/**
+ * One world per visitor.
+ *
+ * Sharing a single world was fine on a laptop and wrong the moment two people
+ * open the page: one visitor's session would appear in another's store trace,
+ * and the replay demonstration would revoke a session someone else was midway
+ * through. Worse, it would misrepresent the library — a visitor seeing keys
+ * they did not create would reasonably conclude Ninsho leaks state between
+ * callers, when what leaked was the demo's own variable.
+ */
+const worlds = new VisitorRegistry<World>({ create: build });
+
+/** Resolves the world belonging to this request, minting one on first visit. */
+async function visitor(req: Request, res: Response): Promise<World> {
+  return worlds.get(worlds.identify(req, res));
+}
 
 /** Everything a response carries alongside its result. */
 interface Trace {
@@ -106,7 +134,10 @@ async function tracedOn<T>(
 }
 
 /** Captures what the store and the audit sink did during one operation. */
-async function traced<T>(run: () => Promise<T>): Promise<{ result: T; trace: Trace }> {
+async function traced<T>(
+  world: World,
+  run: () => Promise<T>,
+): Promise<{ result: T; trace: Trace }> {
   world.store.clearLog();
   const before = world.audit.events.length;
 
@@ -157,8 +188,9 @@ const route =
 
 app.post(
   '/api/session/create',
-  route(async (_req, res) => {
-    const { result, trace } = await traced(() =>
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+    const { result, trace } = await traced(world, () =>
       world.auth.createSession(DEMO_USER, {
         signals: { userAgent: 'Playground/1.0', ip: '203.0.113.10' },
       }),
@@ -184,10 +216,11 @@ app.post(
 app.post(
   '/api/session/verify',
   route(async (req, res) => {
+    const world = await visitor(req, res);
     const token = (req.body as { token?: string }).token ?? world.latest?.accessToken ?? '';
 
     try {
-      const { result, trace } = await traced(() => world.auth.engine.verify(token));
+      const { result, trace } = await traced(world, () => world.auth.engine.verify(token));
       res.json({ ok: true, context: result, trace });
     } catch (error) {
       res.json({
@@ -201,7 +234,8 @@ app.post(
 
 app.post(
   '/api/session/refresh',
-  route(async (_req, res) => {
+  route(async (req, res) => {
+    const world = await visitor(req, res);
     const current = world.latest?.refreshToken;
     if (current === undefined) {
       res.status(400).json({ ok: false, message: 'Create a session first.' });
@@ -209,7 +243,7 @@ app.post(
     }
 
     try {
-      const { result, trace } = await traced(() => world.auth.refresh(current));
+      const { result, trace } = await traced(world, () => world.auth.refresh(current));
       world.spent.push(current);
       world.latest = { accessToken: result.accessToken, refreshToken: result.refreshToken };
 
@@ -232,7 +266,8 @@ app.post(
 
 app.post(
   '/api/attack/replay-refresh',
-  route(async (_req, res) => {
+  route(async (req, res) => {
+    const world = await visitor(req, res);
     const stolen = world.spent[world.spent.length - 1];
     if (stolen === undefined) {
       res.status(400).json({
@@ -243,7 +278,7 @@ app.post(
     }
 
     // The thief presents the already-rotated token from a different client.
-    const { result, trace } = await traced(async () => {
+    const { result, trace } = await traced(world, async () => {
       try {
         await world.auth.refresh(stolen, {
           signals: { userAgent: 'curl/8.4.0', ip: '198.51.100.7' },
@@ -277,7 +312,8 @@ app.post(
 
 app.post(
   '/api/attack/tamper-token',
-  route(async (_req, res) => {
+  route(async (req, res) => {
+    const world = await visitor(req, res);
     const original = world.latest?.accessToken;
     if (original === undefined) {
       res.status(400).json({ ok: false, message: 'Create a session first.' });
@@ -289,7 +325,7 @@ app.post(
     // no signature at all.
     const flipped = `${original.slice(0, -1)}${original.endsWith('A') ? 'B' : 'A'}`;
 
-    const { result, trace } = await traced(async () => {
+    const { result, trace } = await traced(world, async () => {
       try {
         await world.auth.engine.verify(flipped);
         return { rejected: false as const };
@@ -314,8 +350,9 @@ app.post(
 
 app.post(
   '/api/attack/replay-reset-link',
-  route(async (_req, res) => {
-    const { result, trace } = await traced(async () => {
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+    const { result, trace } = await traced(world, async () => {
       const issued = await world.auth.oneTimeTokens.issue({
         purpose: 'password-reset',
         subject: DEMO_USER.userId,
@@ -345,8 +382,9 @@ app.post(
 
 app.post(
   '/api/attack/race-reset-links',
-  route(async (_req, res) => {
-    const { result, trace } = await traced(async () => {
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+    const { result, trace } = await traced(world, async () => {
       // Two reset requests racing. Both used to survive; an atomic generation
       // counter now supersedes the older one.
       const [a, b] = await Promise.all([
@@ -382,15 +420,10 @@ app.post(
 // key is generated in the page, marked non-extractable, and never leaves. What
 // arrives here is a signature, verified by the shipped verifier.
 
-/** A bound session, keyed by the thumbprint the browser reported. */
-const boundSessions = new Map<
-  string,
-  { auth: Ninsho; store: RecordingStore; accessToken: string }
->();
-
 app.post(
   '/api/dpop/bind',
   route(async (req, res) => {
+    const world = await visitor(req, res);
     const { thumbprint } = req.body as { thumbprint?: unknown };
     if (typeof thumbprint !== 'string' || thumbprint.length === 0) {
       res.status(400).json({ ok: false, message: 'thumbprint is required' });
@@ -399,7 +432,7 @@ app.post(
 
     // One deployment per visitor, so two people on the page cannot see each
     // other's session — and so the store trace shown is theirs alone.
-    const previous = boundSessions.get(thumbprint);
+    const previous = world.bound.get(thumbprint);
     if (previous) await previous.store.close();
 
     const store = new RecordingStore(new MemoryStore());
@@ -409,13 +442,13 @@ app.post(
       auth.createSession(DEMO_USER, { confirmationKey: thumbprint }),
     );
 
-    boundSessions.set(thumbprint, { auth, store, accessToken: result.accessToken });
-    if (boundSessions.size > 50) {
+    world.bound.set(thumbprint, { auth, store, accessToken: result.accessToken });
+    if (world.bound.size > 50) {
       // Bounded, since anyone can open the page.
-      const oldest = boundSessions.keys().next().value;
+      const oldest = world.bound.keys().next().value;
       if (oldest !== undefined && oldest !== thumbprint) {
-        await boundSessions.get(oldest)?.store.close();
-        boundSessions.delete(oldest);
+        await world.bound.get(oldest)?.store.close();
+        world.bound.delete(oldest);
       }
     }
 
@@ -435,6 +468,7 @@ app.post(
 app.post(
   '/api/dpop/call',
   route(async (req, res) => {
+    const world = await visitor(req, res);
     const { thumbprint, proof, omitProof } = req.body as {
       thumbprint?: unknown;
       proof?: unknown;
@@ -445,7 +479,7 @@ app.post(
       res.status(400).json({ ok: false, message: 'thumbprint is required' });
       return;
     }
-    const session = boundSessions.get(thumbprint);
+    const session = world.bound.get(thumbprint);
     if (session === undefined) {
       res.status(400).json({ ok: false, message: 'Bind a key first.' });
       return;
@@ -640,7 +674,8 @@ app.post(
 
 app.get(
   '/api/store',
-  route(async (_req, res) => {
+  route(async (req, res) => {
+    const world = await visitor(req, res);
     res.json({
       keys: await world.store.keyspace(),
       note:
@@ -653,16 +688,17 @@ app.get(
 
 app.get(
   '/api/events',
-  route(async (_req, res) => {
+  route(async (req, res) => {
+    const world = await visitor(req, res);
     res.json({ events: world.audit.events.slice(-50) });
   }),
 );
 
 app.post(
   '/api/reset',
-  route(async (_req, res) => {
-    await world.store.close();
-    world = build();
+  route(async (req, res) => {
+    // Drops only this visitor's world; everyone else's is untouched.
+    await worlds.reset(worlds.identify(req, res));
     res.json({ ok: true });
   }),
 );
@@ -691,12 +727,9 @@ app.use((error: unknown, _req: Request, res: Response, _next: express.NextFuncti
   res.status(500).json({ ok: false, ...describe(error) });
 });
 
-/** Resets every session the playground holds. Used by the tests. */
+/** Discards every visitor's world. Used by the tests between cases. */
 export async function resetWorld(): Promise<void> {
-  await world.store.close();
-  world = build();
-  for (const session of boundSessions.values()) await session.store.close();
-  boundSessions.clear();
+  await worlds.clear();
 }
 
 // Guarded so importing this module for a test does not bind a port.

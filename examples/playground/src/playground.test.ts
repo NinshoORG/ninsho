@@ -25,17 +25,48 @@ let baseUrl: string;
 
 const sha256 = (value: string): string => createHash('sha256').update(value, 'utf8').digest('hex');
 
-async function call(path: string, body?: unknown): Promise<Record<string, unknown>> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: body === undefined && path.startsWith('/api/store') ? 'GET' : 'POST',
-    headers: { 'content-type': 'application/json' },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  return (await response.json()) as Record<string, unknown>;
+/**
+ * A cookie jar, because the playground now gives each visitor their own world.
+ *
+ * Without one every request would arrive as a new visitor and see an empty
+ * store — which is the isolation working, and useless for testing a sequence.
+ */
+class Visitor {
+  #cookie: string | undefined;
+
+  async request(path: string, method: string, body?: unknown): Promise<Record<string, unknown>> {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        ...(this.#cookie !== undefined ? { cookie: this.#cookie } : {}),
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+    const set = (response.headers.getSetCookie?.() ?? []).find((c) =>
+      c.startsWith('ninsho_playground='),
+    );
+    if (set !== undefined) this.#cookie = set.split(';')[0];
+
+    return (await response.json()) as Record<string, unknown>;
+  }
+
+  post(path: string, body?: unknown): Promise<Record<string, unknown>> {
+    return this.request(path, 'POST', body ?? {});
+  }
+
+  get(path: string): Promise<Record<string, unknown>> {
+    return this.request(path, 'GET');
+  }
 }
 
-const get = async (path: string): Promise<Record<string, unknown>> =>
-  (await (await fetch(`${baseUrl}${path}`)).json()) as Record<string, unknown>;
+/** The visitor most tests act as. */
+let me: Visitor;
+
+const call = (path: string, body?: unknown): Promise<Record<string, unknown>> =>
+  me.post(path, body);
+const get = (path: string): Promise<Record<string, unknown>> => me.get(path);
 
 beforeAll(async () => {
   server = await new Promise<Server>((resolve) => {
@@ -50,6 +81,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await resetWorld();
+  me = new Visitor();
 });
 
 /** The headline claim, and the one a visitor is invited to check themselves. */
@@ -262,6 +294,57 @@ describe('live DPoP binding', () => {
   it('refuses a call for a thumbprint that never bound', async () => {
     const result = await call('/api/dpop/call', { thumbprint: 'never-seen', proof: 'x' });
     expect(result['ok']).toBe(false);
+  });
+});
+
+/**
+ * Sharing one world was fine on a laptop and wrong the moment two people open
+ * the page — and it would have misrepresented the library, since a visitor
+ * seeing keys they did not create would reasonably conclude Ninsho leaks state
+ * between callers.
+ */
+describe('visitors do not see each other', () => {
+  it('gives each visitor their own keyspace', async () => {
+    const alice = new Visitor();
+    const bob = new Visitor();
+
+    const created = await alice.post('/api/session/create');
+    const tokens = created['tokens'] as { accessToken: string };
+
+    const bobsStore = (await bob.get('/api/store')) as { keys: unknown[] };
+    expect(bobsStore.keys).toHaveLength(0);
+    expect(JSON.stringify(bobsStore)).not.toContain(tokens.accessToken);
+
+    // And Alice still has hers.
+    const alicesStore = (await alice.get('/api/store')) as { keys: unknown[] };
+    expect(alicesStore.keys.length).toBeGreaterThan(0);
+  });
+
+  it('does not let one visitor’s replay revoke another’s session', async () => {
+    // The demonstration that revokes a family. If worlds were shared it would
+    // sign out whoever else was midway through the page.
+    const alice = new Visitor();
+    const bob = new Visitor();
+
+    await alice.post('/api/session/create');
+    await bob.post('/api/session/create');
+    await bob.post('/api/session/refresh');
+    await bob.post('/api/attack/replay-refresh');
+
+    const alicesVerify = await alice.post('/api/session/verify');
+    expect(alicesVerify['ok']).toBe(true);
+  });
+
+  it('resets only the visitor who asked', async () => {
+    const alice = new Visitor();
+    const bob = new Visitor();
+
+    await alice.post('/api/session/create');
+    await bob.post('/api/session/create');
+    await bob.post('/api/reset');
+
+    expect(((await alice.get('/api/store')) as { keys: unknown[] }).keys.length).toBeGreaterThan(0);
+    expect(((await bob.get('/api/store')) as { keys: unknown[] }).keys).toHaveLength(0);
   });
 });
 
