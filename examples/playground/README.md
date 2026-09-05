@@ -33,6 +33,21 @@ and it will not be found among the live keys.
 | Redeem a password-reset link twice | First accepted, second refused — the atomic `take()` that makes a forwarded email useless |
 | Race two reset requests | Exactly one link survives. This one found a real bug: an index of outstanding tokens could not guarantee it under concurrency, and 80 of 80 raced tokens survived before the fix |
 
+**Anatomy — the actual bytes.** Each button generates a genuine artefact with the shipped code
+and annotates it field by field: offset, width, raw hex, value, and why the field is there.
+
+- A **WebAuthn ceremony** run by the same virtual authenticator the test suite uses — a real P-256
+  key signing real data. You get the 194-byte attestation object, the 164-byte registration
+  `authenticatorData` with all eight flag bits broken out and the COSE key decoded, and a later
+  37-byte assertion for contrast: header only, because an assertion carrying attested credential
+  data is refused.
+- A **PASETO v4.public** token, where the thing worth noticing is what is missing. There is no
+  `alg` header, so the whole algorithm-confusion family has nothing to attack.
+- A **DPoP proof**, presented twice — accepted, then refused as already used.
+
+The parsing is done by the shipped parsers rather than reimplemented, so what you read is what the
+verifier saw. A decoder that disagreed with the verifier would be worse than none.
+
 **The keyspace.** Every live key, namespaced `ninsho:v1:`, with its value.
 
 **The audit trail.** The structured events, whose shape is deliberately narrow — no free-form

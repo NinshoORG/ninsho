@@ -26,10 +26,22 @@ import {
   MemoryAuditSink,
   isNinshoError,
   toErrorResponse,
+  generateKeyPair,
+  generateDpopKeyPair,
+  createDpopProof,
+  jwkThumbprint,
   type Principal,
   type SecurityEvent,
 } from '@ninsho/server';
+import { decodeCbor } from '@ninsho/webauthn';
+import { VirtualAuthenticator } from '@ninsho/webauthn/testing';
 import { RecordingStore, type StoreOperation } from './store-recorder.ts';
+import {
+  decodeAttestationObject,
+  decodeAuthenticatorData,
+  decodeDpopProof,
+  decodePaseto,
+} from './decode.ts';
 
 const PORT = Number(process.env['PORT'] ?? 4000);
 
@@ -321,6 +333,145 @@ app.post(
         'write, and 80 of 80 raced tokens survived. An atomic increment fixes it: the two issues ' +
         'get distinct generations and the older link stops matching.',
       trace,
+    });
+  }),
+);
+
+// ─── Anatomy: real bytes, annotated ────────────────────────────────────────
+// Each of these generates a genuine artefact with the shipped code, then
+// annotates it. Nothing here is a hand-written sample — a decoder shown bytes
+// the library never produced would teach the wrong thing.
+
+app.post(
+  '/api/anatomy/webauthn',
+  route(async (_req, res) => {
+    const device = await VirtualAuthenticator.create();
+    const challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+
+    // A real ceremony: real key pair, real signature over real client data.
+    const registration = await device.register({
+      challenge,
+      origin: 'https://example.com',
+      rpId: 'example.com',
+    });
+
+    const attestation = decodeAttestationObject(registration.attestationObject);
+    const inner = decodeCbor(registration.attestationObject) as Map<string, unknown>;
+    const authData = inner.get('authData') as Uint8Array;
+
+    const assertion = await device.authenticate({
+      challenge,
+      origin: 'https://example.com',
+      rpId: 'example.com',
+    });
+
+    res.json({
+      summary: 'A complete passkey registration, signed by a real key pair.',
+      note:
+        'The virtual authenticator holds an actual P-256 key and signs actual data — the same ' +
+        'one the test suite uses. Everything below was parsed by the shipped parsers, so what ' +
+        'you are reading is what the verifier saw.',
+      clientDataJSON: new TextDecoder().decode(registration.clientDataJSON),
+      decodes: [
+        { title: 'attestationObject (CBOR wrapper)', ...attestation },
+        { title: 'authenticatorData — registration', ...decodeAuthenticatorData(authData) },
+        {
+          title: 'authenticatorData — a later assertion',
+          ...decodeAuthenticatorData(assertion.authenticatorData),
+        },
+      ],
+    });
+  }),
+);
+
+app.post(
+  '/api/anatomy/paseto',
+  route(async (_req, res) => {
+    // A separate deployment, because the strategy is fixed at construction —
+    // which is itself the point: there is no request-time algorithm to choose.
+    const keys = generateKeyPair('demo-key-1');
+    const store = new RecordingStore(new MemoryStore());
+    const stateless = new Ninsho({
+      store,
+      strategy: 'paseto',
+      issuer: 'https://playground.ninsho.dev',
+      audience: 'playground-api',
+      keys: { active: keys },
+    });
+
+    const pair = await stateless.createSession(DEMO_USER);
+    const context = await stateless.engine.verify(pair.accessToken);
+    await store.close();
+
+    res.json({
+      summary: 'A PASETO v4.public access token.',
+      note:
+        'Note what is missing: there is no `alg` header. The version and purpose are part of the ' +
+        'token string, and `v4.public` means Ed25519 and nothing else — so the whole ' +
+        'algorithm-confusion family, including `alg: none`, has nothing to attack.',
+      token: pair.accessToken,
+      verified: context,
+      decodes: [{ title: 'PASETO v4.public', ...decodePaseto(pair.accessToken) }],
+    });
+  }),
+);
+
+app.post(
+  '/api/anatomy/dpop',
+  route(async (_req, res) => {
+    const keyPair = generateDpopKeyPair('ES256');
+    const thumbprint = jwkThumbprint(keyPair.publicJwk);
+
+    const store = new RecordingStore(new MemoryStore());
+    const bound = new Ninsho({ store, binding: 'dpop' });
+    const pair = await bound.createSession(DEMO_USER, { confirmationKey: thumbprint });
+
+    const proof = createDpopProof(keyPair, {
+      method: 'GET',
+      url: 'https://api.example.com/me',
+      accessToken: pair.accessToken,
+    });
+
+    // Presented twice through the public surface, so the replay guard is seen
+    // refusing the second exactly as it would on a real request.
+    const present = async (): Promise<string> => {
+      // Shaped like the Express request the middleware would see, so the URI
+      // it reconstructs matches the one the proof was signed for. Getting this
+      // wrong is itself instructive: an `htu` mismatch is a refusal, which is
+      // the binding doing its job.
+      const request = {
+        headers: {
+          authorization: `DPoP ${pair.accessToken}`,
+          dpop: proof,
+          host: 'api.example.com',
+        },
+        protocol: 'https',
+        originalUrl: '/me',
+      };
+      try {
+        await bound.confirmProofOfPossession(request as never, pair.accessToken);
+        return 'accepted';
+      } catch (error) {
+        return `refused — ${describe(error).detail ?? describe(error).code}`;
+      }
+    };
+
+    const first = await present();
+    const second = await present();
+    await store.close();
+
+    res.json({
+      summary: 'A DPoP proof, and the same proof replayed.',
+      note:
+        'The access token carries a `cnf.jkt` — the thumbprint of this key. Presenting the token ' +
+        'without a matching proof is refused, so a stolen token alone is useless. The proof ' +
+        'itself is single-use: the second claim on the same `jti` loses.',
+      thumbprint,
+      accessToken: pair.accessToken,
+      firstUse: first,
+      replay: second,
+      decodes: [{ title: 'DPoP proof', ...decodeDpopProof(proof) }],
     });
   }),
 );

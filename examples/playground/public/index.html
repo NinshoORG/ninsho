@@ -95,7 +95,26 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>3 · What is actually in the store</h2>
+        <h2>3 · Anatomy — the actual bytes</h2>
+        <p class="explain">
+          Each of these generates a genuine artefact with the shipped code, then annotates it byte
+          by byte: where each field sits, how wide it is, and why it is there. Nothing below is a
+          hand-written sample — a decoder shown bytes the library never produced would teach the
+          wrong thing.
+        </p>
+        <div class="row">
+          <button data-post="/api/anatomy/webauthn" data-target="out-anatomy">
+            WebAuthn ceremony
+          </button>
+          <button data-post="/api/anatomy/paseto" data-target="out-anatomy">PASETO token</button>
+          <button data-post="/api/anatomy/dpop" data-target="out-anatomy">DPoP proof</button>
+        </div>
+        <div id="out-anatomy" class="out"></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel">
+        <h2>4 · What is actually in the store</h2>
         <p class="explain">
           The live keyspace. Paste any token this page has shown you into the box and search for
           it — the claim is that you will not find it, because only
@@ -112,7 +131,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>4 · The audit trail</h2>
+        <h2>5 · The audit trail</h2>
         <p class="explain">
           Structured security events. The shape is deliberately narrow — there is no free-form
           payload that could accidentally carry a token, a password, or a request body.

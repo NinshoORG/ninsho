@@ -313,3 +313,18 @@ footer {
   padding: 1.5rem 1.25rem 3rem;
   font-size: 0.85rem;
 }
+
+/* Field notes sit under their row, so a byte map reads as a table with prose
+   rather than a table beside prose. */
+td.fieldnote {
+  color: var(--dim);
+  font-family: system-ui, sans-serif;
+  font-size: 0.8rem;
+  padding: 0 0.6rem 0.5rem 2rem;
+  border-bottom: 1px solid #1e2630;
+}
+
+td.dim {
+  color: var(--dim);
+  white-space: nowrap;
+}

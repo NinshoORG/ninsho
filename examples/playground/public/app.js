@@ -97,6 +97,37 @@ function renderEvents(events) {
     </table></div>`;
 }
 
+/**
+ * A byte map.
+ *
+ * Offsets and widths are shown because they are the thing a spec diagram gives
+ * you and a JSON dump does not — lining the two up is most of what reading a
+ * binary format consists of.
+ */
+function renderDecode(decode) {
+  const rows = decode.fields
+    .map((f) => {
+      const indent = f.depth ? ' style="padding-left:2rem"' : '';
+      const span = f.length > 0 ? `${f.offset} … ${f.offset + f.length - 1}` : '';
+      return `<tr>
+        <td class="dim">${escape(span)}</td>
+        <td class="dim">${f.length > 0 ? escape(f.length) : ''}</td>
+        <td class="op"${indent}>${escape(f.name)}</td>
+        <td class="hash">${escape(f.hex)}</td>
+        <td>${escape(f.value)}</td>
+      </tr>
+      <tr><td colspan="5" class="fieldnote">${escape(f.note)}</td></tr>`;
+    })
+    .join('');
+
+  return `<h4 class="sub">${escape(decode.title)} — ${decode.totalBytes} bytes</h4>
+    <p class="explain">${escape(decode.summary)}</p>
+    <div class="scroll"><table>
+      <thead><tr><th>bytes</th><th>len</th><th>field</th><th>hex</th><th>value</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
 /** Everything a response might carry, rendered in a consistent order. */
 function render(data) {
   let html = '';
@@ -124,7 +155,7 @@ function render(data) {
 
   const scalars = {};
   for (const [k, v] of Object.entries(data)) {
-    if (['note', 'trace', 'tokens', 'ok', 'rejected', 'keys', 'events'].includes(k)) continue;
+    if (['note', 'trace', 'tokens', 'ok', 'rejected', 'keys', 'events', 'decodes', 'summary', 'clientDataJSON'].includes(k)) continue;
     if (v === null || typeof v === 'object') continue;
     scalars[k] = v;
   }
@@ -159,6 +190,16 @@ function render(data) {
           )
           .join('')}</tbody>
       </table></div>`;
+  }
+
+  if (data.clientDataJSON) {
+    html += `<h4 class="sub">clientDataJSON</h4><div class="scroll"><table><tbody><tr><td class="token">${escape(
+      data.clientDataJSON,
+    )}</td></tr></tbody></table></div>`;
+  }
+
+  if (data.decodes) {
+    for (const decode of data.decodes) html += renderDecode(decode);
   }
 
   if (data.events) html += renderEvents(data.events);

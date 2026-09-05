@@ -30,6 +30,13 @@ This project uses [Semantic Versioning](https://semver.org/).
   and two reset requests raced — that last one being the case that found a real
   bug earlier in the week.
 
+  It also decodes the wire formats byte by byte — offset, width, raw hex, value
+  and a sentence on why each field exists. A real WebAuthn ceremony run by the
+  virtual authenticator, a PASETO token, a DPoP proof presented twice. The
+  parsing goes through the shipped parsers rather than being reimplemented, so
+  what a visitor reads is what the verifier saw; a decoder that disagreed with
+  the verifier would be worse than none.
+
   It deliberately exposes each error's `detail`, which a real deployment never
   sends to a client. Showing it beside the client-facing message is the
   clearest way to make that separation concrete, and it is also exactly why the
