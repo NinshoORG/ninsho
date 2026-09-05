@@ -328,3 +328,10 @@ td.dim {
   color: var(--dim);
   white-space: nowrap;
 }
+
+/* The one section that runs in the visitor's browser rather than on the
+   server, so it is marked as its own thing. */
+.panel.live {
+  border-color: #2c4a3a;
+  background: linear-gradient(180deg, #141d19, var(--panel));
+}

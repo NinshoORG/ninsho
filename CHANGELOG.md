@@ -30,6 +30,15 @@ This project uses [Semantic Versioning](https://semver.org/).
   and two reset requests raced — that last one being the case that found a real
   bug earlier in the week.
 
+  One section runs in the visitor's browser rather than on the server, which
+  makes it the one nobody has to take on trust: `@ninsho/client` generates a
+  non-extractable P-256 key in the page, `exportKey()` throws
+  `InvalidAccessError` when you try to steal it, a session binds to its
+  thumbprint, a proof signed in the page is accepted, the same proof replayed
+  is refused, and the token presented *without* a proof — exactly what a thief
+  who exfiltrated it holds — is refused too. The bundle is served from the
+  package it was built from rather than copied, so it cannot go stale.
+
   It also decodes the wire formats byte by byte — offset, width, raw hex, value
   and a sentence on why each field exists. A real WebAuthn ceremony run by the
   virtual authenticator, a PASETO token, a DPoP proof presented twice. The

@@ -94,8 +94,28 @@
       </section>
 
       <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel live">
+        <h2>3 · Your browser holds the key</h2>
+        <p class="explain">
+          Everything above ran on the server. This section does not: the private key is generated
+          <em>in this page</em>, marked non-extractable, and never leaves it. What reaches the
+          server is a signature. It runs <code>@ninsho/client</code> — the same bundle an
+          application would install, served straight from the package.
+        </p>
+        <div class="row">
+          <button id="dpop-generate">1 · Generate a key here</button>
+          <button id="dpop-export" class="attack-btn">2 · Try to steal it</button>
+          <button id="dpop-bind">3 · Bind a session to it</button>
+          <button id="dpop-call">4 · Call with a proof</button>
+          <button id="dpop-replay" class="attack-btn">5 · Replay that proof</button>
+          <button id="dpop-steal" class="attack-btn">6 · Use the token alone</button>
+        </div>
+        <div id="out-dpop" class="out"></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>3 · Anatomy — the actual bytes</h2>
+        <h2>4 · Anatomy — the actual bytes</h2>
         <p class="explain">
           Each of these generates a genuine artefact with the shipped code, then annotates it byte
           by byte: where each field sits, how wide it is, and why it is there. Nothing below is a
@@ -114,7 +134,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>4 · What is actually in the store</h2>
+        <h2>5 · What is actually in the store</h2>
         <p class="explain">
           The live keyspace. Paste any token this page has shown you into the box and search for
           it — the claim is that you will not find it, because only
@@ -131,7 +151,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>5 · The audit trail</h2>
+        <h2>6 · The audit trail</h2>
         <p class="explain">
           Structured security events. The shape is deliberately narrow — there is no free-form
           payload that could accidentally carry a token, a password, or a request body.
@@ -150,5 +170,6 @@
     </footer>
 
     <script src="./app.js" type="module"></script>
+    <script src="./dpop.js" type="module"></script>
   </body>
 </html>

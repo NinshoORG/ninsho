@@ -45,6 +45,16 @@ import {
 
 const PORT = Number(process.env['PORT'] ?? 4000);
 
+/**
+ * The origin the browser reaches this on.
+ *
+ * A DPoP proof is bound to the exact URI it was minted for, so the value the
+ * page signs and the value the server reconstructs have to agree. Reading it
+ * from configuration rather than from a request header is the same advice
+ * `defaultRequestUrl` gives.
+ */
+const PUBLIC_ORIGIN = process.env['PUBLIC_ORIGIN'] ?? `http://localhost:${PORT}`;
+
 const DEMO_USER: Principal = {
   userId: 'usr_demo',
   roles: ['user'],
@@ -85,6 +95,16 @@ interface Trace {
   readonly events: readonly SecurityEvent[];
 }
 
+/** Captures what a specific store did, for the per-visitor DPoP sessions. */
+async function tracedOn<T>(
+  store: RecordingStore,
+  run: () => Promise<T>,
+): Promise<{ result: T; trace: Trace }> {
+  store.clearLog();
+  const result = await run();
+  return { result, trace: { storeOps: [...store.log], events: [] } };
+}
+
 /** Captures what the store and the audit sink did during one operation. */
 async function traced<T>(run: () => Promise<T>): Promise<{ result: T; trace: Trace }> {
   world.store.clearLog();
@@ -104,7 +124,19 @@ async function traced<T>(run: () => Promise<T>): Promise<{ result: T; trace: Tra
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '64kb' }));
-app.use(express.static(new URL('../public', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')));
+const localPath = (relative: string): string =>
+  new URL(relative, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+
+app.use(express.static(localPath('../public')));
+
+/**
+ * The browser client, served straight from the package it was built from.
+ *
+ * Deliberately not copied into `public/`: a vendored copy goes stale silently,
+ * and the whole point of this section is that the page runs the same code an
+ * application would install.
+ */
+app.use('/vendor', express.static(localPath('../../../packages/client/dist')));
 
 /** Wraps an async route so a rejection becomes a response, not a hung request. */
 const route =
@@ -332,6 +364,126 @@ app.post(
         'tokens could not guarantee that under concurrency — both reads happened before either ' +
         'write, and 80 of 80 raced tokens survived. An atomic increment fixes it: the two issues ' +
         'get distinct generations and the older link stops matching.',
+      trace,
+    });
+  }),
+);
+
+// ─── Live DPoP, with the key in the visitor's own browser ──────────────────
+// The one demonstration that cannot be faked from the server side: the private
+// key is generated in the page, marked non-extractable, and never leaves. What
+// arrives here is a signature, verified by the shipped verifier.
+
+/** A bound session, keyed by the thumbprint the browser reported. */
+const boundSessions = new Map<
+  string,
+  { auth: Ninsho; store: RecordingStore; accessToken: string }
+>();
+
+app.post(
+  '/api/dpop/bind',
+  route(async (req, res) => {
+    const { thumbprint } = req.body as { thumbprint?: unknown };
+    if (typeof thumbprint !== 'string' || thumbprint.length === 0) {
+      res.status(400).json({ ok: false, message: 'thumbprint is required' });
+      return;
+    }
+
+    // One deployment per visitor, so two people on the page cannot see each
+    // other's session — and so the store trace shown is theirs alone.
+    const previous = boundSessions.get(thumbprint);
+    if (previous) await previous.store.close();
+
+    const store = new RecordingStore(new MemoryStore());
+    const auth = new Ninsho({ store, binding: 'dpop' });
+
+    const { result, trace } = await tracedOn(store, () =>
+      auth.createSession(DEMO_USER, { confirmationKey: thumbprint }),
+    );
+
+    boundSessions.set(thumbprint, { auth, store, accessToken: result.accessToken });
+    if (boundSessions.size > 50) {
+      // Bounded, since anyone can open the page.
+      const oldest = boundSessions.keys().next().value;
+      if (oldest !== undefined && oldest !== thumbprint) {
+        await boundSessions.get(oldest)?.store.close();
+        boundSessions.delete(oldest);
+      }
+    }
+
+    res.json({
+      ok: true,
+      accessToken: result.accessToken,
+      thumbprint,
+      note:
+        'The token now carries a cnf.jkt claim — the thumbprint of the key sitting in your ' +
+        'browser. It is no longer a bearer credential: presenting it requires a signature from a ' +
+        'private key that cannot leave the page it was created in.',
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/dpop/call',
+  route(async (req, res) => {
+    const { thumbprint, proof, omitProof } = req.body as {
+      thumbprint?: unknown;
+      proof?: unknown;
+      omitProof?: unknown;
+    };
+
+    if (typeof thumbprint !== 'string') {
+      res.status(400).json({ ok: false, message: 'thumbprint is required' });
+      return;
+    }
+    const session = boundSessions.get(thumbprint);
+    if (session === undefined) {
+      res.status(400).json({ ok: false, message: 'Bind a key first.' });
+      return;
+    }
+
+    // Shaped like the request the middleware would receive. Omitting the proof
+    // is the interesting case: it is what a thief holding only the token has.
+    // Every field the middleware reads, because a proof is bound to the method
+    // and the URI as well as the key. Leaving `method` off makes the middleware
+    // read GET, and the proof — minted for POST — is refused on `htm`. That is
+    // the binding working; it is also a misleading demonstration, so the shape
+    // here matches what Express would actually hand it.
+    const request = {
+      method: 'POST',
+      headers: {
+        authorization: `DPoP ${session.accessToken}`,
+        ...(omitProof === true ? {} : { dpop: String(proof ?? '') }),
+        host: new URL(PUBLIC_ORIGIN).host,
+      },
+      protocol: new URL(PUBLIC_ORIGIN).protocol.replace(':', ''),
+      originalUrl: '/api/dpop/call',
+    };
+
+    const { result, trace } = await tracedOn(session.store, async () => {
+      try {
+        const confirmationKey = await session.auth.confirmProofOfPossession(
+          request as never,
+          session.accessToken,
+        );
+        const context = await session.auth.engine.verify(session.accessToken, {
+          confirmationKey,
+        });
+        return { accepted: true as const, context };
+      } catch (error) {
+        return { accepted: false as const, ...describe(error) };
+      }
+    });
+
+    res.json({
+      ...result,
+      note:
+        omitProof === true
+          ? 'This is exactly what an attacker who stole the token has: the token, and no key. ' +
+            'The request is refused, which is the whole point of proof-of-possession.'
+          : 'The signature was produced in your browser by a key this server has never seen and ' +
+            'cannot obtain. Send the same proof again and the replay guard refuses it.',
       trace,
     });
   }),

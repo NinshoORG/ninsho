@@ -33,6 +33,22 @@ and it will not be found among the live keys.
 | Redeem a password-reset link twice | First accepted, second refused — the atomic `take()` that makes a forwarded email useless |
 | Race two reset requests | Exactly one link survives. This one found a real bug: an index of outstanding tokens could not guarantee it under concurrency, and 80 of 80 raced tokens survived before the fix |
 
+**Your browser holds the key.** The one section that does not run on the server, and therefore
+the one a visitor does not have to take on trust. It imports `@ninsho/client` — served from the
+package it was built from, not a copy — and walks six steps:
+
+1. Generate a P-256 key pair **in the page**, non-extractable.
+2. Try to steal it. `crypto.subtle.exportKey()` throws `InvalidAccessError` — the browser
+   refusing, not the library asking politely.
+3. Bind a session to its RFC 7638 thumbprint. The token now carries `cnf.jkt`.
+4. Call an endpoint with a proof signed in the page. Accepted.
+5. Send the same proof again. Refused — the `jti` has already been used.
+6. Send the token with **no** proof, which is exactly what a thief who exfiltrated it has.
+   Refused.
+
+Step 6 is the point of the whole mechanism: a stolen token is useless without a key that cannot
+leave the browser it was created in.
+
 **Anatomy — the actual bytes.** Each button generates a genuine artefact with the shipped code
 and annotates it field by field: offset, width, raw hex, value, and why the field is there.
 
