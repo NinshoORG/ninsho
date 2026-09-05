@@ -7,6 +7,86 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **TPM attestation — WebAuthn §8.3.** Windows Hello's path, and the format
+  that takes the most care to get right.
+
+  `packed` signs `authData || clientDataHash` directly. A TPM signs neither the
+  ceremony nor the credential key: it signs a `TPMS_ATTEST` describing a key it
+  certifies, and the tie back to the registration runs through two indirections
+  that both have to hold — `certInfo.extraData` hashes
+  `authData || clientDataHash`, and `certInfo.attested.name` is
+  `nameAlg || digest(pubArea)`. On top of those, `pubArea` has to describe the
+  credential key the browser sent.
+
+  Skip any one of the three and a genuine TPM signature ends up vouching for
+  something no TPM attested to. All three are checked, along with §8.3.1's
+  requirements on the attestation identity key certificate: empty subject,
+  `tcg-kp-AIKCertificate` extended key usage, not a CA. Trust anchors are
+  mandatory, as for every other chain format.
+
+  Both structures are packed big-endian binary arriving from a browser, so
+  every length is bounds-checked before it drives a read and anything the
+  parser does not recognise is refused rather than skipped. SHA-1 is a
+  permitted TPM `nameAlg` and is refused here: a name is a hash whose only job
+  is to identify one key, which is exactly where a collision would pay.
+
+  Writing the tests found a real bug in the implementation. Node reports an
+  empty distinguished name as `undefined` rather than `''`, so reading
+  `.subject.trim()` threw a `TypeError` on precisely the certificate shape
+  §8.3.1 mandates — every genuine Windows Hello registration would have failed
+  with "the attestation was not acceptable". The test that caught it is the one
+  asserting the happy path, which is the argument for writing that test even
+  when the code looks obviously right.
+
+- **FIDO U2F attestation — WebAuthn §8.6.** What CTAP1 security keys produce:
+  most YubiKeys older than CTAP2.
+
+  The plainest of the formats. One ECDSA signature over
+  `0x00 || rpIdHash || clientDataHash || credentialId || publicKeyU2F`, naming
+  the credential outright rather than through the indirection TPM attestation
+  carries. The leading zero byte is a reserved constant rather than padding: it
+  is what keeps the statement from being replayable as a U2F *authentication*
+  response, which is signed over a structure with a different first byte. The
+  credential key is converted back out of COSE into the raw uncompressed point
+  U2F signed over, because U2F predates COSE.
+
+  §8.6's fixed rules are enforced rather than negotiated: exactly one
+  certificate in `x5c`, P-256 for both the attestation certificate and the
+  credential key. There is no `alg` field in this statement to be talked out
+  of, and there should not be one in the implementation either.
+
+  What the format does not carry is an AAGUID — U2F has no model identifier and
+  the browser zeroes the field. So a verified U2F statement proves the
+  credential lives on hardware a trusted root vouched for and proves nothing
+  about *which model*. `aaguidVerified` stays `false`, and pairing the format
+  with `allowedAaguids` is refused outright: "0000… is not on the allowed list"
+  would be true and would send a caller off to add zeroes to their allowlist.
+
+  With these two, `@ninsho/webauthn` verifies `none`, `packed`, `apple`, `tpm`
+  and `fido-u2f`. Still unimplemented and refused rather than rubber-stamped:
+  `android-key` and `android-safetynet`.
+
+- **An attestation panel in the playground.** The newest and least intuitive
+  part of the library was the part the demonstration site did not show. Pick a
+  format and a scenario, and the server runs a genuine ceremony — real key
+  pair, real certificates, real signature — through the shipped verifier and
+  prints what it concluded.
+
+  The scenarios are the point. The roots are minted by the demo process, which
+  is exactly why **no trust anchors** is the one worth trying: the chain is
+  genuine, the signature verifies, and the ceremony is refused anyway, because
+  a chain checked against no root proves nothing. The wrong root and a flipped
+  signature byte are there for contrast — and `apple` has no signature to flip,
+  which is itself the thing to notice about that format. `android-key` is
+  offered so a visitor can watch allowlisting an unverifiable format still fail
+  closed.
+
+  The panel states its expectation before it reads the verdict and reports
+  whether reality matched, rather than narrating whatever happened as correct.
+  A page printing "refused, as expected" over an acceptance would be reassuring
+  visitors with the opposite of the truth, so the two are asserted against each
+  other in the tests as well.
+
 - **Apple Anonymous Attestation — WebAuthn §8.8.** Touch ID and Face ID, which
   is a large share of real passkey users and the platform authenticators most
   people actually have.
@@ -31,8 +111,9 @@ This project uses [Semantic Versioning](https://semver.org/).
   individual device, which is the point — it attests without becoming a
   tracking identifier.
 
-  Still unimplemented and refused rather than rubber-stamped: `tpm` (Windows
-  Hello), `android-key`, `android-safetynet`, `fido-u2f`.
+  Still unimplemented at the time and refused rather than rubber-stamped:
+  `tpm`, `android-key`, `android-safetynet`, `fido-u2f`. The first and last of
+  those have since been implemented; see the entries above.
 
 - **An interactive protocol explorer — `examples/playground`.** The README
   makes claims and each has a test behind it, which is the right evidence for a
@@ -489,6 +570,33 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **A signed-out tab waited out the full rotation-race backoff.** The tombstone
+  wait exists so a browser's second tab, having lost a rotation race by
+  microseconds, is handed the winner's replacement instead of a spurious sign
+  out. Its exponential backoff totals ~126ms, and that budget was charged to
+  any token with no tombstone.
+
+  Revocation deletes the live record, the tombstone and the grace mapping, so a
+  token from a session that was deliberately ended looked exactly like a forged
+  one and paid the same 126ms — and then got "no record for presented refresh
+  token", which is also the wrong answer. The session did exist; it was signed
+  out.
+
+  That is the wrong trade for a routine event. After a sign-out-everywhere,
+  every tab still holding a token pays it, each occupying a request slot for
+  the duration.
+
+  Revocation now leaves a small marker per refresh hash in place of the records
+  it deletes, written before them for the same ordering reason the session
+  tombstone is, and the wait is skipped when the marker is present: a family
+  that was deliberately ended has no rotation in flight to wait for. Measured
+  on the two concurrency suites that surfaced it, 40 sequential
+  post-revocation refresh attempts went from over five seconds — a test
+  timeout — to well inside it.
+
+  The full backoff still applies to a genuinely unrecognised token, which is
+  the case it was written for.
 
 - **"Issuing a token invalidates the previous one" did not hold under
   concurrency.** Invalidation swept a per-subject index of outstanding token
