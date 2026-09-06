@@ -96,6 +96,17 @@ covers it.
 
 **Release is the maintainer's decision.** Nothing here publishes to npm.
 
+### The lockfile is regenerated with a current npm
+
+`npm install --package-lock-only` is not stable across npm versions: 11.6 wrote
+`"peer": true` markers that 11.19 strips, and npm 10 strips them too. CI
+regenerates on Node 24 and asserts no drift, so a lockfile written by an older
+npm fails that check on a difference that says nothing about the dependency
+tree.
+
+If the drift job fails and the diff is only `"peer"` lines, your npm is behind.
+`npx npm@latest install --package-lock-only` and commit the result.
+
 Before a first public release:
 
 - [ ] Fill in the reporting section of `SECURITY.md`; test the channel end to end
