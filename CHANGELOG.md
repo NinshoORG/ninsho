@@ -767,6 +767,23 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Two CI gates had stopped covering what they were written to cover.**
+
+  The adapter guard — which asserts a framework adapter imports nothing at
+  runtime and does not leak into the main bundle — enumerated `fastify` and
+  `hono`. Koa was added and the loop was not, so the newest adapter was the one
+  nobody was checking.
+
+  The packed-tarball consumer test loads the built packages the way npm
+  resolves them, which is the only way to catch a wrong `exports` condition or
+  a missing `.d.cts`. It imported one subpath — `@ninsho/webauthn/testing` —
+  and none of the three adapter subpaths, so the condition it exists to check
+  was being checked for a quarter of the surface.
+
+  Both extended, and both verified by running them rather than by reading them:
+  all three adapters are import-free and absent from the main bundle, and every
+  subpath resolves from an installed tarball under both ESM and CJS.
+
 - **The dist guard names the whole fixture surface, not the part of it that
   existed when the guard was written.** CI greps the built verifier bundle for
   test-only symbols, because the predecessor shipped `ioredis-mock` in its

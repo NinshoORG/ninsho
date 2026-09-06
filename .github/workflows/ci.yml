@@ -219,6 +219,19 @@ jobs:
           import { generateId } from '@ninsho/core';
           import { WebAuthnServer, importCoseKey, CoseError } from '@ninsho/webauthn';
           import { VirtualAuthenticator } from '@ninsho/webauthn/testing';
+          // Every adapter subpath, resolved the way a consumer resolves it.
+          // This is the step that catches a wrong `exports` condition or a
+          // missing declaration file, and until the adapters were named here
+          // it was catching that for one subpath out of four.
+          import { toFastify } from '@ninsho/server/fastify';
+          import { toHono } from '@ninsho/server/hono';
+          import { toKoa } from '@ninsho/server/koa';
+          for (const [n, adapt] of [['fastify', toFastify], ['hono', toHono], ['koa', toKoa]]) {
+            if (typeof adapt !== 'function') {
+              console.error(`@ninsho/server/${n} did not export its adapter`);
+              process.exit(1);
+            }
+          }
           const auth = new Ninsho({ store: new MemoryStore() });
           const pair = await auth.createSession({ userId: 'u', roles: [], scopes: [] });
           const ctx = await auth.engine.verify(pair.accessToken);
@@ -266,6 +279,15 @@ jobs:
           const { Ninsho, MemoryStore } = require('@ninsho/server');
           const { generateId } = require('@ninsho/core');
           const { WebAuthnServer } = require('@ninsho/webauthn');
+          const { toFastify } = require('@ninsho/server/fastify');
+          const { toHono } = require('@ninsho/server/hono');
+          const { toKoa } = require('@ninsho/server/koa');
+          for (const [name, adapt] of [['fastify', toFastify], ['hono', toHono], ['koa', toKoa]]) {
+            if (typeof adapt !== 'function') {
+              console.error(`@ninsho/server/${name} did not export its adapter from CJS`);
+              process.exit(1);
+            }
+          }
           (async () => {
             const auth = new Ninsho({ store: new MemoryStore() });
             const pair = await auth.createSession({ userId: 'u', roles: [], scopes: [] });
@@ -336,7 +358,7 @@ jobs:
       - name: Assert the framework adapters carry no framework dependency
         run: |
           set -e
-          for adapter in fastify hono; do
+          for adapter in fastify hono koa; do
             EXTERNAL=$(grep -oE "require\('[^.][^']*'\)" "packages/server/dist/$adapter.cjs" | sort -u || true)
             if [ -n "$EXTERNAL" ]; then
               echo "::error::@ninsho/server/$adapter must import nothing at runtime. Found: $EXTERNAL"
@@ -349,6 +371,10 @@ jobs:
           fi
           if grep -qF "toHono" packages/server/dist/index.js; then
             echo "::error::The Hono adapter leaked into the main @ninsho/server bundle."
+            exit 1
+          fi
+          if grep -qF "toKoa" packages/server/dist/index.js; then
+            echo "::error::The Koa adapter leaked into the main @ninsho/server bundle."
             exit 1
           fi
           echo "Adapters are dependency-free and separate."
