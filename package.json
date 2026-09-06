@@ -2,7 +2,7 @@
   "name": "ninsho",
   "version": "0.1.0",
   "private": true,
-  "description": "Ninsho \u2014 authentication engine for Node.js. Monorepo root.",
+  "description": "Ninsho — authentication engine for Node.js. Monorepo root.",
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -13,7 +13,7 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint:lockfile": "npm install --package-lock-only && git diff --exit-code package-lock.json",
-    "clean": "rimraf packages/*/dist"
+    "clean": "rimraf --glob \"packages/*/dist\" \"packages/*/*.tsbuildinfo\""
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -25,5 +25,8 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "overrides": {
+    "esbuild": "^0.28.2"
+  }
 }
