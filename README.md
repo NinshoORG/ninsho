@@ -81,7 +81,7 @@ Every claim below links to executable proof.
 | Fail-closed returns 503 and leaks no infrastructure detail | `createVerify` | `middleware.test.ts` › *store outage behaviour* |
 | Fail-open cannot admit an unidentifiable caller | `canVerifyWithoutStore` | `middleware.test.ts` › *still refuses under fail-open when the engine cannot identify* |
 | Credentials are never read from a URL | header-only extraction | `middleware.test.ts` › *ignores a token supplied in the query string* |
-| Ambiguous duplicate auth headers are refused | `extractBearer` | `middleware.test.ts` › *refuses a repeated Authorization header* |
+| **Ambiguous duplicate auth headers are refused** | `rawHeaders` consulted, because Node hides the duplicate from `headers` | `api.test.ts` › *a repeated Authorization header*, and the same over Koa and Fastify |
 | **Distributed credential stuffing is caught** | per-account bucket | `ratelimit.test.ts` › *stops distributed credential stuffing against one account* |
 | Shared NAT does not punish bystanders | separate per-IP and per-account buckets | `ratelimit.test.ts` › *does not punish other accounts from the same address* |
 | A forged `X-Forwarded-For` cannot mint a fresh bucket | hop-counting from the trusted end | `ratelimit.test.ts` › *does not let prepended entries shift the resolved address* |
@@ -97,6 +97,7 @@ Every claim below links to executable proof.
 | The whole system holds together over real HTTP | assembled app | `examples/express-api` — 93 end-to-end tests |
 | A denied request never reaches a Fastify route handler | `toFastify()` returns the reply, not undefined | `fastify.test.ts` — asserted against real Fastify |
 | A denied request never reaches a Hono route handler | `toHono()` returns a Response rather than calling `next()` | `hono.test.ts` — asserted against real Hono |
+| A denied request never reaches a Koa route handler | `toKoa()` declines to call `next()` | `koa.test.ts` — asserted against real Koa over real HTTP |
 | A 401 carries a challenge, as RFC 7235 requires | `WWW-Authenticate`, scheme follows the binding | `middleware.test.ts` › *the 401 challenge* |
 | A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
@@ -197,14 +198,19 @@ your caching, your update cadence, and what happens when the service is down —
 at exactly the moment you least want a surprise. Fetch it yourself, on your
 schedule, and hand it over.
 
-**Koa.** The middleware is Express-shaped; `@ninsho/server/fastify` and
-`@ninsho/server/hono` adapt it, each a couple of kilobytes, neither depending
-on the framework it adapts, both tested against the real thing. Koa has no
-adapter and is therefore not claimed.
+**Nothing, for frameworks.** The middleware is Express-shaped, and
+`@ninsho/server/fastify`, `@ninsho/server/hono` and `@ninsho/server/koa` adapt
+it — each a couple of kilobytes, none depending on the framework it adapts, all
+three tested against the real thing rather than a stub.
 
 The Hono adapter targets **Hono on Node** (`@hono/node-server`). `@ninsho/server`
 depends on `ioredis` and Node's crypto, so Workers and Deno are out of reach —
 better said here than discovered at deploy time.
+
+One guarantee is weaker there than elsewhere: Hono hands over headers already
+collapsed, so on `@hono/node-server` a repeated `Authorization` header has been
+discarded by Node before Ninsho can see it. Express, Fastify and Koa all reach
+`rawHeaders` and refuse it.
 
 ## Quick look
 

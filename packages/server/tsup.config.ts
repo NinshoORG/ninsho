@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/fastify.ts', 'src/hono.ts'],
+  entry: ['src/index.ts', 'src/fastify.ts', 'src/hono.ts', 'src/koa.ts'],
   format: ['esm', 'cjs'],
   dts: true,
   clean: true,

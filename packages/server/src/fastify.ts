@@ -39,6 +39,14 @@ import type { HttpRequest, HttpResponse, Middleware } from './http/types.js';
  */
 export interface FastifyLikeRequest {
   readonly headers: Readonly<Record<string, string | string[] | undefined>>;
+  /**
+   * Node's request, which is the only place a repeated `Authorization` header
+   * is still visible — Node's HTTP server keeps the first and discards the
+   * rest before `headers` is built.
+   */
+  readonly raw?: { readonly rawHeaders?: readonly string[] };
+  /** Copied from `raw` by this adapter, so `extractBearer` can see it. */
+  rawHeaders?: readonly string[];
   readonly params?: unknown;
   readonly query?: unknown;
   readonly body?: unknown;
@@ -83,6 +91,13 @@ export type FastifyPreHandler = (
 export function toFastify(middleware: Middleware): FastifyPreHandler {
   return async (request, reply) => {
     let responded = false;
+
+    // Decorating the request rather than wrapping it, for the same reason
+    // `auth` is set on it: the object is passed straight through, and a copy
+    // would not survive to the next preHandler in the chain.
+    if (request.rawHeaders === undefined && request.raw?.rawHeaders !== undefined) {
+      request.rawHeaders = request.raw.rawHeaders;
+    }
 
     // Bridges the two response surfaces. `status`/`json` are what Ninsho's
     // middleware calls; `code`/`send` are what Fastify provides.

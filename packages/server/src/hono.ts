@@ -25,7 +25,18 @@
 import type { AuthContext } from '@ninsho/core';
 import type { HttpRequest, HttpResponse, Middleware } from './http/types.js';
 
-/** The parts of a Hono context this adapter uses. */
+/**
+ * The parts of a Hono context this adapter uses.
+ *
+ * Note what is *not* here: Node's `rawHeaders`. `c.req.header()` returns
+ * headers already collapsed, and on `@hono/node-server` a repeated
+ * `Authorization` has been discarded by Node before Hono ever sees it — so on
+ * that runtime the duplicate is caught by neither this adapter nor the
+ * middleware, and the first credential is what the application reads. On
+ * runtimes that join duplicates instead, the comma check in `extractBearer`
+ * catches it. Stated because a guarantee that holds on three adapters and not
+ * the fourth is worth knowing about rather than discovering.
+ */
 export interface HonoLikeContext {
   readonly req: {
     /** All request headers, lowercased, when called with no argument. */

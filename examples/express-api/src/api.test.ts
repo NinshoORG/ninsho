@@ -547,3 +547,65 @@ describe('health', () => {
     expect(res.body['status']).toBe('ok');
   });
 });
+
+/**
+ * A repeated Authorization header, against the assembled Express app.
+ *
+ * Express hands Ninsho Node's own request object, so `rawHeaders` is already
+ * there and no adapter has to thread it through. That makes this the cheapest
+ * place to confirm the guarantee end to end — and the place where its absence
+ * went unnoticed longest, because `req.headers.authorization` shows one clean
+ * credential after Node has discarded the second.
+ */
+describe('a repeated Authorization header', () => {
+  it('is refused rather than resolved in the application\u2019s favour', async () => {
+    const alice = await register('dup@example.com');
+    const http = await import('node:http');
+    const url = new URL(baseUrl);
+
+    const send = (headers: string[]): Promise<number> =>
+      new Promise<number>((resolve, reject) => {
+        const request = http.request(
+          {
+            hostname: url.hostname,
+            port: url.port,
+            path: '/me',
+            method: 'GET',
+            headers: ['host', url.host, ...headers],
+          },
+          (response) => {
+            response.resume();
+            response.on('end', () => resolve(response.statusCode ?? 0));
+          },
+        );
+        request.on('error', reject);
+        request.end();
+      });
+
+    // One header: the ordinary case, and the control for what follows.
+    await expect(send(['authorization', `Bearer ${alice.token}`])).resolves.toBe(200);
+
+    // Two, the valid one first — which is what Node keeps. Before rawHeaders
+    // was consulted this answered 200, silently resolving an ambiguity that a
+    // proxy in front might resolve the other way.
+    await expect(
+      send([
+        'authorization',
+        `Bearer ${alice.token}`,
+        'authorization',
+        'Bearer other',
+      ]),
+    ).resolves.toBe(401);
+
+    // And with the order reversed, so the result does not depend on which one
+    // happens to be valid.
+    await expect(
+      send([
+        'authorization',
+        'Bearer other',
+        'authorization',
+        `Bearer ${alice.token}`,
+      ]),
+    ).resolves.toBe(401);
+  });
+});

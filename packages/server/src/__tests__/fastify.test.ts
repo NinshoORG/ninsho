@@ -286,3 +286,52 @@ describe('adapter contract', () => {
     await exploding.close();
   });
 });
+
+/**
+ * A repeated Authorization header, over real HTTP.
+ *
+ * Node's HTTP server keeps the first `Authorization` and discards the rest, so
+ * `request.headers` shows one clean credential and the ambiguity is invisible
+ * there. `request.raw.rawHeaders` still has both, which is why the adapter
+ * copies it across.
+ */
+describe('a repeated Authorization header', () => {
+  it('is refused, and the route handler never runs', async () => {
+    const pair = await auth.createSession(ALICE);
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const address = app.server.address() as { port: number };
+    const http = await import('node:http');
+
+    try {
+      const status = await new Promise<number>((resolve, reject) => {
+        const request = http.request(
+          {
+            hostname: '127.0.0.1',
+            port: address.port,
+            path: '/me',
+            method: 'GET',
+            headers: [
+              'host',
+              `127.0.0.1:${address.port}`,
+              'authorization',
+              `Bearer ${pair.accessToken}`,
+              'authorization',
+              'Bearer other',
+            ],
+          },
+          (response) => {
+            response.resume();
+            response.on('end', () => resolve(response.statusCode ?? 0));
+          },
+        );
+        request.on('error', reject);
+        request.end();
+      });
+
+      expect(status).toBe(401);
+      expect(handlerRan).toBe(false);
+    } finally {
+      await app.close();
+    }
+  });
+});

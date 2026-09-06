@@ -223,6 +223,66 @@ describe('bearer extraction', () => {
     expect(result.code).toBe('TOKEN_MISSING');
   });
 
+  /**
+   * The array above is one of three shapes a duplicate can take, and it is the
+   * one Node never produces. These are the other two.
+   */
+  it('refuses a duplicate that only rawHeaders can see', async () => {
+    // Node's HTTP server keeps the first Authorization header and discards the
+    // rest, so `headers` shows one clean credential. Without consulting
+    // `rawHeaders` this request is indistinguishable from an honest one — see
+    // `koa.test.ts` › *a repeated Authorization header*, which caught it over
+    // real HTTP.
+    const issued = await engine.issue({
+      principal: ALICE,
+      sessionId: 's1',
+      authenticatedAt: new Date().toISOString(),
+    });
+    const req = {
+      headers: { authorization: `Bearer ${issued.token}` },
+      rawHeaders: ['Host', 'example.com', 'Authorization', `Bearer ${issued.token}`, 'authorization', 'Bearer other'],
+    } as unknown as HttpRequest;
+
+    const result = await run(verify(), req);
+    expect(result.code).toBe('TOKEN_MISSING');
+    expect(result.nextCalled).toBe(false);
+  });
+
+  it('refuses two credentials joined into one header value', async () => {
+    // What a proxy that concatenates rather than drops produces. The greedy
+    // capture in `extractBearer` would otherwise swallow the second into the
+    // token, turning an ambiguous request into a merely invalid one.
+    const issued = await engine.issue({
+      principal: ALICE,
+      sessionId: 's1',
+      authenticatedAt: new Date().toISOString(),
+    });
+    const req = {
+      headers: { authorization: `Bearer ${issued.token}, Bearer other` },
+    } as unknown as HttpRequest;
+
+    const result = await run(verify(), req);
+    expect(result.code).toBe('TOKEN_MISSING');
+    expect(result.nextCalled).toBe(false);
+  });
+
+  it('admits a single header when rawHeaders confirms it is single', async () => {
+    // The other direction: threading rawHeaders through must not start
+    // refusing honest requests.
+    const issued = await engine.issue({
+      principal: ALICE,
+      sessionId: 's1',
+      authenticatedAt: new Date().toISOString(),
+    });
+    const req = {
+      headers: { authorization: `Bearer ${issued.token}` },
+      rawHeaders: ['Host', 'example.com', 'Authorization', `Bearer ${issued.token}`],
+    } as unknown as HttpRequest;
+
+    const result = await run(verify(), req);
+    expect(result.nextCalled).toBe(true);
+  });
+
   it('rejects a well-formed but unknown token with 401 TOKEN_INVALID', async () => {
     const result = await run(verify(), request({ token: 'not-a-real-token' }));
     expect(result.res.statusCode).toBe(401);

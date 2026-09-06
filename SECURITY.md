@@ -133,6 +133,7 @@ authorization data inside a `Principal`.
 | Memory-safety bugs in attacker-facing parsers | **Mitigated** | Every length bounds-checked before use; CBOR, DER and authenticator-data parsers each fuzzed |
 | **Authenticator provenance (attestation)** | **Mitigated** | Every format WebAuthn defines verified to relying-party roots, AAGUID cross-checked where the format conveys one; `attestation.test.ts`. What each one actually proves differs — see below |
 | A SafetyNet verdict from a rooted device | **Mitigated** | `ctsProfileMatch` required; `basicIntegrity` alone is not accepted, because a rooted phone still reports it; `attestation.test.ts` › *refuses a device passing basicIntegrity alone* |
+| **Credential ambiguity from a repeated Authorization header** | **Mitigated** | `rawHeaders` is consulted, because Node's HTTP server keeps the first `Authorization` and silently discards the rest — so `req.headers` shows one clean credential and a proxy validating a different occurrence would disagree about who is calling. Express, Fastify and Koa; see the note below for Hono. `api.test.ts` › *a repeated Authorization header* |
 | Algorithm confusion in a SafetyNet JWS | **Mitigated** | The header names its own `alg`; an allowlist of exactly one (RS256) leaves nothing to negotiate; `attestation.test.ts` › *refuses a JWS header naming alg …* |
 | A SafetyNet response captured from an earlier session | **Mitigated** | Nonce must hash this ceremony, and the timestamp must be recent; `attestation.test.ts` › *refuses a response captured from an earlier session* |
 | A TPM statement certifying a key that is not the credential | **Mitigated** | `pubArea` compared against the credential key, and `attested.name` against `pubArea`; `attestation.test.ts` › *refuses a pubArea describing a key that is not the credential* |
@@ -149,6 +150,19 @@ authorization data inside a `Principal`.
 
 Stated plainly, because a limitation you know about is manageable and one you
 have been reassured about is not.
+
+### A repeated Authorization header is not caught on Hono
+
+Node's HTTP server keeps the first `Authorization` header it receives and
+silently discards the rest. That means `req.headers.authorization` shows a
+single clean credential even when two were sent, and the ambiguity — which a
+proxy in front might resolve the other way — is visible only in `rawHeaders`.
+
+Express, Fastify and Koa all reach it, and refuse the request. Hono hands over
+headers already collapsed and exposes no equivalent, so on `@hono/node-server`
+the first credential is what the application reads. If you terminate TLS behind
+a proxy that forwards duplicate headers rather than normalising them, prefer
+one of the other three, or normalise at the edge.
 
 ### WebAuthn attestation: what each format actually proves
 

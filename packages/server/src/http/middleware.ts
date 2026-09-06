@@ -51,14 +51,44 @@ const AUTH_SCHEME = /^(?:Bearer|DPoP)[ ]+(.+)$/i;
 function extractBearer(req: HttpRequest): string {
   const header = req.headers['authorization'] ?? req.headers['Authorization'];
 
-  // A repeated Authorization header is ambiguous — different proxies resolve
-  // it differently, so two systems can disagree about which credential was
-  // presented. Refuse rather than pick.
+  // ─── Three shapes a repeated Authorization header can arrive in ──────────
+  // It is ambiguous however it arrives: proxies resolve duplicates
+  // differently, so two systems in one request path can end up believing
+  // different credentials were presented. Refuse rather than pick — but that
+  // requires actually seeing the duplicate, and each runtime hides it
+  // differently.
+  //
+  //   1. As an array. Some frameworks surface it this way.
+  //   2. Joined with commas. What Node does for ordinary headers.
+  //   3. Not at all. What Node does for *this* header: its HTTP server keeps
+  //      the first `Authorization` and discards the rest, so `headers` shows a
+  //      single clean credential and the second has already gone. Only
+  //      `rawHeaders` still has it — which is why this looks there first.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  if (req.rawHeaders !== undefined) {
+    let seen = 0;
+    for (let i = 0; i < req.rawHeaders.length; i += 2) {
+      if ((req.rawHeaders[i] as string).toLowerCase() === 'authorization') seen += 1;
+    }
+    if (seen > 1) {
+      throw new TokenMissingError(`${seen} Authorization headers`);
+    }
+  }
+
   if (Array.isArray(header)) {
     throw new TokenMissingError('multiple Authorization headers');
   }
   if (typeof header !== 'string' || header.length === 0) {
     throw new TokenMissingError('no Authorization header');
+  }
+
+  // A second scheme after a comma is the joined form. Checked on the raw
+  // header rather than after parsing, because the greedy capture below would
+  // otherwise swallow it into the token and turn an ambiguous request into an
+  // ordinary invalid one.
+  if (/,\s*(?:Bearer|DPoP)\b/i.test(header)) {
+    throw new TokenMissingError('multiple credentials in one Authorization header');
   }
 
   const match = AUTH_SCHEME.exec(header.trim());

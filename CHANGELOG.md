@@ -7,6 +7,25 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **A Koa adapter — `@ninsho/server/koa`.** The middleware is Express-shaped,
+  and Fastify and Hono already had adapters; Koa was the one framework the
+  README had to say was not claimed. It is claimed now.
+
+  Koa halts differently again from either of the others: a middleware answers
+  by *not calling* `next()`. There is no return value saying so and no
+  `Response` to hand back — the absence of the call is the whole signal. Get
+  that backwards and an authorization check sets a 403 and then lets the route
+  handler overwrite it with the resource, which a test asserting only on status
+  codes would never see. So every negative test asserts the handler did not
+  run, against real Koa over real HTTP.
+
+  Koa also ships no body parser, so `ctx.request.body` exists only if you added
+  one. The adapter reads it when present and does not pretend otherwise: a
+  guard whose selector finds nothing fails its check, which is the fail-closed
+  outcome `ValueSelector` already specifies, and there is a test for exactly
+  that shape. 20 tests. Nothing imports Koa — the types are structural, as with
+  the other two, and a test reads the source to keep it that way.
+
 - **FIDO Metadata Service support — `parseMetadataBlob()` and
   `toAttestationPolicy()`.** Attestation is refused without trust anchors,
   which is correct and leaves a relying party holding a question: where do the
@@ -688,6 +707,38 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **A repeated `Authorization` header was accepted, not refused.** The README
+  claimed ambiguous duplicates were rejected, and the code had a check for it.
+  The check could not fire.
+
+  Node's HTTP server does not join duplicate `Authorization` headers the way it
+  joins ordinary ones — it keeps the **first** and silently discards the rest.
+  Measured, once the question was actually asked: two headers on the wire,
+  `rawHeaders` shows both, `req.headers.authorization` shows one clean
+  credential. The guard tested `Array.isArray(headers.authorization)`, a shape
+  Node never produces, and the existing test constructed that array by hand
+  rather than sending a request. So the check passed its test and protected
+  nothing.
+
+  This is the desync the check exists to prevent: a proxy that validates the
+  last occurrence and an application that reads the first disagree about who is
+  calling.
+
+  `HttpRequest` now carries an optional `rawHeaders`, and `extractBearer`
+  counts occurrences there before trusting `headers`. Two credentials joined
+  into one value — what a proxy that concatenates produces — are refused too,
+  before the greedy scheme capture can swallow the second into the token and
+  turn an ambiguous request into a merely invalid one.
+
+  Express passes Node's request straight through, so it needed nothing; the
+  Fastify and Koa adapters copy `raw.rawHeaders` across. **Hono cannot be
+  fixed this way** and is now documented rather than covered: it hands over
+  headers already collapsed, so on `@hono/node-server` the duplicate is gone
+  before Ninsho sees it.
+
+  Found while writing the Koa adapter's tests, by sending a real request
+  instead of assuming what one would look like.
 
 - **The test certificate builder emitted invalid DER about once in 512.** A
   DER INTEGER may not carry a leading zero byte that is not needed for its

@@ -26,6 +26,20 @@ import type { AuthContext } from '@ninsho/core';
 /** The parts of a request Ninsho reads. */
 export interface HttpRequest {
   readonly headers: Readonly<Record<string, string | string[] | undefined>>;
+  /**
+   * Node's flat `[name, value, name, value, …]` header list, when the
+   * framework exposes it.
+   *
+   * `headers` is not enough to tell a repeated header from a single one. Node's
+   * HTTP server keeps only the *first* `Authorization` it receives and silently
+   * discards the rest — measured, not assumed — so by the time a request
+   * reaches `headers`, a second credential has already vanished. This is the
+   * only place the duplicate is still visible.
+   *
+   * Optional because not every runtime has it. Where it is absent the checks
+   * fall back to what `headers` can show, which is less.
+   */
+  readonly rawHeaders?: readonly string[];
   /** Route parameters, when the framework provides them. */
   readonly params?: Readonly<Record<string, string | undefined>>;
   readonly query?: Readonly<Record<string, unknown>>;
