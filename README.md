@@ -123,7 +123,9 @@ Every claim below links to executable proof.
 | Refresh tokens are bound too | RFC 9449 §5 | `dpop-integration.test.ts` › *refresh tokens are bound too* |
 | A rejected proof cannot destroy a session | binding checked before `take()` | `dpop-integration.test.ts` › *regression: a rejected proof must not consume* |
 | Only one textual spelling of a proof is accepted | canonical base64url on every segment | `dpop-proof.test.ts` › *regression: non-canonical base64url* |
-| **The browser key cannot be exfiltrated** | non-extractable WebCrypto key | `client.test.ts` › *key material cannot be exfiltrated* |
+| **The browser key cannot be exfiltrated** | non-extractable WebCrypto key | `client.test.ts` › *key material cannot be exfiltrated*, `keys.test.ts` › *produces a key whose private half cannot be read* |
+| A key that is not EC P-256 cannot pass as a DPoP key | `kty` and `crv` read from the export, never assumed | `keys.test.ts` › *refuses a P-384 key rather than calling it P-256* |
+| An extractable private key is refused, not described | checked wherever a key is adopted | `keys.test.ts` › *refuses an extractable private key* |
 | Client and server agree on the wire format | tested against each other, not assumptions | `interop.test.ts` — thumbprints and proofs both directions |
 | A refresh stampede cannot look like theft | single-flight refresh | `client.test.ts` › *collapses concurrent refreshes into one* |
 | Concurrent first requests share one key | single-flight key init | `client.test.ts` › *generates a key only once* |
@@ -166,7 +168,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,941 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
+1,966 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```

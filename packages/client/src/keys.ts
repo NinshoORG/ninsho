@@ -61,15 +61,49 @@ export async function generateDpopKey(): Promise<DpopKey> {
   return describeKey(pair.privateKey, pair.publicKey);
 }
 
-/** Builds the public JWK and thumbprint for an existing key pair. */
+/**
+ * Builds the public JWK and thumbprint for an existing key pair.
+ *
+ * ─── Why this checks rather than assumes ──────────────────────────────────
+ * `generateDpopKey` always produces P-256, so for a key this library made the
+ * checks below are dead weight. They are not for that key. This function is
+ * exported, and `IndexedDbKeyStore.load()` calls it on whatever the database
+ * holds — an older version's key, another application sharing the database
+ * name, or something put there deliberately.
+ *
+ * The JWK used to be built with `kty` and `crv` written in as constants and
+ * only the coordinates read from the export. A key on another curve therefore
+ * produced a JWK that misdescribed itself, and a thumbprint computed over that
+ * misdescription — which is the value the server binds a token to.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
 export async function describeKey(
   privateKey: CryptoKey,
   publicKey: CryptoKey,
 ): Promise<DpopKey> {
-  const exported = (await crypto.subtle.exportKey('jwk', publicKey)) as {
-    x?: string;
-    y?: string;
-  };
+  // A private key whose bytes can be read is not one this library will vouch
+  // for, whatever else is true of it.
+  if (privateKey.extractable) {
+    throw new Error(
+      'ninsho: the DPoP private key is extractable. Its bytes can be read by any ' +
+        'script, which removes the only property that makes browser DPoP worth having.',
+    );
+  }
+
+  let exported: { kty?: string; crv?: string; x?: string; y?: string };
+  try {
+    exported = (await crypto.subtle.exportKey('jwk', publicKey)) as typeof exported;
+  } catch {
+    throw new Error('ninsho: the DPoP public key could not be exported as a JWK');
+  }
+
+  if (exported.kty !== 'EC' || exported.crv !== 'P-256') {
+    throw new Error(
+      `ninsho: a DPoP key must be EC P-256, not ${String(exported.kty)} ${String(exported.crv)}. ` +
+        'The proof declares ES256, and a key on another curve would sign something no ' +
+        'verifier accepts while describing itself as one that would.',
+    );
+  }
 
   if (typeof exported.x !== 'string' || typeof exported.y !== 'string') {
     throw new Error('ninsho: exported public key is missing its coordinates');

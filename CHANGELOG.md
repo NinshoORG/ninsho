@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Direct tests for the client's key handling and encoding.** `keys.ts`,
+  `encoding.ts` and `storage.ts` were reached only through `client.test.ts`,
+  which drives a whole request cycle and therefore only ever sees a key this
+  library generated. 25 tests covering what happens when it did not — which is
+  the path `IndexedDbKeyStore.load()` takes on every page load, and where both
+  fixes below were found.
+
 - **The playground is deployable.** A multi-stage Dockerfile, a `/health`
   endpoint that does not create a visitor world, and the two things a page
   needs before it is reachable from the internet rather than from a laptop.
@@ -759,6 +766,40 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **A key on the wrong curve described itself as P-256.** `describeKey` read
+  only the coordinates out of the exported JWK and wrote `kty` and `crv` in as
+  constants. A key on P-384 or P-521 therefore produced a JWK claiming P-256 —
+  and a thumbprint computed over that claim, which is the value the server
+  binds a token to.
+
+  It cannot come from `generateDpopKey`, which always makes P-256. It can come
+  from the key store: `IndexedDbKeyStore.load()` calls `describeKey` on
+  whatever the database holds, which might be an older version's key, another
+  application sharing the database name, or something put there deliberately.
+  The end result was a proof that failed at the server with a confusing error
+  rather than a client that noticed its own key was wrong.
+
+  `describeKey` now reads `kty` and `crv` from the export and refuses anything
+  that is not EC P-256. It also refuses an extractable private key — the store
+  checked that on load, but the exported function did not, so a caller building
+  a key themselves could hand over one whose bytes are readable and get back
+  something that looked like a DPoP key.
+
+- **`fromBase64Url` threw a raw `DOMException` on invalid input.** It is
+  exported, and `examples/express-api` decodes WebAuthn request bodies through
+  it, so its input is attacker-supplied on that path. `atob` throws a
+  `DOMException`, which is neither the controlled error the rest of the project
+  raises nor convenient to catch by type. The example already wrapped it and
+  answered 401 rather than 500 — verified by sending garbage at it — but a
+  library whose stated property is that no input produces an uncontrolled
+  exception should not hand one out.
+
+  It now validates the alphabet and length first, and refuses padding
+  characters rather than tolerating them: this is base64*url*, the unpadded
+  form is the only one JOSE and WebAuthn produce, and accepting a second
+  spelling of the same bytes is how two implementations end up disagreeing
+  about what a value was.
 
 - **A metadata policy let any certified vendor vouch for any certified model.**
   `toAttestationPolicy()` collected every entry's roots into one flat

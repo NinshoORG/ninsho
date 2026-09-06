@@ -18,8 +18,30 @@ export function toBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** Decodes unpadded base64url back to bytes. */
+/**
+ * Decodes unpadded base64url back to bytes.
+ *
+ * Validated before `atob` sees it, for two reasons. `atob` throws a
+ * `DOMException`, which is not the controlled error the rest of this project
+ * raises and is awkward to catch by type; and this function is exported and
+ * used to decode request bodies — `examples/express-api` reads WebAuthn
+ * responses through it — so its input is attacker-supplied on that path.
+ *
+ * Padding characters are refused rather than tolerated. This is base64*url*,
+ * where the unpadded form is the only one JOSE and WebAuthn produce, and
+ * accepting a second spelling of the same bytes is how two implementations end
+ * up disagreeing about what a value was.
+ */
 export function fromBase64Url(value: string): Uint8Array {
+  if (!/^[A-Za-z0-9_-]*$/.test(value)) {
+    throw new Error('ninsho: value is not unpadded base64url');
+  }
+  // A length of 1 more than a multiple of 4 encodes no whole byte and cannot
+  // be padded into anything valid.
+  if (value.length % 4 === 1) {
+    throw new Error('ninsho: value is not unpadded base64url');
+  }
+
   const padded = value.replace(/-/g, '+').replace(/_/g, '/');
   const binary = atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, '='));
 
