@@ -106,8 +106,27 @@ function readSmallInteger(bytes: Uint8Array, tlv: Tlv, what: string): number {
   return value;
 }
 
-/** Parses the fields of an `AuthorizationList` that §8.4 consults. */
+/**
+ * Parses the fields of an `AuthorizationList` that §8.4 consults.
+ *
+ * Every DER read below can fail on a malformed list, and `Asn1Error` escaping
+ * here would be an uncontrolled throw out of a parser whose contract is
+ * `AndroidKeyError`. Wrapped in one place rather than at each call site: the
+ * walk has half a dozen reads and adding a `try` to each is how one gets
+ * missed.
+ */
 function parseAuthorizationList(bytes: Uint8Array, tlv: Tlv, what: string): AuthorizationList {
+  try {
+    return readAuthorizationList(bytes, tlv, what);
+  } catch (error) {
+    if (error instanceof AndroidKeyError) throw error;
+    throw new AndroidKeyError(
+      error instanceof Asn1Error ? `${what}: ${error.message}` : `${what} could not be read`,
+    );
+  }
+}
+
+function readAuthorizationList(bytes: Uint8Array, tlv: Tlv, what: string): AuthorizationList {
   if (tlv.tag !== TAG_SEQUENCE) {
     throw new AndroidKeyError(`${what} is not a SEQUENCE`);
   }

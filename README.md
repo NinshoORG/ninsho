@@ -91,7 +91,7 @@ Every claim below links to executable proof.
 | The limiter cannot silently stop working | fail-closed by default | `ratelimit.test.ts` › *store outage* |
 | One constructor wires everything, securely | `Ninsho` | `ninsho.test.ts` › *minimal configuration* |
 | Weakening choices announce themselves at startup | `config.insecure` events | `ninsho.test.ts` › *startup warnings* |
-| No input produces an uncontrolled exception | every parser on the untrusted path | `fuzz.test.ts` — randomised and mutation testing |
+| No input produces an uncontrolled exception | every parser on the untrusted path | `fuzz.test.ts`, and a randomised + mutation suite per parser: `cbor`, `der`, `asn1`, `cose`, `authdata`, `tpm`, `android-key`, `safetynet`, `mds` |
 | Every single-byte mutation of a token is rejected | Ed25519 signature | `fuzz.test.ts` › *rejects every single-byte mutation* |
 | Junk submitted in bulk cannot revoke a live session | tombstone required | `fuzz.test.ts` › *leaves a live session untouched* |
 | The whole system holds together over real HTTP | assembled app | `examples/express-api` — 94 end-to-end tests |
@@ -162,7 +162,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,810 tests passing · typecheck clean · no flaky runs over 3 full repeats
+1,878 tests passing · typecheck clean · no flaky runs over 3 full repeats
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```

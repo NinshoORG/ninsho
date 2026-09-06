@@ -708,6 +708,23 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **An `Asn1Error` could escape `parseKeyDescription`.** The function's contract
+  is that it throws `AndroidKeyError`; the DER walk through an authorization
+  list was not wrapped, so a malformed list threw the reader's own error type
+  straight out.
+
+  Inside the ceremony this was contained — `verifyAndroidKeyAttestation`
+  catches anything that is not an `AndroidKeyError` and reports a generic
+  refusal — so no registration could crash on it. But `parseKeyDescription` is
+  exported for applications that want to report what the keystore said about a
+  credential, and one of those, catching the documented type, would have taken
+  an uncaught throw instead.
+
+  Found by adding the mutation fuzzer the other parsers already had: flipping
+  byte 54 of a valid structure. Random-bytes fuzzing had not found it and would
+  not have, because random bytes almost never form a structure the parser gets
+  deep enough into to reach a nested list.
+
 - **The benchmarks had not run since step-up auth landed.** `issue()` gained a
   required `authenticatedAt`, `bench.ts` kept calling it the old way, and the
   script threw on its first `verify` — "stored access record is malformed" —
