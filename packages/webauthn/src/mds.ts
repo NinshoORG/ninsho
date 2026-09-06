@@ -363,6 +363,11 @@ export interface PolicyFromMetadataOptions {
  * out, as are entries whose newest status is not one you accept — and so are
  * entries carrying no roots, since including them would put an AAGUID on the
  * allowlist that no chain could ever satisfy.
+ *
+ * The result carries `modelAnchors` as well as the union in `trustAnchors`, so
+ * each model is checked against the roots the BLOB paired it with. Without
+ * that pairing the policy would say something weaker than the document it came
+ * from — see `AttestationPolicy.modelAnchors`.
  */
 export function toAttestationPolicy(
   blob: MetadataBlob,
@@ -373,6 +378,7 @@ export function toAttestationPolicy(
 
   const trustAnchors: Uint8Array[] = [];
   const allowedAaguids: string[] = [];
+  const modelAnchors: Record<string, readonly Uint8Array[]> = {};
   const seen = new Set<string>();
 
   for (const entry of blob.entries) {
@@ -387,6 +393,15 @@ export function toAttestationPolicy(
     if (current === undefined || !accepted.includes(current.status)) continue;
 
     allowedAaguids.push(entry.aaguid);
+
+    // Kept per model as well as in the union. The union is what a caller sees
+    // if they read `trustAnchors` alone; the pairing is what stops one
+    // vendor's roots vouching for another vendor's AAGUID.
+    modelAnchors[entry.aaguid] = [
+      ...(modelAnchors[entry.aaguid] ?? []),
+      ...entry.attestationRootCertificates,
+    ];
+
     for (const root of entry.attestationRootCertificates) {
       const key = Buffer.from(root).toString('base64');
       if (seen.has(key)) continue;
@@ -399,5 +414,6 @@ export function toAttestationPolicy(
     formats: options.formats ?? ['packed', 'apple', 'tpm', 'fido-u2f', 'android-key'],
     trustAnchors,
     allowedAaguids,
+    modelAnchors,
   };
 }

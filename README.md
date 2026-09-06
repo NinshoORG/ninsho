@@ -158,6 +158,7 @@ Every claim below links to executable proof.
 | An attestation format the library does not know is refused | allowlisting one still fails closed | `ceremony.test.ts` › *cannot be verified* |
 | **Trust anchors can come from FIDO rather than by hand** | `parseMetadataBlob()` → `toAttestationPolicy()` | `mds.test.ts` › *a metadata policy drives real verification* |
 | A compromised model stops being admitted | any compromise in an entry's history disqualifies it | `mds.test.ts` › *stops admitting a model once the BLOB reports it compromised* |
+| One vendor's roots cannot vouch for another vendor's model | each AAGUID is pinned to the roots the BLOB paired it with | `mds.test.ts` › *a model is vouched for by its own vendor, not by any vendor* |
 | A stale metadata BLOB is refused, not silently trusted | `nextUpdate` enforced by default | `mds.test.ts` › *refuses a BLOB that was due to be replaced* |
 | Generated test certificates are real certificates | cross-checked by Node's own X.509 parser | `asn1.test.ts` › *the generated certificates are real certificates* |
 | Passkeys work end to end over real HTTP | assembled app, real keys, real signatures | `examples/express-api/src/passkey.test.ts` — 32 tests |
@@ -165,7 +166,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,933 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
+1,935 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```

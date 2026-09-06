@@ -734,6 +734,26 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A metadata policy let any certified vendor vouch for any certified model.**
+  `toAttestationPolicy()` collected every entry's roots into one flat
+  `trustAnchors` list and every entry's AAGUID into one flat `allowedAaguids`
+  list. That threw away the pairing the BLOB carries, and said something weaker
+  than the document it came from: not "this model is vouched for by its vendor"
+  but "any listed model may be vouched for by any listed vendor".
+
+  The gap is a vendor whose attestation key is compromised but whose compromise
+  FIDO has not published yet. That key can mint a leaf carrying **another**
+  vendor's AAGUID, and every check downstream passes — the certificate's AAGUID
+  matches the authenticator data, the AAGUID is on the allowlist, and the chain
+  reaches a root in the union. Demonstrated with a test that registers a
+  vendor-B device against a vendor-A chain and was accepted before the fix.
+
+  `AttestationPolicy` gains `modelAnchors`, a map from AAGUID to the roots that
+  model's entry named, and the chain is checked against those and no others
+  when the model is known. An AAGUID absent from the map still falls back to
+  `trustAnchors`, so a caller can pin the models it knows about without
+  enumerating every one.
+
 - **The URI a DPoP proof is checked against could be steered by the client.**
   `defaultRequestUrl` built the absolute URI as `new URL(target, base)` where
   `target` was `req.originalUrl ?? req.url`. That is not always the `/path` it

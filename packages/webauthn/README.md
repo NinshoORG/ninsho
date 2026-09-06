@@ -225,6 +225,12 @@ re-certification does not un-leak the attestation key that vouches for every uni
 BLOB past its own `nextUpdate` is refused unless you pass `allowStale`, because a stale one still
 verifies, still looks authoritative, and is missing every compromise published since.
 
+The policy also carries `modelAnchors`, pinning each AAGUID to the roots the BLOB paired it with.
+Keeping only the union of every root would say something weaker than the document it came from —
+not "this model is vouched for by its vendor" but "any listed model may be vouched for by any
+listed vendor" — which a vendor whose attestation key was compromised, but whose compromise FIDO
+had not published yet, could use to mint a leaf carrying someone else's AAGUID.
+
 The HTTP call is yours. A library that fetches on your behalf decides your caching, your update
 cadence, and your behaviour when the service is down.
 

@@ -433,3 +433,112 @@ describe('a metadata policy drives real verification', () => {
     await expect(register(after)).rejects.toThrow();
   });
 });
+
+/**
+ * A metadata BLOB pairs each model with the roots that vouch for *it*. A
+ * policy that keeps only the union of every root has thrown that pairing away,
+ * and says something weaker than the document it came from: not "this model is
+ * vouched for by its vendor" but "any certified model may be vouched for by
+ * any certified vendor".
+ *
+ * The gap that opens is a vendor whose attestation key has been compromised
+ * but whose compromise FIDO has not published yet. Their key can mint a leaf
+ * carrying *another* vendor's AAGUID, and every check downstream passes: the
+ * AAGUID in the certificate matches the authenticator data, the AAGUID is on
+ * the allowlist, and the chain reaches a root in the union.
+ */
+describe('a model is vouched for by its own vendor, not by any vendor', () => {
+  it('refuses a chain from one vendor carrying another vendor’s AAGUID', async () => {
+    const root = fidoRoot();
+    const vendorA = createCertificate({ subject: 'Vendor A Root', isCa: true });
+    const vendorB = createCertificate({ subject: 'Vendor B Root', isCa: true });
+
+    const deviceB = await VirtualAuthenticator.create();
+
+    const policy = toAttestationPolicy(
+      parseMetadataBlob(
+        buildMetadataBlob({
+          root,
+          entries: [
+            {
+              aaguid: '00000000-0000-0000-0000-0000000000aa',
+              description: 'Vendor A Key',
+              attestationRootCertificates: [vendorA.der],
+            },
+            {
+              aaguid: toHex(deviceB.aaguid),
+              description: 'Vendor B Key',
+              attestationRootCertificates: [vendorB.der],
+            },
+          ],
+        }),
+        { trustAnchors: [root.der] },
+      ),
+    );
+
+    // Vendor B's own chain, which is what the BLOB says should vouch for it.
+    const honest = createCertificate({
+      subject: 'Vendor B Authenticator',
+      issuer: vendorB,
+      aaguid: deviceB.aaguid,
+    });
+
+    // The same AAGUID, signed by vendor A instead — what a compromised vendor
+    // A key could produce.
+    const crossVendor = createCertificate({
+      subject: 'Vendor A Authenticator',
+      issuer: vendorA,
+      aaguid: deviceB.aaguid,
+    });
+
+    const register = async (chain: { root: ReturnType<typeof createCertificate>; leaf: ReturnType<typeof createCertificate> }) => {
+      const challenge = challengeBytes();
+      const response = await deviceB.register({
+        challenge,
+        origin: ORIGIN,
+        rpId: RP_ID,
+        attestationChain: chain,
+      });
+      return verifyRegistration(response, {
+        rpId: RP_ID,
+        origin: ORIGIN,
+        challenge: b64u(challenge),
+        attestation: policy,
+      });
+    };
+
+    // The honest pairing still works, or the narrowing is just a refusal.
+    await expect(register({ root: vendorB, leaf: honest })).resolves.toBeTruthy();
+
+    // The cross-vendor one must not.
+    await expect(register({ root: vendorA, leaf: crossVendor })).rejects.toThrow();
+  });
+
+  it('pairs every model with its own roots in the policy it builds', () => {
+    const root = fidoRoot();
+    const vendorA = createCertificate({ subject: 'Vendor A Root', isCa: true });
+    const vendorB = createCertificate({ subject: 'Vendor B Root', isCa: true });
+
+    const policy = toAttestationPolicy(
+      parseMetadataBlob(
+        buildMetadataBlob({
+          root,
+          entries: [
+            { aaguid: '00000000-0000-0000-0000-0000000000aa', attestationRootCertificates: [vendorA.der] },
+            { aaguid: '00000000-0000-0000-0000-0000000000bb', attestationRootCertificates: [vendorB.der] },
+          ],
+        }),
+        { trustAnchors: [root.der] },
+      ),
+    );
+
+    expect(Object.keys(policy.modelAnchors ?? {}).sort()).toEqual([
+      '000000000000000000000000000000aa',
+      '000000000000000000000000000000bb',
+    ]);
+    expect(policy.modelAnchors?.['000000000000000000000000000000aa']).toHaveLength(1);
+    expect(
+      Buffer.from(policy.modelAnchors?.['000000000000000000000000000000aa']?.[0] as Uint8Array),
+    ).toEqual(Buffer.from(vendorA.der));
+  });
+});

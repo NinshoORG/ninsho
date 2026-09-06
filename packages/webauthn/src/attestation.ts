@@ -115,6 +115,28 @@ export interface AttestationPolicy {
    */
   readonly trustAnchors?: readonly Uint8Array[];
   /**
+   * Roots per authenticator model, keyed by lowercase-hex AAGUID.
+   *
+   * ─── Why a flat root list is weaker than the document it came from ───────
+   * A metadata BLOB pairs each model with the roots that vouch for *it*.
+   * Keeping only the union throws that pairing away and states something
+   * weaker: not "this model is vouched for by its vendor" but "any listed
+   * model may be vouched for by any listed vendor".
+   *
+   * The gap that opens is a vendor whose attestation key is compromised but
+   * whose compromise has not been published yet. That key can mint a leaf
+   * carrying *another* vendor's AAGUID, and every check downstream passes —
+   * the certificate's AAGUID matches the authenticator data, the AAGUID is on
+   * the allowlist, and the chain reaches a root in the union.
+   *
+   * When an AAGUID appears here, its chain is checked against these roots and
+   * no others. An AAGUID absent from the map falls back to `trustAnchors`, so
+   * a caller can pin the models it knows about without having to enumerate
+   * every one. `toAttestationPolicy()` fills this in from a BLOB.
+   * ─────────────────────────────────────────────────────────────────────────
+   */
+  readonly modelAnchors?: Readonly<Record<string, readonly Uint8Array[]>>;
+  /**
    * AAGUIDs permitted, lowercase hex without separators.
    *
    * Setting this implies a trusted chain: an AAGUID that no manufacturer
@@ -842,6 +864,11 @@ export async function verifyAttestation(
   const formats = policy.formats ?? ['none'];
   const aaguidHex = toHex(input.aaguid);
 
+  // Narrowed to this model's own roots when the policy knows the model, so a
+  // chain from one vendor cannot vouch for another vendor's AAGUID. See
+  // `AttestationPolicy.modelAnchors`.
+  const anchorsForModel = policy.modelAnchors?.[aaguidHex] ?? policy.trustAnchors ?? [];
+
   if (!formats.includes(input.format)) {
     throw new AttestationError(`attestation format ${input.format} is not accepted`);
   }
@@ -882,7 +909,7 @@ export async function verifyAttestation(
       throw new AttestationError('apple attestation requires an x5c chain');
     }
 
-    const appleAnchors = policy.trustAnchors ?? [];
+    const appleAnchors = anchorsForModel;
     if (appleAnchors.length === 0) {
       throw new AttestationError(
         'apple attestation requires trustAnchors; without roots, a chain proves nothing',
@@ -927,7 +954,7 @@ export async function verifyAttestation(
       throw new AttestationError('tpm attestation requires an x5c chain');
     }
 
-    const tpmAnchors = policy.trustAnchors ?? [];
+    const tpmAnchors = anchorsForModel;
     if (tpmAnchors.length === 0) {
       throw new AttestationError(
         'tpm attestation requires trustAnchors; without roots, a chain proves nothing',
@@ -972,7 +999,7 @@ export async function verifyAttestation(
       throw new AttestationError('the SafetyNet statement carries no response');
     }
 
-    const safetyNetAnchors = policy.trustAnchors ?? [];
+    const safetyNetAnchors = anchorsForModel;
     if (safetyNetAnchors.length === 0) {
       throw new AttestationError(
         'android-safetynet attestation requires trustAnchors; without roots, a chain proves nothing',
@@ -1075,7 +1102,7 @@ export async function verifyAttestation(
       throw new AttestationError('android-key attestation requires an x5c chain');
     }
 
-    const androidAnchors = policy.trustAnchors ?? [];
+    const androidAnchors = anchorsForModel;
     if (androidAnchors.length === 0) {
       throw new AttestationError(
         'android-key attestation requires trustAnchors; without roots, a chain proves nothing',
@@ -1120,7 +1147,7 @@ export async function verifyAttestation(
       throw new AttestationError('u2f attestation requires an x5c chain');
     }
 
-    const u2fAnchors = policy.trustAnchors ?? [];
+    const u2fAnchors = anchorsForModel;
     if (u2fAnchors.length === 0) {
       throw new AttestationError(
         'u2f attestation requires trustAnchors; without roots, a chain proves nothing',
@@ -1211,7 +1238,7 @@ export async function verifyAttestation(
   }
 
   // Basic attestation.
-  const anchors = policy.trustAnchors ?? [];
+  const anchors = anchorsForModel;
   if (anchors.length === 0) {
     throw new AttestationError(
       'packed attestation requires trustAnchors; without roots, a chain proves nothing',
