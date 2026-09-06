@@ -120,7 +120,10 @@ Before a first public release:
       not guaranteed to last
 - [ ] `npm publish --dry-run` and check the file list
 - [ ] Verify `npm ci && npm run build && npm run test` on a clean checkout
-- [ ] Confirm CI is green — not assumed green
+- [x] Confirm CI is green — not assumed green. Verified on run 34026987586:
+      all five jobs, Node 20 and 22, against real Redis. Getting there found
+      three real defects — see the CHANGELOG entries for the clean-checkout
+      typecheck, attestation on Node 20, and the lockfile gate
 - [ ] Decide the version. `0.1.0` is honest for an unaudited pre-release; `1.0.0`
       is a promise about stability that should be earned, not defaulted to. The
       predecessor reached "1.0.0" in three days

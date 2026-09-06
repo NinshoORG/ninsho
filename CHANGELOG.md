@@ -767,6 +767,37 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Attestation was inert on Node 20.** `chainReachesAnchor` read
+  `cert.validFromDate` and `cert.validToDate`, getters that arrived in Node
+  22.10. The package declares `engines: node >=20`, and on Node 20 they are
+  `undefined` — so `undefined <= now` is `false`, every certificate read as
+  outside its validity window, and every attestation chain was refused.
+
+  Fail-closed, so nothing unsafe was admitted; the feature simply did not work
+  on a supported version. No local run could have seen it, because a developer
+  machine runs one Node. It took the first CI run on a version matrix.
+
+  Now read through `validFrom` / `validTo`, strings present since Node 15, with
+  an unparseable timestamp treated as outside the window rather than as zero —
+  which would land in 1970 and read correctly for one bound and wrongly for the
+  other. The `asn1` test asserted on the same getters, so it passed locally
+  while the code it covered was broken.
+
+- **The repository could not be typechecked from a clean checkout.** CI ran
+  Typecheck before Build, and the workspace packages resolve each other through
+  `main` and `types`, which point into `dist/`. Measured from a genuinely clean
+  tree: 227 errors.
+
+  It passed everywhere until CI first ran, because every machine that had built
+  once had a stale `dist/` — including mine, for this whole project. The
+  founding complaint about the predecessor was a release that could not be
+  built from a clean checkout; being unable to typecheck from one is the same
+  failure wearing a different hat.
+
+  `npm run clean` was part of why it stayed hidden: `rimraf packages/*/dist`
+  needs the shell to expand the glob, which cmd.exe does not, so on Windows it
+  removed nothing. Now `rimraf --glob`, and verified to actually delete.
+
 - **Two CI gates had stopped covering what they were written to cover.**
 
   The adapter guard — which asserts a framework adapter imports nothing at
