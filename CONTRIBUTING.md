@@ -119,7 +119,11 @@ Before a first public release:
 - [ ] Claim the `@ninsho` scope — it was unclaimed as of 2026-08-31, which is
       not guaranteed to last
 - [ ] `npm publish --dry-run` and check the file list
-- [ ] Verify `npm ci && npm run build && npm run test` on a clean checkout
+- [x] Verify `npm ci && npm run build && npm run test` on a clean checkout.
+      Done from a fresh `git clone` of the published repository, not from a
+      working directory that had already built — which is the distinction that
+      matters, and the one that hid a 227-error typecheck failure until CI
+      first ran
 - [x] Confirm CI is green — not assumed green. Verified on run 34026987586:
       all five jobs, Node 20 and 22, against real Redis. Getting there found
       three real defects — see the CHANGELOG entries for the clean-checkout
