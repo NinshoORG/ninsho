@@ -440,3 +440,78 @@ describe('revocation', () => {
     expect(store.size()).toBeLessThan(before);
   });
 });
+
+/**
+ * A key set that cannot verify its own signature.
+ *
+ * Both halves parse independently and both are Ed25519, so pasting the private
+ * key of one pair beside the public key of another constructs happily — and
+ * then the process signs every token with one key and verifies with the other.
+ * Every request answers `TOKEN_INVALID`, which reads as a token problem and
+ * sends whoever is debugging it to look at sessions, cookies and clocks rather
+ * than at the two lines of configuration that are wrong.
+ */
+describe('the active key pair must be a pair', () => {
+  it('refuses halves from different pairs', () => {
+    const a = generateKeyPair('k1');
+    const b = generateKeyPair('k2');
+
+    expect(
+      () => new KeyRing({ active: { kid: 'k1', privateKey: a.privateKey, publicKey: b.publicKey } }),
+    ).toThrow(/not two halves of the same key pair/);
+  });
+
+  it('accepts a genuine pair', () => {
+    const key = generateKeyPair('k1');
+    expect(() => new KeyRing({ active: key })).not.toThrow();
+  });
+
+  it('names the failure as configuration rather than as a token problem', () => {
+    // The whole point: the message has to send someone to the right file.
+    const a = generateKeyPair('k1');
+    const b = generateKeyPair('k2');
+
+    let message = '';
+    try {
+      new KeyRing({ active: { kid: 'k1', privateKey: a.privateKey, publicKey: b.publicKey } });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toContain('keys.active.privateKey');
+    expect(message).toContain('keys.active.publicKey');
+  });
+
+  it('does not check previous keys, which have no private half to check', () => {
+    // `previous` entries are typed as `VerificationKey` — a kid and a public
+    // key, nothing to round trip against. Asserted so the absence of a check
+    // reads as a consequence of the shape rather than an oversight.
+    const active = generateKeyPair('k2');
+    const retired = generateKeyPair('k1');
+
+    expect(
+      () => new KeyRing({ active, previous: [{ kid: 'k1', publicKey: retired.publicKey }] }),
+    ).not.toThrow();
+  });
+
+  it('still signs and verifies its own tokens after the check', async () => {
+    // The check must not disturb the key material it probes.
+    const ring = new KeyRing({ active: generateKeyPair('k1') });
+    const store = new MemoryStore();
+    const engine = new PasetoEngine(store, ring, {
+      accessTokenTtl: 300,
+      clockToleranceSeconds: 5,
+      issuer: 'https://example.test',
+      audience: 'api',
+    });
+
+    const issued = await engine.issue({
+      principal: { userId: 'u', roles: [], scopes: [] },
+      sessionId: 's',
+      authenticatedAt: new Date().toISOString(),
+    });
+
+    await expect(engine.verify(issued.token)).resolves.toMatchObject({ userId: 'u' });
+    await store.close();
+  });
+});

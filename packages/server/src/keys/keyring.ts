@@ -2,6 +2,8 @@ import {
   createPrivateKey,
   createPublicKey,
   generateKeyPairSync,
+  sign,
+  verify,
   type KeyObject,
 } from 'node:crypto';
 import { KeyError, type KeySet, type SigningKey } from '@ninsho/core';
@@ -156,7 +158,9 @@ export class KeyRing {
 
     this.#signingKid = active.kid;
     this.#privateKey = loadPrivateKey(active.privateKey, 'keys.active.privateKey');
-    this.#publicKeys.set(active.kid, loadPublicKey(active.publicKey, 'keys.active.publicKey'));
+    const activePublic = loadPublicKey(active.publicKey, 'keys.active.publicKey');
+    KeyRing.#assertPair(this.#privateKey, activePublic);
+    this.#publicKeys.set(active.kid, activePublic);
 
     for (const [index, previous] of (keySet.previous ?? []).entries()) {
       const field = `keys.previous[${index}]`;
@@ -170,6 +174,43 @@ export class KeyRing {
         );
       }
       this.#publicKeys.set(previous.kid, loadPublicKey(previous.publicKey, `${field}.publicKey`));
+    }
+  }
+
+  /**
+   * Checks that the active key's two halves belong to each other.
+   *
+   * ─── Why this is worth a signature at startup ─────────────────────────────
+   * Both halves parse independently and both are the right algorithm, so
+   * pasting the private key of one pair beside the public key of another
+   * constructs perfectly happily. What follows is worse than a crash: the
+   * process signs every token with one key and verifies with the other, so
+   * *every token it issues fails its own verification*. Every request answers
+   * `TOKEN_INVALID`, which reads as a token problem — and sends whoever is
+   * debugging it to look at sessions, cookies and clocks rather than at the
+   * two lines of configuration that are actually wrong.
+   *
+   * The check costs one Ed25519 sign and verify, once, at construction. This
+   * project already refuses to start rather than run misconfigured elsewhere;
+   * a key set that cannot verify its own signature belongs on that list.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  static #assertPair(privateKey: KeyObject, publicKey: KeyObject): void {
+    const probe = Buffer.from('ninsho keyring self-check');
+
+    let matches: boolean;
+    try {
+      matches = verify(null, probe, publicKey, sign(null, probe, privateKey));
+    } catch {
+      matches = false;
+    }
+
+    if (!matches) {
+      throw new KeyError(
+        'keys.active.privateKey and keys.active.publicKey are not two halves of the same ' +
+          'key pair. Signing with one and verifying with the other means every token this ' +
+          'process issues would be rejected by it.',
+      );
     }
   }
 

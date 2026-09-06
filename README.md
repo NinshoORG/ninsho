@@ -72,6 +72,7 @@ Every claim below links to executable proof.
 | Non-canonical base64url is rejected | `b64uDecode` re-encode check | `paseto-v4.test.ts` › *rejects non-canonical base64url* |
 | Tokens are scoped by issuer and audience | `PasetoEngine.verify` | `paseto-engine.test.ts` › *issuer and audience scoping* |
 | Key rotation forces no sign-outs | `KeyRing` overlap window | `paseto-engine.test.ts` › *key rotation* |
+| A key set that cannot verify its own signature refuses to start | sign/verify self-check at construction | `paseto-engine.test.ts` › *the active key pair must be a pair* |
 | A forged `kid` cannot select an attacker's key | signature check after key lookup | `paseto-engine.test.ts` › *does not let a swapped kid select an attacker-chosen key* |
 | The session layer is genuinely strategy-agnostic | one `TokenEngine` seam | `session.test.ts` › *session layer over the paseto engine* |
 | **Ownership checks close the BOLA gap** | `requireOwner()` | `middleware.test.ts` › *requireOwner* |
@@ -168,7 +169,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,972 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
+1,977 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```

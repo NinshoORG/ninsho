@@ -767,6 +767,31 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A mismatched key pair started fine and rejected every token it issued.**
+  `KeyRing` loaded `keys.active.privateKey` and `keys.active.publicKey`
+  independently. Both parse on their own and both are Ed25519, so pasting the
+  private key of one pair beside the public key of another constructed
+  perfectly happily.
+
+  What followed was worse than a crash. The process signed every token with one
+  key and verified with the other, so **every token it issued failed its own
+  verification** — measured, not inferred. Every request answers
+  `TOKEN_INVALID`, which reads as a token problem and sends whoever is
+  debugging it to look at sessions, cookies and clocks rather than at the two
+  lines of configuration that are actually wrong.
+
+  The constructor now signs a probe and verifies it with the paired public key,
+  and refuses the key set if that fails, naming both fields. One Ed25519 sign
+  and verify, once, at startup. This project already refuses to start rather
+  than run misconfigured — `trustProxy` has no default, `MemoryStore` refuses
+  production — and a key set that cannot verify its own signature belongs on
+  that list.
+
+  `previous` keys are not checked, because they are typed as
+  `VerificationKey` and carry no private half to check against. There is a test
+  asserting that, so the absence reads as a consequence of the shape rather
+  than an oversight.
+
 - **A malformed cookie produced a 500 on the refresh route.**
   `readCookie` in `examples/express-api` called `decodeURIComponent` on the
   cookie value without a guard. That function throws a `URIError` on a
