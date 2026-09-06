@@ -58,9 +58,8 @@ jobs:
       # import it fails — 227 errors from a genuinely clean checkout, measured.
       #
       # Typecheck used to run first and passed anyway on any machine that had
-      # built before, which is every developer machine and was every CI run
-      # until this workflow was first executed. The project's founding
-      # complaint about its predecessor was a release that could not be built
+      # built before, which is every developer machine. The founding complaint
+      # about this project's predecessor was a release that could not be built
       # from a clean checkout; being unable to *typecheck* from one is the same
       # failure wearing a different hat.
       - name: Build
@@ -116,6 +115,22 @@ jobs:
 
       # Catches the case where a manifest changed but the lockfile was not
       # regenerated — the exact mistake that shipped a broken release before.
+      # ─── The npm doing the regenerating has to be the npm that wrote it ──
+      # npm 10 and npm 11 disagree about `"peer": true` markers: 11 writes
+      # them, 10 strips them. Node 20 ships npm 10 and Node 24 ships npm 11, so
+      # without pinning, this gate fails for whichever npm did not write the
+      # committed file — and it fails on a difference that means nothing about
+      # the dependency tree.
+      #
+      # Diagnosed by regenerating the committed lockfile under both and
+      # diffing: the only changes were `"peer": true` lines.
+      #
+      # A gate that cannot pass gets disabled, and a disabled gate is how a
+      # lockfile drifts out of sync unnoticed — which is the thing this job
+      # exists to catch.
+      - name: Pin the npm the lockfile was written with
+        run: npm install -g npm@11
+
       - name: Regenerate lockfile and assert no drift
         run: |
           npm install --package-lock-only
@@ -133,9 +148,6 @@ jobs:
           cache: npm
       - run: npm ci
 
-      # Gated at moderate. One low advisory is currently accepted and tracked:
-      # GHSA-g7r4-m6w7-qqqr in esbuild, reachable only through `esbuild serve`,
-      # which nothing in this repo invokes — tsup uses esbuild as a bundler API.
       # ─── Two audits, because they answer different questions ─────────────
       # The one that gates the build is the one a consumer experiences: install
       # a published package and see what comes with it. `core`, `client` and
@@ -145,16 +157,15 @@ jobs:
       # exists to prevent.
       #
       # The whole-workspace audit is reported and does not gate, because it
-      # includes build tooling and the two examples. Those pull in Express 4,
-      # whose pinned `qs` currently carries moderate advisories — and no
-      # override crosses Express 4's `~6.15.1` range, so the real fix is
-      # Express 5, which changes the framework the copy-me example targets and
-      # is a decision rather than a patch. Nothing there ships to anyone.
+      # covers build tooling and the two examples. Those pull in Express 4,
+      # whose pinned `qs` carries moderate advisories — and no override syntax
+      # crosses Express 4's `~6.15.1` range, so the real fix is Express 5,
+      # which changes the framework the copy-me example targets and is a
+      # decision rather than a patch. Nothing there ships to anyone.
       #
       # Gating on it anyway would mean a devDependency advisory blocking a
-      # release of packages it cannot reach, and the predictable outcome of
-      # that is somebody raising the threshold until the gate stops meaning
-      # anything.
+      # release of packages it cannot reach, and the predictable end of that is
+      # somebody raising the threshold until the gate stops meaning anything.
       - name: Audit what consumers install
         run: |
           set -e
@@ -167,6 +178,30 @@ jobs:
       - name: Audit the whole workspace (informational)
         continue-on-error: true
         run: npm audit --audit-level=moderate
+
+  bundle:
+    name: Bundle purity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # REGRESSION GATE (audit finding C2)
+      # The predecessor bundled `ioredis-mock` — a devDependency — into its
+      # published artifact, and gated the real store behind a USE_REDIS_MOCK
+      # environment variable that shipped to production. Both are banned here,
+      # and the ban is enforced rather than documented.
+      #
+      # `MemoryStore` is deliberately NOT on this list. It is a supported
+      # export that belongs in the bundle; what made the old mock dangerous was
+      # that an environment variable selected it silently. MemoryStore must be
+      # named explicitly by the caller and refuses to construct under
+      # NODE_ENV=production — enforced by unit test, not by this grep.
       - name: Assert no test doubles or env kill-switches in dist
         run: |
           set -e

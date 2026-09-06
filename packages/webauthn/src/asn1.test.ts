@@ -187,8 +187,12 @@ describe('the generated certificates are real certificates', () => {
     });
     const parsed = new X509Certificate(Buffer.from(cert.der));
 
-    expect(parsed.validFromDate.getUTCFullYear()).toBe(2021);
-    expect(parsed.validToDate.getUTCFullYear()).toBe(2031);
+    // Read through the string form, which every supported Node has.
+    // `validFromDate` and `validToDate` arrived in Node 22.10, and asserting
+    // on them here passed locally while the library's own use of them was
+    // silently rejecting every certificate on Node 20.
+    expect(new Date(parsed.validFrom).getUTCFullYear()).toBe(2021);
+    expect(new Date(parsed.validTo).getUTCFullYear()).toBe(2031);
   });
 });
 

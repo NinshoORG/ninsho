@@ -279,9 +279,35 @@ export function chainReachesAnchor(
   chain: X509Certificate[],
   anchors: X509Certificate[],
 ): boolean {
-  const now = new Date();
-  const valid = (cert: X509Certificate): boolean =>
-    cert.validFromDate <= now && now <= cert.validToDate;
+  const now = Date.now();
+
+  /**
+   * Whether a certificate is inside its validity window.
+   *
+   * ─── Why this does not use `validFromDate` ────────────────────────────────
+   * Those getters arrived in Node 22.10. This package declares `engines:
+   * >=20`, and on Node 20 they are simply `undefined` — so
+   * `undefined <= now` is `false`, every certificate reads as invalid, and
+   * *every attestation chain is rejected*. Fail-closed, so nothing unsafe was
+   * ever admitted, but the whole feature was inert on a version the package
+   * says it supports.
+   *
+   * Nothing local caught it, because a developer machine runs one Node. It
+   * took a version matrix in CI.
+   *
+   * `validFrom` and `validTo` are strings and have been there since Node 15.
+   * A timestamp that will not parse is treated as outside the window rather
+   * than as zero, which would put it in 1970 and read as expired for
+   * `validFrom` but *also* expired for `validTo` — right by accident in one
+   * direction and wrong in the other.
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  const valid = (cert: X509Certificate): boolean => {
+    const from = Date.parse(cert.validFrom);
+    const to = Date.parse(cert.validTo);
+    if (Number.isNaN(from) || Number.isNaN(to)) return false;
+    return from <= now && now <= to;
+  };
 
   let current: X509Certificate | undefined = chain[0];
   if (current === undefined || !valid(current)) return false;
