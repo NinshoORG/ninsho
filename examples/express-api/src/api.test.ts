@@ -609,3 +609,50 @@ describe('a repeated Authorization header', () => {
     ).resolves.toBe(401);
   });
 });
+
+/**
+ * The cookie header is attacker-supplied, and this file is the one people are
+ * told to copy. A crash here would be copied with it.
+ */
+describe('a malformed refresh cookie', () => {
+  it.each([
+    ['a bare percent', 'ninsho_rt=%'],
+    ['a truncated escape', 'ninsho_rt=%E0%A4%'],
+    ['a non-hex escape', 'ninsho_rt=%zz'],
+    ['an escape at the very end', 'ninsho_rt=abc%'],
+  ])('is refused as a bad credential, not a server fault — %s', async (_label, cookie) => {
+    // REGRESSION. `decodeURIComponent` throws a `URIError` on any of these,
+    // and the unguarded call turned each into a 500 on the refresh route. A
+    // value that cannot be decoded is not a credential; it reads as absent.
+    const res = await fetch(`${baseUrl}/auth/refresh`, { method: 'POST', headers: { cookie } });
+
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('REFRESH_INVALID');
+  });
+
+  it('answers a malformed cookie exactly as it answers no cookie', async () => {
+    // Two ways of presenting nothing should be indistinguishable, or the
+    // difference is something to probe.
+    const malformed = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { cookie: 'ninsho_rt=%' },
+    });
+    const absent = await fetch(`${baseUrl}/auth/refresh`, { method: 'POST' });
+
+    expect(malformed.status).toBe(absent.status);
+    expect(await malformed.json()).toEqual(await absent.json());
+  });
+
+  it('still finds a valid cookie beside a malformed one', async () => {
+    // The guard returns early for the named cookie, so it must not be reached
+    // by an unrelated broken value earlier in the header.
+    const alice = await register('cookie-neighbour@example.com');
+    const res = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { cookie: `junk=%; ${alice.cookie}` },
+    });
+
+    expect(res.status).toBe(200);
+  });
+});

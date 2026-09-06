@@ -113,7 +113,7 @@ established. Owning credential verification would mean owning your user model.
 npm run test --workspace @ninsho/example-express-api
 ```
 
-94 end-to-end tests over real HTTP. They exist to catch what unit tests
+100 end-to-end tests over real HTTP. They exist to catch what unit tests
 structurally cannot — a middleware mounted in the wrong order, a cookie flag
 that never reaches the wire, an error mapped to the wrong status by the
 framework.

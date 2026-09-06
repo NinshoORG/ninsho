@@ -767,6 +767,22 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A malformed cookie produced a 500 on the refresh route.**
+  `readCookie` in `examples/express-api` called `decodeURIComponent` on the
+  cookie value without a guard. That function throws a `URIError` on a
+  malformed escape, so `Cookie: ninsho_rt=%` — or a truncated `%E0%A4%`, or
+  `%zz` — answered 500 where it should have answered 401.
+
+  Measured, not inferred: three malformed values, three 500s, against a valid
+  one answering 401.
+
+  Not an account takeover, but it is an uncontrolled exception on the untrusted
+  path in the file whose README says to copy it, so the crash would be copied
+  too — and two ways of presenting nothing answering differently is a
+  distinguishable response worth probing. A value that cannot be decoded is not
+  a credential and now reads as absent, which is the same answer as no cookie
+  at all.
+
 - **A key on the wrong curve described itself as P-256.** `describeKey` read
   only the coordinates out of the exported JWK and wrote `kty` and `crv` in as
   constants. A key on P-384 or P-521 therefore produced a JWK claiming P-256 —

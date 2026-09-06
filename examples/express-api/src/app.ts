@@ -80,8 +80,20 @@ function readCookie(req: Request, name: string): string | undefined {
   for (const part of header.split(';')) {
     const index = part.indexOf('=');
     if (index === -1) continue;
-    if (part.slice(0, index).trim() === name) {
+    if (part.slice(0, index).trim() !== name) continue;
+
+    // `decodeURIComponent` throws a `URIError` on a malformed escape — a bare
+    // `%`, or a truncated `%E0%A4%`. The cookie header is attacker-supplied,
+    // and an unguarded call here turned `Cookie: ninsho_rt=%` into a 500 on
+    // the refresh route rather than the 401 it should be.
+    //
+    // A value that cannot be decoded is not a credential, so it reads as
+    // absent. That is the same answer as no cookie at all, which is what a
+    // caller presenting nonsense deserves.
+    try {
       return decodeURIComponent(part.slice(index + 1).trim());
+    } catch {
+      return undefined;
     }
   }
   return undefined;
