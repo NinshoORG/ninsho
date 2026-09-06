@@ -14,17 +14,44 @@ near zero. They are not throughput figures for a deployed system.
 
 | Operation | ops/sec | mean | p95 | p99 |
 | :--- | ---: | ---: | ---: | ---: |
-| `ratelimit: consume` (2 buckets) | 144,709 | 0.007ms | 0.008ms | 0.017ms |
-| `opaque: verify` (hot path) | 122,934 | 0.008ms | 0.011ms | 0.027ms |
-| `opaque: issue` | 52,485 | 0.019ms | 0.032ms | 0.051ms |
-| `session: create` | 23,600 | 0.042ms | 0.065ms | 0.111ms |
-| `session: refresh` (rotation) | 18,490 | 0.054ms | 0.092ms | 0.135ms |
-| `paseto: issue` (Ed25519 sign) | 16,769 | 0.060ms | 0.092ms | 0.125ms |
-| `paseto: verify` (Ed25519) | 8,116 | 0.123ms | 0.182ms | 0.235ms |
-| `paseto: verify` (no store check) | 8,144 | 0.123ms | 0.178ms | 0.247ms |
+| `ratelimit: consume` (2 buckets) | 159,125 | 0.006ms | 0.007ms | 0.023ms |
+| `opaque: verify` (hot path) | 110,355 | 0.009ms | 0.013ms | 0.025ms |
+| `opaque: issue` | 49,266 | 0.020ms | 0.034ms | 0.059ms |
+| `session: create` | 25,387 | 0.039ms | 0.052ms | 0.092ms |
+| `session: refresh` (rotation) | 16,512 | 0.061ms | 0.083ms | 0.136ms |
+| `paseto: issue` (Ed25519 sign) | 15,105 | 0.066ms | 0.103ms | 0.149ms |
+| `paseto: verify` (no store check) | 8,318 | 0.120ms | 0.147ms | 0.210ms |
+| `paseto: verify` (Ed25519) | 8,001 | 0.125ms | 0.160ms | 0.222ms |
 
 p99 is reported because it, not the mean, is what shows up as user-visible
 slowness under load on an auth endpoint.
+
+## The same operations against a real store
+
+Local Redis over loopback — the best case a network gives you, and still two to
+three orders of magnitude slower than the table above.
+
+| Operation | ops/sec | mean | p95 | p99 |
+| :--- | ---: | ---: | ---: | ---: |
+| `paseto: verify` (no store check) | 7,437 | 0.134ms | 0.163ms | 0.228ms |
+| `opaque: verify` (hot path) | 2,805 | 0.356ms | 0.414ms | 0.473ms |
+| `paseto: issue` (Ed25519 sign) | 2,102 | 0.476ms | 0.658ms | 0.954ms |
+| `paseto: verify` (Ed25519) | 1,816 | 0.551ms | 0.709ms | 0.938ms |
+| `ratelimit: consume` (2 buckets) | 1,141 | 0.876ms | 0.991ms | 1.153ms |
+| `opaque: issue` | 837 | 1.195ms | 1.684ms | 2.365ms |
+| `session: create` | 359 | 2.782ms | 3.542ms | 5.487ms |
+| `session: refresh` (rotation) | 211 | 4.734ms | 5.448ms | 8.107ms |
+
+This is the table to reason about, and the first one is the table to reason
+about *changes* with. Every figure here is round trips: `session: refresh`
+issues several commands, so it lands near 5ms on a loopback Redis and would be
+worse across a network. Nothing in the library's own cost is visible at this
+scale.
+
+The one row worth pausing on is `paseto: verify (no store check)` at 7,437 —
+four times the store-checked figure, because it is the only operation that
+never leaves the process. That is the real shape of the stateless trade-off,
+and the section below is about why it still usually is not worth taking.
 
 ## What the numbers say
 
@@ -41,8 +68,10 @@ wide margin for the deployment most people have.
 ### Statelessness buys almost nothing on a single application
 
 `paseto: verify` and `paseto: verify (no store check)` are within noise of each
-other — 8,116 vs 8,144 ops/sec. Removing the revocation lookup entirely does not
-measurably help, because Ed25519 verification dominates.
+other — 8,001 vs 8,318 ops/sec. Removing the revocation lookup entirely does not
+measurably help against `MemoryStore`, because Ed25519 verification dominates.
+Against Redis the gap is real (1,816 vs 7,437), and it is a network round trip
+rather than anything this library does.
 
 That is the case against reaching for stateless tokens by reflex. Their appeal
 is avoiding a round trip, and here the round trip is not what costs. PASETO
@@ -62,7 +91,7 @@ nothing meaningful to win.
 
 ### Rate limiting is effectively free
 
-144,709 ops/sec for both buckets, which is why the per-account dimension is
+159,125 ops/sec for both buckets, which is why the per-account dimension is
 always consumed rather than skipped when the per-IP bucket has already refused.
 Keeping counters consistent costs nothing worth optimising away, and skipping
 would let an attacker keep their account counter low by tripping the IP one
@@ -75,13 +104,13 @@ these measure verification rather than the authenticator.
 
 | Operation | ops/sec | mean | p95 | p99 |
 | :--- | ---: | ---: | ---: | ---: |
-| `cbor: decode` (COSE key) | 781,616 | 0.001ms | 0.002ms | 0.014ms |
-| `cose: importCoseKey` | 13,676 | 0.073ms | 0.118ms | 0.169ms |
-| `register: verify` (none) | 4,512 | 0.222ms | 0.322ms | 0.632ms |
-| `authenticate: verify` (RS256) | 3,766 | 0.266ms | 0.364ms | 0.611ms |
-| `authenticate: verify` (EdDSA) | 3,122 | 0.320ms | 0.468ms | 0.731ms |
-| `authenticate: verify` (ES256) | 2,704 | 0.370ms | 0.570ms | 1.065ms |
-| `register: verify` (packed + chain) | 1,779 | 0.562ms | 0.935ms | 1.281ms |
+| `cbor: decode` (COSE key) | 688,610 | 0.001ms | 0.003ms | 0.008ms |
+| `cose: importCoseKey` | 14,162 | 0.071ms | 0.096ms | 0.133ms |
+| `register: verify` (none) | 4,970 | 0.201ms | 0.242ms | 0.279ms |
+| `authenticate: verify` (RS256) | 3,959 | 0.253ms | 0.315ms | 0.605ms |
+| `authenticate: verify` (EdDSA) | 3,190 | 0.313ms | 0.393ms | 0.564ms |
+| `authenticate: verify` (ES256) | 2,657 | 0.376ms | 0.486ms | 0.954ms |
+| `register: verify` (packed + chain) | 1,845 | 0.542ms | 0.658ms | 0.925ms |
 
 ```bash
 npm run bench --workspace @ninsho/webauthn
@@ -90,15 +119,22 @@ npm run bench --workspace @ninsho/webauthn
 ### These are per sign-in, not per request
 
 A ceremony happens once when a session starts. `opaque: verify` above runs on
-*every* authenticated call and is 30–45× faster. In practice a ceremony is
+*every* authenticated call and is 22–41× faster. In practice a ceremony is
 dominated by the user's finger reaching the sensor, not by any of this.
 
 ### Attestation roughly halves registration throughput
 
-4,512 → 1,779 ops/sec, about 0.34ms extra. That is certificate chain
+4,970 → 1,845 ops/sec, about 0.34ms extra. That is certificate chain
 verification — signature checks up the chain, validity windows, the AAGUID
 extension lookup — and it is the honest price of knowing which hardware a
 credential lives on.
+
+The figure is for `packed`. The other formats do more or less the same work
+plus their own binding check: `tpm` parses two extra structures and hashes
+them, `android-key` reads one certificate extension, `android-safetynet`
+verifies an RSA signature over a JWS. None of them changes the order of
+magnitude, and none is benchmarked here — measuring six formats to report the
+same conclusion six times would be padding rather than evidence.
 
 It is paid once per credential, ever. If you need approved-hardware enrolment,
 0.34ms is not the reason to skip it; if you do not need it, the default already
@@ -117,7 +153,7 @@ modern passkey uses them.
 
 ### CBOR decoding is free
 
-781,616 ops/sec, roughly a microsecond. That matters because the decoder is the
+688,610 ops/sec, roughly a microsecond. That matters because the decoder is the
 one piece an unauthenticated caller can reach with arbitrary bytes — the guards
 on it (bounds checks before allocation, a nesting limit, no indefinite lengths)
 cost nothing measurable, so there is no tension between being strict and being

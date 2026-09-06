@@ -708,6 +708,27 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The benchmarks had not run since step-up auth landed.** `issue()` gained a
+  required `authenticatedAt`, `bench.ts` kept calling it the old way, and the
+  script threw on its first `verify` — "stored access record is malformed" —
+  for weeks.
+
+  Nothing caught it because nothing ran it. Meanwhile PERFORMANCE.md carried
+  the figures it had produced before the break, presented as current, which is
+  the same failure this project was rebuilt to avoid: a claim outliving its
+  evidence.
+
+  Fixed, re-measured, and PERFORMANCE.md updated throughout. Both benchmark
+  scripts now run in CI — not as a performance gate, which would be flaky on
+  shared runners, but as a check that the documented figures can still be
+  reproduced by the command the documentation tells you to run.
+
+  The refresh also adds a table nobody had published: the same operations
+  against a real Redis. `session: refresh` is 16,512/sec against `MemoryStore`
+  and **211/sec** across loopback Redis. The first table measures this
+  library; the second measures what a deployment actually experiences, and the
+  distance between them is the honest answer to "how fast is it".
+
 - **A repeated `Authorization` header was accepted, not refused.** The README
   claimed ambiguous duplicates were rejected, and the code had a check for it.
   The check could not fire.

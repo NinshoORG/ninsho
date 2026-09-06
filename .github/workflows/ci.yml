@@ -63,6 +63,22 @@ jobs:
         env:
           REDIS_URL: redis://localhost:6379
 
+      # PERFORMANCE.md publishes figures these scripts produce, and nothing was
+      # running them. `issue()` gained a required field when step-up auth
+      # landed, the benchmark kept calling it the old way, and the script threw
+      # on its first verify for weeks without anyone noticing — while the
+      # numbers it had produced stayed in the documentation looking current.
+      #
+      # Running them here is not a performance gate. It is a check that the
+      # documented figures can still be reproduced by the command the
+      # documentation tells you to run.
+      - name: Benchmarks still run
+        run: |
+          npm run bench --workspace @ninsho/server
+          npm run bench --workspace @ninsho/webauthn
+        env:
+          REDIS_URL: redis://localhost:6379
+
       # Guards against the RedisStore contract silently skipping. The suite is
       # designed to skip without REDIS_URL so it stays runnable locally; that
       # convenience must not quietly turn into "Redis is never tested in CI".

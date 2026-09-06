@@ -44,6 +44,15 @@ const PRINCIPAL: Principal = {
   scopes: ['orders:read'],
 };
 
+/**
+ * When the benchmarked principal authenticated.
+ *
+ * Required since step-up auth landed, and its absence is what silently broke
+ * this script: `issue` wrote a record without it, `verify` refused the record
+ * as malformed, and nothing ran the benchmark often enough to notice.
+ */
+const AUTHENTICATED_AT = new Date().toISOString();
+
 interface Result {
   readonly name: string;
   readonly opsPerSecond: number;
@@ -114,12 +123,23 @@ async function runSuite(store: NinshoStore, label: string, iterations: number): 
   results.push(
     await measure(
       'opaque: issue',
-      () => opaque.issue({ principal: PRINCIPAL, sessionId: 'sess_bench' }),
+      () =>
+        opaque.issue({
+          principal: PRINCIPAL,
+          sessionId: 'sess_bench',
+          authenticatedAt: AUTHENTICATED_AT,
+        }),
       iterations,
     ),
   );
 
-  const opaqueToken = (await opaque.issue({ principal: PRINCIPAL, sessionId: 'sess_verify' })).token;
+  const opaqueToken = (
+    await opaque.issue({
+      principal: PRINCIPAL,
+      sessionId: 'sess_verify',
+      authenticatedAt: AUTHENTICATED_AT,
+    })
+  ).token;
   results.push(
     await measure('opaque: verify (hot path)', () => opaque.verify(opaqueToken), iterations),
   );
@@ -136,12 +156,23 @@ async function runSuite(store: NinshoStore, label: string, iterations: number): 
   results.push(
     await measure(
       'paseto: issue (Ed25519 sign)',
-      () => paseto.issue({ principal: PRINCIPAL, sessionId: 'sess_bench' }),
+      () =>
+        paseto.issue({
+          principal: PRINCIPAL,
+          sessionId: 'sess_bench',
+          authenticatedAt: AUTHENTICATED_AT,
+        }),
       iterations,
     ),
   );
 
-  const pasetoToken = (await paseto.issue({ principal: PRINCIPAL, sessionId: 'sess_verify' })).token;
+  const pasetoToken = (
+    await paseto.issue({
+      principal: PRINCIPAL,
+      sessionId: 'sess_verify',
+      authenticatedAt: AUTHENTICATED_AT,
+    })
+  ).token;
   results.push(
     await measure('paseto: verify (Ed25519)', () => paseto.verify(pasetoToken), iterations),
   );
