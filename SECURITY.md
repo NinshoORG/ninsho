@@ -154,6 +154,36 @@ authorization data inside a `Principal`.
 Stated plainly, because a limitation you know about is manageable and one you
 have been reassured about is not.
 
+### Account enumeration by timing on the reset endpoint
+
+`/auth/password/forgot` in `examples/express-api` answers identically whether or
+not an address has an account — same status, same body, tested. It does not
+answer in identical *time*: a known address costs a one-time-token write that an
+unknown one does not.
+
+Measured rather than assumed. 120 samples each, medians:
+
+| Store | Known address | Unknown address | Difference |
+| :--- | ---: | ---: | ---: |
+| `MemoryStore` | 1.267ms | 1.219ms | 4% |
+| Redis (loopback) | 3.580ms | 3.449ms | 4% |
+
+Four percent, and the rate limiter's own store round trips are most of what is
+being measured either way. What makes the oracle impractical is not that
+difference but the limit in front of it: three requests per address per hour,
+ten per source address. Distinguishing a 4% difference over a network at three
+samples an hour is not a practical attack.
+
+It is stated here rather than equalised because the equalisation would be worse
+than the problem: issuing a token for an address with no account means writing
+a record for every probe, which is a storage amplification bounded only by the
+same rate limit that already closes the gap. The login route *does* equalise,
+with a dummy hash — the difference is that a password hash is ~100ms and
+dominates the response, so there the leak would be obvious rather than marginal.
+
+If you copy this example and remove the rate limiter, you have removed the
+defence rather than an inconvenience.
+
 ### A repeated Authorization header is not caught on Hono
 
 Node's HTTP server keeps the first `Authorization` header it receives and

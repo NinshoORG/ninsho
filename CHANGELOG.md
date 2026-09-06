@@ -767,6 +767,21 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The dist guard names the whole fixture surface, not the part of it that
+  existed when the guard was written.** CI greps the built verifier bundle for
+  test-only symbols, because the predecessor shipped `ioredis-mock` in its
+  published artifact. The list was `VirtualAuthenticator` and `encodeCbor`.
+
+  Verifying `tpm`, `android-key`, `android-safetynet` and the metadata service
+  has since added a certificate builder, TPM structure builders and a
+  signed-BLOB builder, none of which were covered. `createCertificate` leaking
+  would have been the most alarming of them: a certificate minting function
+  shipped to applications that only wanted to check one.
+
+  Nothing had leaked — checked before extending the list, and all nine symbols
+  are absent from both the ESM and CJS bundles. The gate now covers what it is
+  supposed to be gating.
+
 - **A mismatched key pair started fine and rejected every token it issued.**
   `KeyRing` loaded `keys.active.privateKey` and `keys.active.publicKey`
   independently. Both parse on their own and both are Ed25519, so pasting the

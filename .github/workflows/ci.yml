@@ -303,10 +303,27 @@ jobs:
 
       # It must also stay out of the main entry point, so an application that
       # only imports the verifier never carries it.
+      #
+      # The list grew with the fixture surface. `VirtualAuthenticator` and
+      # `encodeCbor` were the whole of it when the guard was written; verifying
+      # `tpm`, `android-key`, `android-safetynet` and the metadata service
+      # since then added a certificate builder, TPM structure builders and a
+      # signed-BLOB builder. `createCertificate` in a production bundle would
+      # be the most alarming of them — a certificate minting function shipped
+      # to applications that only wanted to check one.
       - name: Assert the virtual authenticator is not in the verifier bundle
         run: |
           set -e
-          for forbidden in "VirtualAuthenticator" "encodeCbor"; do
+          for forbidden in \
+            "VirtualAuthenticator" \
+            "encodeCbor" \
+            "createCertificate" \
+            "createChain" \
+            "buildMetadataBlob" \
+            "buildTpmPublic" \
+            "buildTpmCertInfo" \
+            "buildAuthenticatorData" \
+            "rawToDerSignature"; do
             if grep -qF "$forbidden" packages/webauthn/dist/index.js packages/webauthn/dist/index.cjs; then
               echo "::error::'$forbidden' leaked into the @ninsho/webauthn main bundle."
               exit 1
