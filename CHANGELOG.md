@@ -7,6 +7,42 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **SafetyNet attestation — WebAuthn §8.5.** The last format, and the one that
+  completes WebAuthn L3's attestation coverage: `none`, `packed`, `apple`,
+  `tpm`, `fido-u2f`, `android-key` and `android-safetynet` are all verified,
+  and a format name outside that set is still refused rather than
+  parsed-and-ignored.
+
+  It is also the weakest, and the implementation says so rather than letting
+  the coverage imply otherwise. Every other format is signed by the
+  authenticator or by the hardware holding the key. This one forwards a
+  document *Google* composed about the phone: the signature is Google's, the
+  claims are Google's, and the only thread back to the registration is a nonce.
+  It attests to a **device**, not to where a key lives — so `aaguidVerified`
+  stays `false`, an `allowedAaguids` policy is refused rather than being
+  silently unenforceable, and SECURITY.md now carries a table of what each
+  format actually establishes, because "all seven verified" is the kind of
+  sentence that flattens exactly this distinction.
+
+  What is checked: the nonce equals `SHA-256(authData || clientDataHash)`; the
+  leaf certificate is issued to `attest.android.com`; the JWS signature
+  verifies against it; the chain reaches a root you supply; the response is
+  recent, and not timestamped in the future; and `ctsProfileMatch` is true.
+
+  Two of those deserve their reasoning stated. **`ctsProfileMatch`, not
+  `basicIntegrity`** — a rooted or bootloader-unlocked phone can still report
+  `basicIntegrity: true`, so accepting on that would accept precisely the
+  device the check exists to catch. And **RS256 only**: a JWS header names its
+  own algorithm, which is the shape every algorithm-confusion attack is built
+  on. Google's attestation service signs with RSA, so the allowlist has exactly
+  one entry and the header has nothing left to negotiate.
+
+  24 tests, including the nonce from another ceremony, a certificate issued to
+  another host, a device failing CTS while reporting `basicIntegrity`, a
+  response captured 40 minutes earlier, one timestamped in the future, four
+  algorithm substitutions, and 300 random byte strings in the `response` field
+  asserting that none of them produces anything but a controlled refusal.
+
 - **Android Keystore attestation — WebAuthn §8.4.** Android platform
   authenticators, and the last of the formats that is not deprecated.
 
@@ -45,10 +81,9 @@ This project uses [Semantic Versioning](https://semver.org/).
   rules enforced as everywhere else — and `Tlv` gained a `number` field so a
   caller can tell `[600]` from `[702]` at all.
 
-  With this, `@ninsho/webauthn` verifies `none`, `packed`, `apple`, `tpm`,
-  `fido-u2f` and `android-key`. What remains unimplemented is
-  `android-safetynet`, which rests on an API Google has deprecated, and it is
-  still refused rather than rubber-stamped.
+  With this, `@ninsho/webauthn` verified `none`, `packed`, `apple`, `tpm`,
+  `fido-u2f` and `android-key`; `android-safetynet` followed, and is the entry
+  above.
 
 - **TPM attestation — WebAuthn §8.3.** Windows Hello's path, and the format
   that takes the most care to get right.
@@ -106,8 +141,8 @@ This project uses [Semantic Versioning](https://semver.org/).
   would be true and would send a caller off to add zeroes to their allowlist.
 
   With these two, `@ninsho/webauthn` verified `none`, `packed`, `apple`, `tpm`
-  and `fido-u2f`; `android-key` followed, and is the entry above. Still
-  unimplemented and refused rather than rubber-stamped: `android-safetynet`.
+  and `fido-u2f`; `android-key` and `android-safetynet` followed, and are the
+  entries above.
 
 - **An attestation panel in the playground.** The newest and least intuitive
   part of the library was the part the demonstration site did not show. Pick a
@@ -155,8 +190,8 @@ This project uses [Semantic Versioning](https://semver.org/).
   tracking identifier.
 
   Still unimplemented at the time and refused rather than rubber-stamped:
-  `tpm`, `android-key`, `android-safetynet`, `fido-u2f`. All but
-  `android-safetynet` have since been implemented; see the entries above.
+  `tpm`, `android-key`, `android-safetynet`, `fido-u2f`. All of them have since
+  been implemented; see the entries above.
 
 - **An interactive protocol explorer — `examples/playground`.** The README
   makes claims and each has a test behind it, which is the right evidence for a
@@ -433,8 +468,7 @@ This project uses [Semantic Versioning](https://semver.org/).
 
   Not implemented when `packed` landed, and refused rather than
   rubber-stamped: `tpm`, `android-key`, `android-safetynet`, `apple`,
-  `fido-u2f`. All but `android-safetynet` have since been implemented; see the
-  entries above. No root store ships with the package and FIDO Metadata Service
+  `fido-u2f`. All of them have since been implemented; see the entries above. No root store ships with the package and FIDO Metadata Service
   integration is not implemented — which manufacturers you trust is an
   operational decision, not library content.
 
@@ -615,6 +649,31 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **The test certificate builder emitted invalid DER about once in 512.** A
+  DER INTEGER may not carry a leading zero byte that is not needed for its
+  sign. The builder added the zero when the high bit was set — the half of the
+  rule everyone remembers — but never trimmed one that was already there, and
+  certificate serial numbers are eight random bytes, so roughly one in 256
+  began with a zero and about half of those were then unencodable.
+
+  Measured before the fix: **9 invalid certificates out of 4,000** generated.
+  After: **0 of 4,000.**
+
+  The reason it went unnoticed for so long is the reason it is worth writing
+  down. The failure did not surface in the builder or its tests. It surfaced as
+  `an x5c entry is not a valid certificate` from whichever attestation test
+  happened to draw the unlucky serial that run — a message that reads as the
+  verifier rejecting a chain, which is exactly what a verifier is supposed to
+  do. With a hundred-odd attestation tests each minting two or three
+  certificates, a full run failed somewhere most of the time, and never twice
+  in the same place. It looked like flakiness in the concurrency tests it
+  happened to land near.
+
+  `createCertificate` now takes a `serialNumber`, so the encoding edge cases
+  are exercised on purpose rather than waited for: a leading zero, two leading
+  zeros, a set high bit, a required leading zero before a set high bit, and
+  zero itself. Three consecutive full-suite runs, 1,756 tests each, are clean.
 
 - **A signed-out tab waited out the full rotation-race backoff.** The tombstone
   wait exists so a browser's second tab, having lost a rotation race by

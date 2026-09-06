@@ -109,6 +109,7 @@ Every claim below links to executable proof.
 | The reset endpoint is not an enumeration oracle | identical answer for real and unknown addresses | `password-reset.test.ts` › *it does not reveal which accounts exist* |
 | Refreshing cannot masquerade as re-authenticating | `authenticatedAt` is carried unchanged through rotation | `fresh-auth.test.ts` › *refreshing does not count as authenticating* |
 | A parallel tab is not signed out under real store latency | exponential tombstone backoff, measured against Redis | `store-invariants.test.ts` › *one replacement chain from 100 concurrent callers* |
+| A signed-out tab is refused at once, not after the backoff | revocation leaves a marker in place of the records it deletes | `session.test.ts` › *leaves nothing usable behind* |
 | Sign-out-everywhere scales, with bounded fan-out | `mapConcurrent` | `concurrent-util.test.ts` › *session operations at scale* |
 | One bad session cannot abandon a sweep half-done | per-session isolation in `revokeAllForUser` | `concurrent-util.test.ts` › *completes the sweep even when one session fails* |
 | **A stolen token is useless without the key** | `binding: 'dpop'` (RFC 9449) | `dpop-integration.test.ts` › *a stolen token is useless without the key* |
@@ -134,19 +135,32 @@ Every claim below links to executable proof.
 | CBOR decoding matches the specification | RFC 8949 Appendix A vectors | `cbor.test.ts` |
 | DER signature conversion matches OpenSSL | differential: OpenSSL signs, WebCrypto verifies | `der.test.ts` › *converts 200 OpenSSL P-256 signatures* |
 | **Approved-hardware-only enrolment** | `packed` attestation, chain verified to your roots | `attestation.test.ts` › *enforces an AAGUID allowlist* |
+| **Every attestation format WebAuthn defines is verified** | `packed`, `apple`, `tpm`, `fido-u2f`, `android-key`, `android-safetynet` | `attestation.test.ts` — 110 tests |
 | Touch ID and Face ID attestation | `apple` — the ceremony nonce is carried in the certificate | `attestation.test.ts` › *apple attestation* |
 | An Apple certificate cannot vouch for someone else's key | subject key must equal the credential key | `attestation.test.ts` › *refuses a certificate whose subject key is not the credential key* |
-| A self-signed CA cannot forge attestation | trust anchors are mandatory | `attestation.test.ts` › *refuses a chain that does not reach a configured root* |
+| **Windows Hello attestation** | `tpm` — `certInfo.extraData` binds the ceremony, `attested.name` binds the key | `attestation.test.ts` › *tpm attestation* |
+| A TPM cannot vouch for a key it never certified | `pubArea` must describe the credential key | `attestation.test.ts` › *refuses a pubArea describing a key that is not the credential* |
+| A TPM name cannot rest on SHA-1 | SHA-1 `nameAlg` refused outright | `attestation.test.ts` › *refuses a SHA-1 name algorithm* |
+| **CTAP1 security keys** | `fido-u2f` — one signature over a flat concatenation naming the credential | `attestation.test.ts` › *fido-u2f attestation* |
+| U2F is not reported as naming a device model | it conveys no AAGUID; `aaguidVerified` stays false | `attestation.test.ts` › *reports no verified AAGUID, because U2F conveys none* |
+| **Android platform authenticators** | `android-key` — Keystore's key description, read from the hardware-enforced list | `attestation.test.ts` › *android-key attestation* |
+| A key usable by every app on the phone is refused | `allApplications` in either authorization list | `attestation.test.ts` › *refuses allApplications* |
+| An imported key cannot pass as a generated one | `origin` must be `KM_ORIGIN_GENERATED` | `attestation.test.ts` › *refuses a key that was imported rather than generated* |
+| **Older Android devices** | `android-safetynet` — Google's JWS, bound by nonce | `attestation.test.ts` › *android-safetynet attestation* |
+| A rooted phone cannot pass SafetyNet | `ctsProfileMatch` required; `basicIntegrity` alone is not | `attestation.test.ts` › *refuses a device passing basicIntegrity alone* |
+| A SafetyNet JWS cannot choose its own algorithm | allowlist of exactly one: RS256 | `attestation.test.ts` › *refuses a JWS header naming alg …* |
+| A self-signed CA cannot forge attestation | trust anchors are mandatory for every format but `none` | `attestation.test.ts` › *refuses a chain that does not reach a configured root* |
 | An attestation lifted from another device is refused | certificate AAGUID must match the authenticator data | `attestation.test.ts` |
-| Unimplemented attestation formats are refused, not rubber-stamped | allowlisting one still fails closed | `ceremony.test.ts` › *cannot be verified* |
+| An attestation format the library does not know is refused | allowlisting one still fails closed | `ceremony.test.ts` › *cannot be verified* |
 | Generated test certificates are real certificates | cross-checked by Node's own X.509 parser | `asn1.test.ts` › *the generated certificates are real certificates* |
-| Passkeys work end to end over real HTTP | assembled app, real keys, real signatures | `examples/express-api/src/passkey.test.ts` — 29 tests |
+| Passkeys work end to end over real HTTP | assembled app, real keys, real signatures | `examples/express-api/src/passkey.test.ts` — 32 tests |
 | A passkey confers identity, never authority | roles come from the directory | `passkey.test.ts` › *carries roles from the directory, not from the passkey* |
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-942 tests passing · typecheck clean · no flaky runs over 5 repeats
-core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express dependency
+1,756 tests passing · typecheck clean · no flaky runs over 3 full repeats
+core 4.9 KB, zero dependencies · server 118 KB, ioredis only — no Express dependency
+webauthn 85 KB, zero dependencies · client 12 KB, browser-only
 ```
 
 ### Documentation
@@ -167,14 +181,12 @@ core 4.9 KB, zero dependencies · server 79 KB, ioredis only — no Express depe
 
 ### What does not exist yet
 
-**`android-safetynet`.** `@ninsho/webauthn` verifies `none`, `packed` (most
-security keys), `apple` (Touch ID and Face ID), `tpm` (Windows Hello),
-`fido-u2f` (CTAP1 security keys) and `android-key` (Android platform
-authenticators), each against roots you supply. `android-safetynet` is not
-implemented and is refused rather than rubber-stamped — Google has deprecated
-the API it rests on, and `android-key` is what current Android devices use. No root store ships
-with the package, and FIDO Metadata Service integration is not implemented:
-which manufacturers you trust is an operational decision, not library content.
+**A FIDO root store, and MDS.** `@ninsho/webauthn` verifies every attestation
+format WebAuthn L3 defines — `none`, `packed`, `apple`, `tpm`, `fido-u2f`,
+`android-key` and `android-safetynet` — but each against roots *you* supply.
+No root store ships with the package, and FIDO Metadata Service integration is
+not implemented: which manufacturers you trust is an operational decision, not
+library content.
 
 **Koa.** The middleware is Express-shaped; `@ninsho/server/fastify` and
 `@ninsho/server/hono` adapt it, each a couple of kilobytes, neither depending

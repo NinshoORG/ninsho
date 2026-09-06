@@ -718,7 +718,14 @@ const ATTESTATION_FORMATS: Record<
   },
   'android-safetynet': {
     label: 'android-safetynet',
-    hardware: 'Older Android devices. Google has deprecated the API behind it.',
+    hardware:
+      'Older Android devices. Google vouches for the phone rather than for the key, and has ' +
+      'deprecated the API behind it.',
+    verified: true,
+  },
+  appattest: {
+    label: 'appattest',
+    hardware: 'Nothing here — Apple’s App Attest is a real format, and not one WebAuthn defines.',
     verified: false,
   },
 };
@@ -784,9 +791,11 @@ app.post(
     } else if (format === 'android-key') {
       registration = await device.register({ ...common, androidKeyAttestation: { root } });
     } else if (format === 'android-safetynet') {
-      // Nothing to build: the point is that allowlisting an unimplemented
-      // format still fails closed.
-      registration = await device.register({ ...common, attestationFormat: 'android-safetynet' });
+      registration = await device.register({ ...common, safetyNetAttestation: { root } });
+    } else if (format === 'appattest') {
+      // Nothing to build: the point is that allowlisting a format the library
+      // does not know still fails closed.
+      registration = await device.register({ ...common, attestationFormat: 'appattest' });
     } else {
       registration = await device.register({ challenge, origin, rpId });
     }

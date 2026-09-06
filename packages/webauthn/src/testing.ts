@@ -26,7 +26,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { createSign, KeyObject, type webcrypto } from 'node:crypto';
+import { createSign, generateKeyPairSync, KeyObject, type webcrypto } from 'node:crypto';
 import { ES256, EdDSA, RS256, type CoseAlgorithm } from './cose.js';
 import {
   createCertificate,
@@ -490,6 +490,30 @@ export class VirtualAuthenticator {
      * description extension, with the challenge fixed to this ceremony's
      * client data hash unless overridden.
      */
+    /**
+     * Produces a SafetyNet attestation instead.
+     *
+     * Google's reply is a JWS signed by a certificate issued to
+     * `attest.android.com`, so the fixture builds exactly that: an RSA leaf
+     * with the hostname in its subjectAltName, signing a payload whose nonce
+     * hashes this ceremony.
+     */
+    safetyNetAttestation?: {
+      root: GeneratedCertificate;
+      /** Overrides the leaf's hostname, to test the identity check. */
+      hostname?: string;
+      /** Defaults to true. False is a rooted or unlocked device. */
+      ctsProfileMatch?: boolean;
+      basicIntegrity?: boolean;
+      /** Defaults to now. */
+      timestampMs?: number;
+      /** Replaces the nonce, to test the ceremony binding. */
+      nonceOverride?: string;
+      /** Replaces the header's `alg`, to test the allowlist. */
+      algOverride?: string;
+      /** Play Services version, `ver`. Defaults to a realistic value. */
+      ver?: string;
+    };
     androidKeyAttestation?: {
       root: GeneratedCertificate;
       softwareEnforced?: AndroidAuthorizations;
@@ -544,6 +568,57 @@ export class VirtualAuthenticator {
 
       format = options.attestationFormat ?? 'apple';
       attStmt.set('x5c', [credCert.der]);
+    }
+
+    if (options.safetyNetAttestation) {
+      const spec = options.safetyNetAttestation;
+      // Google signs with RSA, and the verifier accepts nothing else — so the
+      // fixture must produce the real thing rather than the convenient one.
+      const googleKey = generateKeyPairSync('rsa', { modulusLength: 2048 });
+      const leaf = createCertificate({
+        subject: spec.hostname ?? 'attest.android.com',
+        issuer: spec.root,
+        keyPair: googleKey,
+        dnsNames: [spec.hostname ?? 'attest.android.com'],
+      });
+
+      const nonce =
+        spec.nonceOverride ??
+        Buffer.from(await crypto.subtle.digest('SHA-256', signedData)).toString('base64');
+
+      const b64u = (value: string | Uint8Array): string =>
+        Buffer.from(value as never).toString('base64url');
+
+      const header = b64u(
+        JSON.stringify({
+          alg: spec.algOverride ?? 'RS256',
+          x5c: [Buffer.from(leaf.der).toString('base64')],
+        }),
+      );
+      const payload = b64u(
+        JSON.stringify({
+          nonce,
+          timestampMs: spec.timestampMs ?? Date.now(),
+          apkPackageName: 'com.google.android.gms',
+          apkDigestSha256: Buffer.alloc(32).toString('base64'),
+          ctsProfileMatch: spec.ctsProfileMatch ?? true,
+          basicIntegrity: spec.basicIntegrity ?? true,
+          apkCertificateDigestSha256: [Buffer.alloc(32).toString('base64')],
+        }),
+      );
+
+      const signingInput = `${header}.${payload}`;
+      const signature = new Uint8Array(
+        createSign('SHA256').update(signingInput).sign(googleKey.privateKey),
+      );
+      if (options.breakAttestationSignature) signature[0] = (signature[0] as number) ^ 0xff;
+
+      format = options.attestationFormat ?? 'android-safetynet';
+      attStmt.set('ver', spec.ver ?? '224714037');
+      attStmt.set(
+        'response',
+        new TextEncoder().encode(`${signingInput}.${Buffer.from(signature).toString('base64url')}`),
+      );
     }
 
     if (options.androidKeyAttestation) {
@@ -642,7 +717,8 @@ export class VirtualAuthenticator {
     } else if (
       options.appleAttestation ||
       options.u2fAttestation ||
-      options.androidKeyAttestation
+      options.androidKeyAttestation ||
+      options.safetyNetAttestation
     ) {
       // Already assembled above.
     } else if (options.attestationChain) {

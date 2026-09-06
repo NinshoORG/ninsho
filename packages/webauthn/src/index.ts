@@ -131,3 +131,14 @@ export {
   KM_PURPOSE_SIGN,
 } from './android-key.js';
 export type { AuthorizationList, KeyDescription } from './android-key.js';
+
+// Google's SafetyNet reply, for an application that wants to record what the
+// attestation service said about the device.
+export {
+  SafetyNetError,
+  parseSafetyNetResponse,
+  verifySafetyNetVerdicts,
+  SAFETYNET_HOSTNAME,
+  SAFETYNET_MAX_AGE_MS,
+} from './safetynet.js';
+export type { SafetyNetResponse } from './safetynet.js';

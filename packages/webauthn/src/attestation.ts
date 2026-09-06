@@ -19,10 +19,9 @@
  *
  * A verifier that reports "attestation verified" in that situation is worse
  * than one with no attestation support: it manufactures confidence. So every
- * format that carries a chain — `packed`, `apple`, `tpm`, `fido-u2f` and
- * `android-key` — is accepted only when the relying party supplies the roots
- * it trusts. If you do not have roots, you do not have attestation, and saying
- * so is the honest answer.
+ * format that carries a chain — which is every format but `none` — is accepted
+ * only when the relying party supplies the roots it trusts. If you do not have
+ * roots, you do not have attestation, and saying so is the honest answer.
  * ──────────────────────────────────────────────────────────────────────────
  */
 
@@ -39,6 +38,12 @@ import {
   parseKeyDescription,
   verifyAuthorizations,
 } from './android-key.js';
+import {
+  SAFETYNET_HOSTNAME,
+  SafetyNetError,
+  parseSafetyNetResponse,
+  verifySafetyNetVerdicts,
+} from './safetynet.js';
 import {
   TpmError,
   parseTpmAttest,
@@ -83,6 +88,7 @@ export const VERIFIABLE_FORMATS: readonly string[] = [
   'tpm',
   'fido-u2f',
   'android-key',
+  'android-safetynet',
 ];
 
 /** How deep an attestation chain may be, counting the leaf. */
@@ -95,9 +101,8 @@ export interface AttestationPolicy {
   /**
    * Formats to accept. Default `['none']`.
    *
-   * Adding `'packed'`, `'apple'`, `'tpm'`, `'fido-u2f'` or `'android-key'`
-   * requires `trustAnchors`; see the note at the top of this file for why that
-   * is not optional.
+   * Anything but `'none'` requires `trustAnchors`; see the note at the top of
+   * this file for why that is not optional.
    */
   readonly formats?: readonly string[];
   /**
@@ -945,6 +950,110 @@ export async function verifyAttestation(
       aaguidVerified: true,
       aaguid: aaguidHex,
       attestationSubject: (tpmChain[0] as X509Certificate).issuer,
+    };
+  }
+
+  // ── android-safetynet ────────────────────────────────────────────────────
+  // The chain of trust runs through Google rather than through the device, so
+  // this branch checks a document Google composed rather than anything the
+  // authenticator produced. See `safetynet.ts` for what that costs.
+
+  if (input.format === 'android-safetynet') {
+    const ver = input.statement.get('ver');
+    if (typeof ver !== 'string' || ver.length === 0) {
+      throw new AttestationError('the SafetyNet statement names no Play Services version');
+    }
+
+    const raw = input.statement.get('response');
+    if (!(raw instanceof Uint8Array) || raw.length === 0) {
+      throw new AttestationError('the SafetyNet statement carries no response');
+    }
+
+    const safetyNetAnchors = policy.trustAnchors ?? [];
+    if (safetyNetAnchors.length === 0) {
+      throw new AttestationError(
+        'android-safetynet attestation requires trustAnchors; without roots, a chain proves nothing',
+      );
+    }
+
+    let response;
+    try {
+      response = parseSafetyNetResponse(raw);
+    } catch (error) {
+      throw new AttestationError(
+        error instanceof SafetyNetError ? error.message : 'the SafetyNet response could not be read',
+      );
+    }
+
+    let chain: X509Certificate[];
+    let anchorCerts: X509Certificate[];
+    try {
+      chain = response.certificates.map((der) => new X509Certificate(Buffer.from(der)));
+    } catch {
+      throw new AttestationError('the SafetyNet chain holds something that is not a certificate');
+    }
+    try {
+      anchorCerts = safetyNetAnchors.map((der) => new X509Certificate(Buffer.from(der)));
+    } catch {
+      throw new AttestationError('a configured trust anchor is not a valid certificate');
+    }
+
+    const leaf = chain[0] as X509Certificate;
+
+    // §8.5 step 3. The response is only Google's if Google's certificate signed
+    // it, and Google's certificate is the one issued to this hostname.
+    if (leaf.checkHost(SAFETYNET_HOSTNAME) === undefined) {
+      throw new AttestationError(
+        `the SafetyNet certificate is not issued to ${SAFETYNET_HOSTNAME}`,
+      );
+    }
+
+    if (!verifySignature(RS256, leaf.publicKey, response.signingInput, response.signature)) {
+      throw new AttestationError('the SafetyNet signature did not verify');
+    }
+
+    // §8.5 step 2. The nonce is the only thing tying Google's verdict about a
+    // device to this registration.
+    const attested = new Uint8Array(input.authData.length + input.clientDataHash.length);
+    attested.set(input.authData, 0);
+    attested.set(input.clientDataHash, input.authData.length);
+    const expectedNonce = Buffer.from(
+      await crypto.subtle.digest('SHA-256', attested),
+    ).toString('base64');
+
+    if (response.nonce !== expectedNonce) {
+      throw new AttestationError('the SafetyNet nonce does not hash this ceremony');
+    }
+
+    try {
+      verifySafetyNetVerdicts(response, Date.now());
+    } catch (error) {
+      throw new AttestationError(
+        error instanceof SafetyNetError ? error.message : 'the SafetyNet verdicts could not be read',
+      );
+    }
+
+    if (!chainReachesAnchor(chain, anchorCerts)) {
+      throw new AttestationError('the attestation chain does not reach a trusted root');
+    }
+
+    // Nothing in the response names an authenticator model, so an AAGUID
+    // allowlist cannot be applied to it — the same situation as `fido-u2f`,
+    // and refused here for the same reason.
+    if (policy.allowedAaguids !== undefined) {
+      throw new AttestationError(
+        'allowedAaguids cannot be enforced on android-safetynet; the format conveys no AAGUID',
+      );
+    }
+
+    return {
+      format: 'android-safetynet',
+      type: 'basic',
+      // Google vouched for the *device*, not for where the key lives and not
+      // for which authenticator model produced it.
+      aaguidVerified: false,
+      aaguid: aaguidHex,
+      attestationSubject: leaf.subject,
     };
   }
 

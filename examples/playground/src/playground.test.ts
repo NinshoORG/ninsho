@@ -381,7 +381,7 @@ describe('the attestation panel demonstrates real verification', () => {
 
   type Verdict = { accepted: boolean; type?: string; format?: string; detail?: string; aaguidVerified?: boolean; aaguid?: string };
 
-  it.each(['packed', 'apple', 'tpm', 'fido-u2f', 'android-key'])(
+  it.each(['packed', 'apple', 'tpm', 'fido-u2f', 'android-key', 'android-safetynet'])(
     'accepts a genuine %s ceremony against the root that issued it',
     async (format) => {
       const result = await attest(format, 'genuine');
@@ -394,7 +394,7 @@ describe('the attestation panel demonstrates real verification', () => {
     },
   );
 
-  it.each(['packed', 'apple', 'tpm', 'fido-u2f', 'android-key'])(
+  it.each(['packed', 'apple', 'tpm', 'fido-u2f', 'android-key', 'android-safetynet'])(
     'refuses a %s ceremony with no trust anchors',
     async (format) => {
       // The scenario the panel exists to make vivid: the chain is genuine and
@@ -409,7 +409,7 @@ describe('the attestation panel demonstrates real verification', () => {
     },
   );
 
-  it.each(['packed', 'apple', 'tpm', 'fido-u2f', 'android-key'])(
+  it.each(['packed', 'apple', 'tpm', 'fido-u2f', 'android-key', 'android-safetynet'])(
     'refuses a %s ceremony checked against the wrong root',
     async (format) => {
       const result = await attest(format, 'wrong-root');
@@ -420,7 +420,7 @@ describe('the attestation panel demonstrates real verification', () => {
     },
   );
 
-  it.each(['packed', 'tpm', 'fido-u2f', 'android-key'])(
+  it.each(['packed', 'tpm', 'fido-u2f', 'android-key', 'android-safetynet'])(
     'refuses a %s ceremony whose signature was tampered with',
     async (format) => {
       // `apple` is absent on purpose: the format carries no signature to
@@ -433,13 +433,26 @@ describe('the attestation panel demonstrates real verification', () => {
     },
   );
 
-  it('refuses android-safetynet even when it is allowlisted', async () => {
-    const result = await attest('android-safetynet', 'genuine');
+  it('refuses a format name the library does not know, even allowlisted', async () => {
+    // Every format WebAuthn defines is verified now, so the panel offers a
+    // real format from somewhere else — Apple's App Attest — to show that the
+    // mechanism still fails closed rather than the gap it used to demonstrate.
+    const result = await attest('appattest', 'genuine');
     const verdict = result['verdict'] as Verdict;
 
     expect(result['expected']).toBe('refused');
     expect(verdict.accepted).toBe(false);
     expect(String(verdict.detail)).toMatch(/cannot be verified/);
+  });
+
+  it('reports android-safetynet as vouching for a device, not a model', async () => {
+    // The panel's most easily overstated claim about the weakest format:
+    // Google inspected the phone, and said nothing about where the key lives.
+    const result = await attest('android-safetynet', 'genuine');
+    const verdict = result['verdict'] as Verdict;
+
+    expect(verdict.accepted).toBe(true);
+    expect(verdict.aaguidVerified).toBe(false);
   });
 
   it('reads android-key from the hardware-enforced authorization list', async () => {

@@ -409,22 +409,23 @@ describe('attestation', () => {
   });
 
   it('refuses a format this package cannot verify even when allowlisted', async () => {
-    // `android-safetynet` is unimplemented — Google deprecated the API it
-    // rests on. Allowlisting it must not produce a result that reads as
-    // verified.
+    // Every format WebAuthn defines is now verified, so this guards the
+    // mechanism rather than a particular gap: a name the package does not
+    // know must fail closed even when a caller allowlists it. `appattest` is
+    // Apple's App Attest format, which is real and is not WebAuthn's.
     const authenticator = await VirtualAuthenticator.create();
     const challenge = challengeBytes();
     const response = await authenticator.register({
       challenge,
       origin: ORIGIN,
       rpId: RP_ID,
-      attestationFormat: 'android-safetynet',
+      attestationFormat: 'appattest',
     });
 
     const error = await rejection(
       verifyRegistration(response, {
         ...registrationExpectations(challenge),
-        attestation: { formats: ['none', 'android-safetynet'] },
+        attestation: { formats: ['none', 'appattest'] },
       }),
     );
     expect(error.detail).toMatch(/cannot be verified/);

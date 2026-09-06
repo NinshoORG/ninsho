@@ -2252,3 +2252,360 @@ describe('android-key attestation', () => {
     expect(error.detail).toMatch(/is not on the allowed list/);
   });
 });
+
+/**
+ * SafetyNet attestation — WebAuthn §8.5.
+ *
+ * The odd one out. Every other format is signed by the authenticator or by the
+ * hardware holding the key; this one forwards a document *Google* composed
+ * about the device, and the only thread back to this registration is a nonce.
+ * So the tests are mostly about that thread, about the verdicts inside the
+ * document, and about the header not being allowed to choose its own
+ * algorithm.
+ */
+describe('android-safetynet attestation', () => {
+  const googleRoot = (): GeneratedCertificate =>
+    createCertificate({ subject: 'Google Attestation Root', isCa: true });
+
+  const run = async (
+    device: VirtualAuthenticator,
+    root: GeneratedCertificate,
+    spec: Record<string, unknown> = {},
+    policy: Record<string, unknown> = {},
+  ) => {
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      safetyNetAttestation: { root, ...spec },
+    });
+    return {
+      response,
+      challenge,
+      verify: () =>
+        verifyRegistration(
+          response,
+          expectations(challenge, {
+            attestation: {
+              formats: ['android-safetynet'],
+              trustAnchors: [root.der],
+              ...policy,
+            },
+          }),
+        ),
+    };
+  };
+
+  it('verifies a genuine SafetyNet response', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+
+    const verified = await (await run(device, root)).verify();
+
+    expect(verified.attestationFormat).toBe('android-safetynet');
+    expect(verified.attestationType).toBe('basic');
+    expect(verified.attestationSubject).toContain('attest.android.com');
+  });
+
+  it('reports no verified AAGUID, because Google vouched for a device', async () => {
+    // The claim to be careful with. Google inspected the device; nothing in
+    // its reply says which authenticator model produced the credential, or
+    // that the key lives in hardware at all.
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+
+    const verified = await (await run(device, root)).verify();
+    expect(verified.aaguidVerified).toBe(false);
+  });
+
+  it('refuses an AAGUID allowlist rather than failing it obscurely', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+    const { verify } = await run(device, root, {}, { allowedAaguids: ['0'.repeat(32)] });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/cannot be enforced on android-safetynet/);
+  });
+
+  it('accepts the credential the ceremony produced', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+    const verified = await (await run(device, root)).verify();
+
+    const { verifyAuthentication } = await import('./ceremony.js');
+    const assertionChallenge = challengeBytes();
+    const assertion = await device.authenticate({
+      challenge: assertionChallenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+    });
+
+    await expect(
+      verifyAuthentication(assertion, {
+        rpId: RP_ID,
+        origin: ORIGIN,
+        challenge: b64u(assertionChallenge),
+        credential: {
+          credentialId: verified.credentialId,
+          publicKey: verified.credentialPublicKey,
+          signCount: verified.signCount,
+        },
+      }),
+    ).resolves.toBeTruthy();
+  });
+
+  it('refuses a tampered signature', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      safetyNetAttestation: { root },
+      breakAttestationSignature: true,
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['android-safetynet'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/signature did not verify/);
+  });
+
+  it('refuses a nonce belonging to another ceremony', async () => {
+    // The whole binding. Without it, one SafetyNet response would vouch for
+    // every registration a device ever performs.
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+    const { verify } = await run(device, root, {
+      nonceOverride: Buffer.alloc(32).toString('base64'),
+    });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/nonce does not hash this ceremony/);
+  });
+
+  it('refuses a response signed by a certificate for another host', async () => {
+    // Google's verdict is Google's only because Google's certificate signed
+    // it, and that certificate is the one issued to this hostname.
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+    const { verify } = await run(device, root, { hostname: 'attest.example.com' });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/not issued to attest\.android\.com/);
+  });
+
+  it('refuses a device that failed the compatibility test suite', async () => {
+    // `ctsProfileMatch: false` is a rooted or unlocked device — which is
+    // exactly the device an attacker controls.
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+    const { verify } = await run(device, root, { ctsProfileMatch: false });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/did not pass the compatibility test suite/);
+  });
+
+  it('refuses a device passing basicIntegrity alone', async () => {
+    // The distinction that matters: a rooted phone can still report
+    // `basicIntegrity: true`, so accepting on that would accept the case the
+    // check exists for.
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+    const { verify } = await run(device, root, {
+      ctsProfileMatch: false,
+      basicIntegrity: true,
+    });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/did not pass the compatibility test suite/);
+  });
+
+  it('refuses a response captured from an earlier session', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+    const { verify } = await run(device, root, {
+      timestampMs: Date.now() - 40 * 60 * 1000,
+    });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/is \d+s old/);
+  });
+
+  it('refuses a response timestamped in the future', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+    const { verify } = await run(device, root, { timestampMs: Date.now() + 10 * 60 * 1000 });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/timestamped in the future/);
+  });
+
+  it.each([['none'], ['HS256'], ['ES256'], ['RS512']])(
+    'refuses a JWS header naming alg %s',
+    async (alg) => {
+      // The header names its own algorithm, which is the shape every
+      // algorithm-confusion attack is built on. SafetyNet is signed with RSA
+      // and nothing else is accepted — an allowlist of exactly one.
+      const device = await VirtualAuthenticator.create();
+      const root = googleRoot();
+      const { verify } = await run(device, root, { algOverride: alg });
+
+      const error = await rejection(verify());
+      expect(error.detail).toMatch(/unsupported SafetyNet algorithm/);
+    },
+  );
+
+  it('refuses a chain that reaches no configured root', async () => {
+    const device = await VirtualAuthenticator.create();
+    const attackerRoot = createCertificate({ subject: 'Not Google', isCa: true });
+    const realRoot = googleRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      safetyNetAttestation: { root: attackerRoot },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['android-safetynet'], trustAnchors: [realRoot.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/does not reach a trusted root/);
+  });
+
+  it('refuses android-safetynet with no trust anchors configured', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      safetyNetAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, { attestation: { formats: ['android-safetynet'] } }),
+      ),
+    );
+    expect(error.detail).toMatch(/requires trustAnchors/);
+  });
+
+  it.each([['ver'], ['response']])('refuses a statement with no %s', async (field) => {
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      safetyNetAttestation: { root },
+    });
+
+    const { fields, authData } = statementParts(response.attestationObject);
+    fields.delete(field);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packStatement('android-safetynet', fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['android-safetynet'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(field === 'ver' ? /no Play Services version/ : /carries no response/);
+  });
+
+  it.each([
+    ['a response that is not a JWS', 'not.a.jws.at.all'],
+    ['a JWS with two segments', 'aGVhZGVy.cGF5bG9hZA'],
+    ['a header that is not base64url', 'he@der.cGF5bG9hZA.c2ln'],
+    ['a header that is not JSON', 'bm90IGpzb24.cGF5bG9hZA.c2ln'],
+  ])('refuses %s', async (_label, text) => {
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      safetyNetAttestation: { root },
+    });
+
+    const { fields, authData } = statementParts(response.attestationObject);
+    fields.set('response', new TextEncoder().encode(text));
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packStatement('android-safetynet', fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['android-safetynet'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toBeTruthy();
+    expect(error.detail).not.toMatch(/Cannot read|undefined is not/);
+  });
+
+  it('never throws anything but a controlled error on random responses', async () => {
+    // The response is a text document from a browser, parsed before anything
+    // about it is trusted. An uncontrolled throw here would be a parser bug
+    // reaching the caller as a 500 rather than a refusal.
+    const device = await VirtualAuthenticator.create();
+    const root = googleRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      safetyNetAttestation: { root },
+    });
+    const { fields, authData } = statementParts(response.attestationObject);
+
+    for (let i = 0; i < 300; i += 1) {
+      const junk = new Uint8Array(Math.floor(Math.random() * 120));
+      crypto.getRandomValues(junk);
+      fields.set('response', junk);
+
+      const error = await rejection(
+        verifyRegistration(
+          {
+            clientDataJSON: response.clientDataJSON,
+            attestationObject: packStatement('android-safetynet', fields, authData),
+          },
+          expectations(challenge, {
+            attestation: { formats: ['android-safetynet'], trustAnchors: [root.der] },
+          }),
+        ),
+      );
+      expect(error.name).toBe('WebAuthnError');
+    }
+  });
+});

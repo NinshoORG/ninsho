@@ -131,7 +131,10 @@ authorization data inside a `Principal`.
 | Cloned authenticator | **Detected** | Sign-counter regression rejects by default (WebAuthn §6.1.1) |
 | Ceremony completed against another account | **Mitigated** | Challenge user and credential owner must agree; `server.test.ts` › *binding a ceremony to its user* |
 | Memory-safety bugs in attacker-facing parsers | **Mitigated** | Every length bounds-checked before use; CBOR, DER and authenticator-data parsers each fuzzed |
-| **Authenticator provenance (attestation)** | **Mitigated** | `packed`, `apple`, `tpm`, `fido-u2f` and `android-key` verified to relying-party roots, AAGUID cross-checked where the format conveys one; `attestation.test.ts`. `android-safetynet` unimplemented — see below |
+| **Authenticator provenance (attestation)** | **Mitigated** | Every format WebAuthn defines verified to relying-party roots, AAGUID cross-checked where the format conveys one; `attestation.test.ts`. What each one actually proves differs — see below |
+| A SafetyNet verdict from a rooted device | **Mitigated** | `ctsProfileMatch` required; `basicIntegrity` alone is not accepted, because a rooted phone still reports it; `attestation.test.ts` › *refuses a device passing basicIntegrity alone* |
+| Algorithm confusion in a SafetyNet JWS | **Mitigated** | The header names its own `alg`; an allowlist of exactly one (RS256) leaves nothing to negotiate; `attestation.test.ts` › *refuses a JWS header naming alg …* |
+| A SafetyNet response captured from an earlier session | **Mitigated** | Nonce must hash this ceremony, and the timestamp must be recent; `attestation.test.ts` › *refuses a response captured from an earlier session* |
 | A TPM statement certifying a key that is not the credential | **Mitigated** | `pubArea` compared against the credential key, and `attested.name` against `pubArea`; `attestation.test.ts` › *refuses a pubArea describing a key that is not the credential* |
 | An Android key usable by every app on the device | **Mitigated** | `allApplications` refused in either authorization list; authorizations read from `teeEnforced` by default; `attestation.test.ts` › *refuses allApplications* |
 | A U2F attestation read as naming a device model | **Mitigated** | U2F conveys no AAGUID, so `aaguidVerified` stays false and an AAGUID allowlist is refused rather than silently unenforceable |
@@ -147,25 +150,35 @@ authorization data inside a `Principal`.
 Stated plainly, because a limitation you know about is manageable and one you
 have been reassured about is not.
 
-### WebAuthn attestation does not cover `android-safetynet`
+### WebAuthn attestation: what each format actually proves
 
-`@ninsho/webauthn` verifies the `none`, `packed`, `apple`, `tpm`, `fido-u2f`
-and `android-key` formats. It does **not** verify `android-safetynet`, and
-allowlisting it does not change that — the ceremony refuses it regardless.
-There is deliberately no arrangement of options that turns an unverified
-attestation into a verified one.
+`@ninsho/webauthn` verifies every statement format WebAuthn L3 defines —
+`none`, `packed`, `apple`, `tpm`, `fido-u2f`, `android-key` and
+`android-safetynet`. A format name outside that set is refused, and
+allowlisting it does not change that. There is deliberately no arrangement of
+options that turns an unverified attestation into a verified one.
 
-`packed` covers most security keys, the YubiKey line included; `apple` covers
-Touch ID and Face ID; `tpm` covers Windows Hello; `fido-u2f` covers CTAP1
-security keys; `android-key` covers Android platform authenticators. Google has
-deprecated the SafetyNet Attestation API that `android-safetynet` rests on, so
-what remains uncovered is a format Android itself is retiring — but if your
-policy has to cover devices that still send it, that work is not done.
+They do not all prove the same thing, and the differences matter more than the
+coverage does:
 
-`fido-u2f` is verified but conveys no AAGUID — U2F has no model identifier.
-A verified U2F statement proves the credential lives on vouched-for hardware
-and nothing about which model, so `aaguidVerified` stays `false` and pairing
-the format with `allowedAaguids` is refused rather than silently unenforceable.
+| Format | What a verified statement establishes |
+| :--- | :--- |
+| `packed` | The credential key lives in an authenticator whose manufacturer chain reaches a root you trust, and whose AAGUID that chain vouches for |
+| `apple` | The same, through Apple's anonymisation CA — the platform, not an individual device |
+| `tpm` | The key was certified by a TPM whose attestation identity key chains to a root you trust |
+| `android-key` | The key was generated inside Android's keystore, is a signing key, and is not usable by other applications on the device |
+| `fido-u2f` | The credential lives on hardware a trusted root vouched for — and **nothing about which model**, because U2F carries no AAGUID |
+| `android-safetynet` | **Google inspected the phone** and reported it passed Android's compatibility test suite. Nothing about where the key lives, and nothing about the authenticator model |
+
+`android-safetynet` is the weakest and should be read that way. Its chain of
+trust runs through Google rather than through the device: the signature is
+Google's, over a document Google composed, about a phone Google inspected, and
+the only thread back to the registration is a nonce. Google has deprecated the
+API behind it. Prefer `android-key`, which attests to the key itself.
+
+`fido-u2f` and `android-safetynet` convey no AAGUID, so `aaguidVerified` stays
+`false` for both and pairing either with `allowedAaguids` is refused rather
+than being silently unenforceable.
 
 `android-key` is read from the **hardware-enforced** authorization list by
 default. Keystore states a key's properties twice, once as the Android OS
@@ -176,9 +189,8 @@ to replace. `allowSoftwareEnforcedAndroidKey: true` opts into it for emulators
 and TEE-less devices; what comes back is then not a hardware claim, and should
 not be recorded as one.
 
-**Trust anchors are mandatory, not optional.** `packed`, `apple`, `tpm`,
-`fido-u2f` and `android-key` are refused unless the relying party supplies the
-root certificates it trusts. A chain checked against
+**Trust anchors are mandatory, not optional.** Every format but `none` is
+refused unless the relying party supplies the root certificates it trusts. A chain checked against
 no root proves nothing — anyone can self-sign a CA and put any AAGUID they like
 in a certificate they issued to themselves — and a verifier reporting
 "attestation verified" in that situation manufactures confidence.

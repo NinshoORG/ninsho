@@ -173,20 +173,26 @@ verified.aaguidVerified    // true only when a trusted chain vouched for the AAG
 verified.attestationSubject
 ```
 
-**Trust anchors are mandatory.** `packed`, `apple`, `tpm`, `fido-u2f` and `android-key` are
-refused outright without them. A chain checked against no root proves nothing — anyone can self-sign a CA and put any AAGUID they like in a certificate
+**Trust anchors are mandatory.** Every format but `none` is refused outright without them. A chain
+checked against no root proves nothing — anyone can self-sign a CA and put any AAGUID they like in a certificate
 they issued to themselves — and a verifier reporting success there would manufacture confidence.
 If you have no roots, you have no attestation, and saying so is the honest answer.
 
 ## What is *not* verified
 
-**`android-safetynet`.** Not implemented, and refused rather than parsed-and-ignored —
-allowlisting it still fails closed. Google has deprecated the SafetyNet Attestation API it rests
-on; `android-key` is the format current Android devices use, and that one *is* verified.
+**A format this package does not know.** Every statement format WebAuthn L3 defines is verified:
+`packed` (most security keys, the YubiKey line included), `apple` (Touch ID and Face ID), `tpm`
+(Windows Hello), `fido-u2f` (CTAP1 security keys), `android-key` (Android platform authenticators)
+and `android-safetynet` (older Android devices). A name outside that set is refused rather than
+parsed-and-ignored, and allowlisting it still fails closed.
 
-Everything else is: `packed` covers most security keys including the YubiKey line, `apple` covers
-Touch ID and Face ID, `tpm` covers Windows Hello, `fido-u2f` covers CTAP1 security keys, and
-`android-key` covers Android platform authenticators.
+**`android-safetynet` attests to a device, not to a key.** It forwards a document *Google*
+composed about the phone, tied to the registration only by a nonce. Nothing in it says where the
+credential key lives or which authenticator produced it, so `aaguidVerified` stays `false` and an
+AAGUID allowlist is refused. Google has deprecated the API behind it; prefer `android-key`, which
+attests to the key itself. Only `RS256` is accepted for the JWS — an allowlist of exactly one,
+leaving the header's own `alg` field nothing to negotiate — and `ctsProfileMatch` must be true,
+because a rooted device can still report `basicIntegrity: true`.
 
 **`fido-u2f` conveys no AAGUID.** U2F has no model identifier, so a verified statement proves the
 credential lives on hardware a trusted root vouched for and says nothing about which model.

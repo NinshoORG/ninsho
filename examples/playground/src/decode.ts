@@ -242,7 +242,7 @@ export function decodeAttestationObject(bytes: Uint8Array): Decoded {
       value: String(fmt),
       note: fmt === 'none'
         ? 'No attestation conveyed — the normal case for passkeys, and what the browser substitutes when the relying party asks for `none`.'
-        : 'A statement format. Ninsho verifies `packed`, `apple`, `tpm`, `fido-u2f` and `android-key` against roots you supply, and refuses the rest rather than parsing them without checking.',
+        : 'A statement format. Ninsho verifies every format WebAuthn defines — `packed`, `apple`, `tpm`, `fido-u2f`, `android-key` and `android-safetynet` — against roots you supply, and refuses a name it does not know rather than parsing it without checking.',
       depth: 1,
     },
     {
@@ -454,6 +454,10 @@ const STATEMENT_NOTES: Record<string, Record<string, string>> = {
   'fido-u2f': {
     sig: 'Signed over `0x00 || rpIdHash || clientDataHash || credentialId || (0x04 || x || y)`. The leading zero is a reserved constant, not padding — it is what stops this being replayed as a U2F authentication response.',
     x5c: 'Exactly one certificate. §8.6 permits no more: accepting a list would mean accepting whichever leaf the client picked out of certificates it supplied itself.',
+  },
+  'android-safetynet': {
+    ver: 'The Google Play Services version that produced the response. Not consulted by the verifier.',
+    response: 'A JWS Google composed and signed — not the authenticator. Its `nonce` field carries SHA-256(authData || clientDataHash), which is the only thread back to this registration, and its `ctsProfileMatch` field says whether the device passed Android’s compatibility test suite. The JWS header names its own algorithm, so only RS256 is accepted: an allowlist of exactly one leaves nothing to negotiate.',
   },
   'android-key': {
     alg: 'The COSE algorithm of the credential key, which is also the attestation key here.',

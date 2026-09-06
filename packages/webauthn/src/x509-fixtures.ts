@@ -178,6 +178,7 @@ export const APPLE_NONCE_OID = '1.2.840.113635.100.8.2';
 export const ANDROID_KEY_OID = '1.3.6.1.4.1.11129.2.1.17';
 const BASIC_CONSTRAINTS_OID = '2.5.29.19';
 const EKU_OID = '2.5.29.37';
+const SAN_OID = '2.5.29.17';
 
 function extension(oidText: string, value: Uint8Array, critical = false): Uint8Array {
   return sequence(
@@ -269,6 +270,14 @@ export interface CreateCertificateOptions {
    */
   readonly extendedKeyUsage?: readonly string[];
   /**
+   * DNS names for the subjectAltName extension.
+   *
+   * SafetyNet's leaf is identified by hostname (`attest.android.com`), and
+   * `X509Certificate.checkHost` reads it from here — which is where a real
+   * certificate puts it.
+   */
+  readonly dnsNames?: readonly string[];
+  /**
    * Embeds Android Keystore's key attestation extension.
    *
    * `challenge` is what the verifier compares against `clientDataHash`, and
@@ -341,6 +350,19 @@ export function createCertificate(options: CreateCertificateOptions): GeneratedC
 
   if (options.androidKey) {
     extensions.push(extension(ANDROID_KEY_OID, keyDescription(options.androidKey)));
+  }
+
+  if (options.dnsNames && options.dnsNames.length > 0) {
+    // GeneralName ::= dNSName [2] IMPLICIT IA5String — context-specific,
+    // primitive, tag number 2.
+    extensions.push(
+      extension(
+        SAN_OID,
+        sequence(
+          ...options.dnsNames.map((host) => tlv(0x82, new TextEncoder().encode(host))),
+        ),
+      ),
+    );
   }
 
   let serial: Uint8Array;

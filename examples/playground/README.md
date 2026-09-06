@@ -65,9 +65,10 @@ The parsing is done by the shipped parsers rather than reimplemented, so what yo
 verifier saw. A decoder that disagreed with the verifier would be worse than none.
 
 **Attestation — what the hardware proves.** Pick a format and a scenario; each run is a real
-ceremony with real keys and real certificates, put through the shipped verifier. `packed`, `apple`,
-`tpm`, `fido-u2f` and `android-key` are verified; `android-safetynet` is there to show that
-allowlisting a format the library cannot check still fails closed.
+ceremony with real keys and real certificates, put through the shipped verifier. Every format
+WebAuthn defines is there and verified — `packed`, `apple`, `tpm`, `fido-u2f`, `android-key` and
+`android-safetynet` — alongside `appattest`, a real format from somewhere else, to show that
+allowlisting a name the library does not know still fails closed.
 
 The scenarios are where the panel earns its place. The roots are minted by the demo process, which
 is exactly why **no trust anchors** is worth trying: the chain is genuine, the signature verifies,
@@ -78,7 +79,9 @@ format.
 
 The panel also prints what each verified statement does *not* say. `fido-u2f` reports
 `aaguidVerified: false` against sixteen zero bytes, because U2F has no model identifier: the chain
-vouches for the hardware and for nothing about which device it is.
+vouches for the hardware and for nothing about which device it is. `android-safetynet` reports the
+same, for a different reason — Google inspected the *phone*, and said nothing about where the key
+lives.
 
 **The keyspace.** Every live key, namespaced `ninsho:v1:`, with its value.
 
@@ -105,7 +108,7 @@ URL — an unfortunate thing for a security demo to be.
 npm run test --workspace @ninsho/playground
 ```
 
-52 tests over real HTTP. A demo does not usually get tests, and this one needs
+57 tests over real HTTP. A demo does not usually get tests, and this one needs
 them: every panel restates a claim from the README to an audience with no way
 to check it. A demonstration that quietly stopped demonstrating would be worse
 than a broken test — a page telling visitors something untrue while looking
