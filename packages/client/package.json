@@ -1,7 +1,7 @@
 {
   "name": "@ninsho/client",
   "version": "0.1.0",
-  "description": "Browser client for Ninsho \u2014 DPoP proof-of-possession with a non-extractable key, automatic refresh. Zero dependencies.",
+  "description": "Browser client for Ninsho — DPoP proof-of-possession with a non-extractable key, automatic refresh. Zero dependencies.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -36,6 +36,15 @@
     "webcrypto"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Djain912/ninsho.git",
+    "directory": "packages/client"
+  },
+  "bugs": {
+    "url": "https://github.com/Djain912/ninsho/issues"
+  },
+  "homepage": "https://github.com/Djain912/ninsho#readme",
   "engines": {
     "node": ">=20.0.0"
   },

@@ -72,6 +72,15 @@
     "security"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Djain912/ninsho.git",
+    "directory": "packages/server"
+  },
+  "bugs": {
+    "url": "https://github.com/Djain912/ninsho/issues"
+  },
+  "homepage": "https://github.com/Djain912/ninsho#readme",
   "engines": {
     "node": ">=20.0.0"
   },

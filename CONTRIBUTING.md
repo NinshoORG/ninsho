@@ -100,10 +100,11 @@ Before a first public release:
 
 - [ ] Fill in the reporting section of `SECURITY.md`; test the channel end to end
 - [ ] Add `.well-known/security.txt` per RFC 9116
-- [ ] **Replace the placeholder `github.com/ninsho/ninsho` URLs** in
-      `packages/*/README.md` with the real repository. These are the package
+- [x] **Replace the placeholder repository URLs** in `packages/*/README.md`.
+      Done — they point at `github.com/Djain912/ninsho`. These are the package
       pages npm renders; a dead link there is the same failure the predecessor
-      shipped in its security policy
+      shipped in its security policy. Re-check them if the repository is ever
+      renamed or transferred to an organisation
 - [ ] Claim the `@ninsho` scope — it was unclaimed as of 2026-08-31, which is
       not guaranteed to last
 - [ ] `npm publish --dry-run` and check the file list
