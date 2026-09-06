@@ -168,6 +168,36 @@ app.use(express.json({ limit: '64kb' }));
 const localPath = (relative: string): string =>
   new URL(relative, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
+/**
+ * Headers a page served from the internet should carry.
+ *
+ * The CSP is strict because it can be: every script and style the page loads is
+ * its own, served from this origin, with no CDN and no inline handlers. A demo
+ * that had to relax its own policy to function would be a poor advertisement
+ * for a security library.
+ */
+app.use((_req: Request, res: Response, next: express.NextFunction) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'none'",
+      "script-src 'self'",
+      "style-src 'self'",
+      "connect-src 'self'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "base-uri 'none'",
+      "form-action 'none'",
+      "frame-ancestors 'none'",
+    ].join('; '),
+  );
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  next();
+});
+
 app.use(express.static(localPath('../public')));
 
 /**
@@ -178,6 +208,100 @@ app.use(express.static(localPath('../public')));
  * application would install.
  */
 app.use('/vendor', express.static(localPath('../../../packages/client/dist')));
+
+
+// ─── What a public URL changes ─────────────────────────────────────────────
+// Everything above this point is written for a page on a laptop. Two things
+// have to be true before the same page is reachable from the internet, and
+// neither is the demonstration's job to explain — they are the deployment's.
+//
+// The `/api/attestation` routes mint certificates and, for `android-safetynet`
+// and the metadata fixtures, generate a 2048-bit RSA key per request. That is
+// roughly 100ms of CPU each, unauthenticated. `/api/attack/window-boundary`
+// holds a connection for about two and a half seconds by design, waiting for a
+// rate-limit window to tick over. Neither is a flaw in the library; both are a
+// free CPU sink on a public host.
+//
+// So the demo limits itself, using the limiter it demonstrates. Nothing here
+// is fixture code: it is `@ninsho/server` doing the same job it would do in
+// front of a login route.
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * How much of `X-Forwarded-For` this deployment believes.
+ *
+ * No default beyond `false`, and the library refuses to guess for the same
+ * reason: behind a proxy with `false`, every visitor shares one bucket and any
+ * one of them can rate-limit everybody; trusting too many hops lets a visitor
+ * mint a fresh bucket per request. Set `PLAYGROUND_TRUST_PROXY` to the number
+ * of proxies in front of this process when you deploy it.
+ */
+const TRUST_PROXY: false | number | 'all' = (() => {
+  const raw = process.env['PLAYGROUND_TRUST_PROXY'];
+  if (raw === undefined || raw === 'false') return false;
+  if (raw === 'all') return 'all';
+  const hops = Number.parseInt(raw, 10);
+  if (Number.isInteger(hops) && hops >= 0) return hops;
+  throw new Error(
+    `PLAYGROUND_TRUST_PROXY must be false, a non-negative integer, or 'all' — got ${raw}`,
+  );
+})();
+
+/**
+ * The site's own rate limiter, separate from every visitor's world.
+ *
+ * Per-address only: there is no account here to key a second dimension on, and
+ * saying so is better than inventing an identity to make the shape look
+ * symmetrical.
+ */
+// Replaceable, so a test can forget the counters without the limits being
+// softened to accommodate it. The middleware below reads through these, so a
+// replacement takes effect on the next request.
+let siteStore = new RecordingStore(new MemoryStore());
+let siteLimiter = new Ninsho({ store: siteStore, audit: new MemoryAuditSink() });
+
+/** Runs the current limiter, so replacing it mid-process is picked up. */
+const throughLimiter = (build: (auth: Ninsho) => Middleware): Middleware => {
+  let sourced: Ninsho | undefined;
+  let cached: Middleware | undefined;
+  return (req, res, next) => {
+    if (sourced !== siteLimiter || cached === undefined) {
+      sourced = siteLimiter;
+      cached = build(siteLimiter);
+    }
+    cached(req, res, next);
+  };
+};
+
+const apiLimit = throughLimiter((auth) =>
+  auth.rateLimit({
+    action: 'playground-api',
+    perIp: { limit: 120, windowMs: 60_000 },
+    trustProxy: TRUST_PROXY,
+    identify: () => undefined,
+  }),
+);
+
+/**
+ * A tighter allowance for the expensive routes.
+ *
+ * `/api/attestation` generates an RSA key per SafetyNet or metadata run;
+ * `/api/attack/window-boundary` deliberately sleeps across a rate-limit
+ * boundary. Both are worth demonstrating and neither is worth serving
+ * thousands of times a minute to one visitor.
+ */
+const expensiveLimit = throughLimiter((auth) =>
+  auth.rateLimit({
+    action: 'playground-expensive',
+    perIp: { limit: 20, windowMs: 60_000 },
+    trustProxy: TRUST_PROXY,
+    identify: () => undefined,
+  }),
+);
+
+app.use('/api', apiLimit);
+app.use('/api/attestation', expensiveLimit);
+app.use('/api/attack/window-boundary', expensiveLimit);
 
 /** Wraps an async route so a rejection becomes a response, not a hung request. */
 const route =
@@ -1152,6 +1276,18 @@ app.post(
   }),
 );
 
+/**
+ * Liveness, for a container orchestrator.
+ *
+ * Outside `/api` so a probe every few seconds does not spend the rate-limit
+ * allowance, and deliberately not calling `visitor()` — a health check should
+ * not create a world, or the sweeper would spend its life clearing up after
+ * the load balancer.
+ */
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', worlds: worlds.size });
+});
+
 app.get(
   '/api/store',
   route(async (req, res) => {
@@ -1210,6 +1346,18 @@ app.use((error: unknown, _req: Request, res: Response, _next: express.NextFuncti
 /** Discards every visitor's world. Used by the tests between cases. */
 export async function resetWorld(): Promise<void> {
   await worlds.clear();
+  // The site limiter is process-wide and its window is a minute, so without
+  // this one test that deliberately exhausts an allowance would starve every
+  // test after it. Resetting between tests keeps the production limits real
+  // rather than loosening them to make a suite pass.
+  await resetSiteLimits();
+}
+
+/** Forgets every rate-limit counter this process has recorded. */
+export async function resetSiteLimits(): Promise<void> {
+  await siteStore.close();
+  siteStore = new RecordingStore(new MemoryStore());
+  siteLimiter = new Ninsho({ store: siteStore, audit: new MemoryAuditSink() });
 }
 
 // Guarded so importing this module for a test does not bind a port.

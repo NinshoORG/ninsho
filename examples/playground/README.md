@@ -98,6 +98,65 @@ lives.
 **The audit trail.** The structured events, whose shape is deliberately narrow — no free-form
 payload that could accidentally carry a token, a password, or a request body.
 
+## Deploying it
+
+```bash
+docker build -f examples/playground/Dockerfile -t ninsho-playground .
+docker run -p 4000:4000 ninsho-playground
+```
+
+Anywhere that runs a container will host it: Fly, Render, Railway, Cloud Run, a
+VM. It keeps nothing, needs no database, and holds every visitor's world in
+memory until they go idle.
+
+**Set `PLAYGROUND_TRUST_PROXY` if anything sits in front of it.** It is the
+number of proxies between the internet and the process — `1` behind a single
+load balancer. Left unset it means "directly exposed", and behind a proxy that
+reading puts every visitor in one rate-limit bucket, so any one of them can
+limit everybody. Set it too high instead and a visitor can mint a fresh bucket
+per request by prepending to `X-Forwarded-For`. The library refuses to guess
+for exactly this reason, and neither does this.
+
+`PUBLIC_ORIGIN` should be the URL people actually visit. A DPoP proof is bound
+to the URI it was minted for, so the value the page signs and the value the
+server reconstructs have to agree.
+
+### What is already handled
+
+**It limits itself, with the limiter it demonstrates.** 120 requests a minute
+per address across the API, and 20 for the routes that mint keys — a SafetyNet
+or metadata run generates a 2048-bit RSA key, about 100ms of CPU, and
+`/api/attack/window-boundary` deliberately holds a connection for two and a
+half seconds waiting for a rate-limit window to tick. Both are worth showing;
+neither is worth serving thousands of times a minute to one visitor.
+
+**A content policy strict enough to be worth having.** `default-src 'none'`,
+no `unsafe-inline`, no `unsafe-eval`, no CDN — every script and style is its
+own, from its own origin. A demonstration that had to relax its own policy to
+function would be a poor advertisement for a security library.
+
+**Worlds are capped and idle ones swept**, because a public page without that
+is a memory leak with a URL.
+
+### `NODE_ENV` is deliberately not `production`
+
+`MemoryStore` refuses to construct under `NODE_ENV=production`, and there is no
+override flag — per-process state that vanishes on restart would silently break
+revocation and rate limiting in a real deployment. The image sets
+`NODE_ENV=demonstration` instead: named rather than omitted, because the
+playground *is* the demonstration and worlds vanishing on restart is the
+intended behaviour rather than an outage.
+
+If you copy the Dockerfile for something real, set `NODE_ENV=production` and
+watch it refuse to start. That is the guard working.
+
+### Where it should not go
+
+It hands out internals over HTTP on purpose — the live keyspace, the store
+operations behind every request, the audit trail. Give it its own host and its
+own network. It should never share either with anything real, and it has no
+business next to a production Redis.
+
 ## Each visitor gets their own world
 
 A cookie identifies a visitor; each one has their own store, audit sink and `Ninsho`. Sharing a
@@ -118,7 +177,7 @@ URL — an unfortunate thing for a security demo to be.
 npm run test --workspace @ninsho/playground
 ```
 
-61 tests over real HTTP. A demo does not usually get tests, and this one needs
+67 tests over real HTTP. A demo does not usually get tests, and this one needs
 them: every panel restates a claim from the README to an audience with no way
 to check it. A demonstration that quietly stopped demonstrating would be worse
 than a broken test — a page telling visitors something untrue while looking

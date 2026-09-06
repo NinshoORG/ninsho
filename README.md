@@ -166,7 +166,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,935 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
+1,941 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```
@@ -180,7 +180,9 @@ webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — the rule this project runs on, and
   the design constraints that are settled
 - **[examples/playground](./examples/playground)** — an interactive protocol
-  explorer: run the attacks, watch them fail, and read the store underneath
+  explorer: run the attacks, watch them fail, and read the store underneath.
+  `docker build -f examples/playground/Dockerfile -t ninsho-playground .` and it
+  will run anywhere that takes a container
 - **[packages/webauthn](./packages/webauthn)** — passkeys: what is verified,
   and what deliberately is not
 - **[examples/express-api](./examples/express-api)** — a complete integration

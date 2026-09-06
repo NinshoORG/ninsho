@@ -604,3 +604,93 @@ describe('the rate-limit panel demonstrates real limiting', () => {
     expect(result['rejected']).toBe(true);
   });
 });
+
+/**
+ * What changes when the page is reachable from the internet.
+ *
+ * These are deployment properties rather than demonstrations, and they are
+ * asserted for the same reason the demonstrations are: a security library
+ * whose own demo hands out free CPU and serves without a content policy is
+ * making an argument against itself.
+ */
+describe('the deployment surface', () => {
+  it('answers a health probe without creating a visitor world', async () => {
+    // A probe every few seconds would otherwise leave the sweeper clearing up
+    // after the load balancer for the life of the process.
+    const before = (await get('/health'))['worlds'] as number;
+    await get('/health');
+    await get('/health');
+    const after = (await get('/health'))['worlds'] as number;
+
+    expect(after).toBe(before);
+  });
+
+  it('reports its status outside the rate-limited API', async () => {
+    const res = await fetch(`${baseUrl}/health`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: 'ok' });
+  });
+
+  it('serves the page with a policy strict enough to matter', async () => {
+    // Every script and style the page loads is its own, from this origin, with
+    // no CDN and no inline handlers — so the policy can be strict, and a demo
+    // that had to relax its own would be a poor advertisement.
+    const res = await fetch(`${baseUrl}/`);
+    const csp = res.headers.get('content-security-policy') ?? '';
+
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).not.toContain('unsafe-inline');
+    expect(csp).not.toContain('unsafe-eval');
+
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(res.headers.get('x-powered-by')).toBeNull();
+  });
+
+  it('carries the same headers on the API, not only on the page', async () => {
+    const res = await fetch(`${baseUrl}/api/store`);
+    expect(res.headers.get('content-security-policy')).toContain("default-src 'none'");
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+
+  it('limits the routes that mint keys', async () => {
+    // `/api/attestation` generates an RSA key per SafetyNet or metadata run —
+    // about 100ms of CPU, unauthenticated. Worth demonstrating; not worth
+    // serving thousands of times a minute to one visitor.
+    const attempts: number[] = [];
+    for (let i = 0; i < 25; i += 1) {
+      const res = await fetch(`${baseUrl}/api/attestation`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ format: 'none', scenario: 'genuine' }),
+      });
+      attempts.push(res.status);
+    }
+
+    expect(attempts).toContain(429);
+    // And the limit is the expensive one, not the general API allowance.
+    expect(attempts.filter((s) => s === 200).length).toBeLessThanOrEqual(20);
+  });
+
+  it('answers a refused request the way the library does', async () => {
+    for (let i = 0; i < 25; i += 1) {
+      await fetch(`${baseUrl}/api/attestation`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ format: 'none', scenario: 'genuine' }),
+      });
+    }
+
+    const res = await fetch(`${baseUrl}/api/attestation`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ format: 'none', scenario: 'genuine' }),
+    });
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBeTruthy();
+    expect(await res.json()).toMatchObject({ error: { code: 'RATE_LIMIT_EXCEEDED' } });
+  });
+});

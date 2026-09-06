@@ -1,0 +1,30 @@
+# Everything the build does not need, and two things it must not have.
+#
+# `node_modules` is rebuilt from the lockfile inside the image, so copying a
+# host copy in would defeat `npm ci`'s regression gate and could smuggle a
+# platform-specific binary across.
+#
+# `dist` is rebuilt too. The predecessor to this project shipped a release that
+# could not be built from a clean checkout, because the artifact in the
+# repository and the source had drifted apart. Refusing to copy one is the
+# cheapest way to keep that from happening again.
+
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+**/coverage
+
+.git
+.github
+.vscode
+.idea
+
+*.log
+.DS_Store
+Thumbs.db
+
+# Documentation and tests are not needed to serve the page.
+**/*.md
+!examples/playground/README.md

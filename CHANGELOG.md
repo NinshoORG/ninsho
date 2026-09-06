@@ -7,6 +7,32 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **The playground is deployable.** A multi-stage Dockerfile, a `/health`
+  endpoint that does not create a visitor world, and the two things a page
+  needs before it is reachable from the internet rather than from a laptop.
+
+  It limits itself with the limiter it demonstrates — 120 requests a minute per
+  address across the API, 20 for the routes that mint keys. A SafetyNet or
+  metadata run generates a 2048-bit RSA key, about 100ms of CPU, and the
+  window-boundary demonstration deliberately holds a connection for two and a
+  half seconds. Both are worth showing and neither is worth serving thousands
+  of times a minute to one visitor. `PLAYGROUND_TRUST_PROXY` states how much of
+  `X-Forwarded-For` to believe, with no default beyond "directly exposed",
+  because the library refuses to guess and neither should its demo.
+
+  The content policy is `default-src 'none'` with no `unsafe-inline`, no
+  `unsafe-eval` and no CDN — every script and style is its own, from its own
+  origin. A demonstration that had to relax its own policy to work would be a
+  poor advertisement.
+
+  One line in the Dockerfile is worth reading: `NODE_ENV` is set to
+  `demonstration` rather than `production`, because `MemoryStore` refuses to
+  construct under the latter and has no override flag. Building the image with
+  `NODE_ENV=production` still refuses to start, which is the guard working; the
+  playground is the one deployment where worlds vanishing on restart is the
+  intended behaviour, and saying so explicitly is what its own documentation
+  asks for.
+
 - **Direct tests for the two modules only reached through a happy path.**
   `options.ts` builds the JSON a browser starts a ceremony with, and was
   exercised only through `WebAuthnServer`; `dpop-middleware.ts` reconstructs
