@@ -131,7 +131,10 @@ authorization data inside a `Principal`.
 | Cloned authenticator | **Detected** | Sign-counter regression rejects by default (WebAuthn §6.1.1) |
 | Ceremony completed against another account | **Mitigated** | Challenge user and credential owner must agree; `server.test.ts` › *binding a ceremony to its user* |
 | Memory-safety bugs in attacker-facing parsers | **Mitigated** | Every length bounds-checked before use; CBOR, DER and authenticator-data parsers each fuzzed |
-| **Authenticator provenance (attestation)** | **Mitigated for `packed`** | Chain verified to relying-party roots, AAGUID cross-checked against the certificate; `attestation.test.ts`. Other formats unimplemented — see below |
+| **Authenticator provenance (attestation)** | **Mitigated** | `packed`, `apple`, `tpm`, `fido-u2f` and `android-key` verified to relying-party roots, AAGUID cross-checked where the format conveys one; `attestation.test.ts`. `android-safetynet` unimplemented — see below |
+| A TPM statement certifying a key that is not the credential | **Mitigated** | `pubArea` compared against the credential key, and `attested.name` against `pubArea`; `attestation.test.ts` › *refuses a pubArea describing a key that is not the credential* |
+| An Android key usable by every app on the device | **Mitigated** | `allApplications` refused in either authorization list; authorizations read from `teeEnforced` by default; `attestation.test.ts` › *refuses allApplications* |
+| A U2F attestation read as naming a device model | **Mitigated** | U2F conveys no AAGUID, so `aaguidVerified` stays false and an AAGUID allowlist is refused rather than silently unenforceable |
 | Forged attestation from a self-signed CA | **Mitigated** | Trust anchors are mandatory; `attestation.test.ts` › *refuses a chain that does not reach a configured root* |
 | An attestation statement lifted from another device | **Mitigated** | The certificate's AAGUID must match the authenticator data |
 | A CA certificate presented as an attestation leaf | **Mitigated** | Refused per §8.2.1 — a CA leaf could sign for other authenticators too |

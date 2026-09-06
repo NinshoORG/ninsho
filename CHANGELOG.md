@@ -431,10 +431,12 @@ This project uses [Semantic Versioning](https://semver.org/).
   expose — hand-rolling a certificate parser would be inventing exactly the
   primitive this project refuses to invent.
 
-  Still not implemented, and refused rather than rubber-stamped: `tpm`,
-  `android-key`, `android-safetynet`, `apple`, `fido-u2f`. No root store ships
-  with the package and FIDO Metadata Service integration is not implemented —
-  which manufacturers you trust is an operational decision, not library content.
+  Not implemented when `packed` landed, and refused rather than
+  rubber-stamped: `tpm`, `android-key`, `android-safetynet`, `apple`,
+  `fido-u2f`. All but `android-safetynet` have since been implemented; see the
+  entries above. No root store ships with the package and FIDO Metadata Service
+  integration is not implemented — which manufacturers you trust is an
+  operational decision, not library content.
 
 - **A certificate builder for tests, in `@ninsho/webauthn/testing`.**
   Attestation needs real certificate chains to test against. Committed fixtures
