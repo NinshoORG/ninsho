@@ -92,7 +92,17 @@ function highContext(number: number, content: Uint8Array): Uint8Array {
 /** ENUMERATED, which is how Keystore writes its security levels. */
 const enumerated = (value: number): Uint8Array => tlv(0x0a, new Uint8Array([value]));
 
-/** A positive INTEGER, with a leading zero when the high bit would read as negative. */
+/**
+ * A positive INTEGER, encoded minimally.
+ *
+ * Both halves of the rule matter, and only one of them is obvious. A set high
+ * bit needs a leading zero, or the value reads as negative — that half is easy
+ * to remember. The other half is that a leading zero which is *not* needed is
+ * invalid DER, and a random serial number begins with one about once in every
+ * 256 certificates. Encoders that skip the trim produce a certificate that
+ * looks fine until a real X.509 parser refuses it, and the failure surfaces
+ * somewhere else entirely — as a chain that would not verify.
+ */
 function integer(value: Uint8Array | number): Uint8Array {
   let digits: Uint8Array;
   if (typeof value === 'number') {
@@ -106,6 +116,17 @@ function integer(value: Uint8Array | number): Uint8Array {
   } else {
     digits = value;
   }
+
+  // Drop leading zeros that carry no sign information.
+  let start = 0;
+  while (
+    start < digits.length - 1 &&
+    digits[start] === 0 &&
+    ((digits[start + 1] as number) & 0x80) === 0
+  ) {
+    start += 1;
+  }
+  digits = digits.subarray(start);
 
   if ((digits[0] as number) & 0x80) {
     const padded = new Uint8Array(digits.length + 1);
@@ -262,6 +283,13 @@ export interface CreateCertificateOptions {
     /** Truncates the outer SEQUENCE to fewer than its eight fields. */
     readonly fieldCount?: number;
   };
+  /**
+   * Serial number bytes. Random when omitted.
+   *
+   * Settable so the encoding edge cases — a leading zero byte, a set high bit
+   * — can be exercised on purpose rather than waited for.
+   */
+  readonly serialNumber?: Uint8Array;
   readonly notBefore?: Date;
   readonly notAfter?: Date;
   /** Reuse an existing key instead of generating one. */
@@ -315,8 +343,13 @@ export function createCertificate(options: CreateCertificateOptions): GeneratedC
     extensions.push(extension(ANDROID_KEY_OID, keyDescription(options.androidKey)));
   }
 
-  const serial = new Uint8Array(8);
-  crypto.getRandomValues(serial);
+  let serial: Uint8Array;
+  if (options.serialNumber === undefined) {
+    serial = new Uint8Array(8);
+    crypto.getRandomValues(serial);
+  } else {
+    serial = options.serialNumber;
+  }
 
   const issuerName = options.issuer ? options.issuer.subject : options.subject;
 

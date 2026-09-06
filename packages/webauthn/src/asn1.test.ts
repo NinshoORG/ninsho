@@ -105,6 +105,36 @@ describe('the generated certificates are real certificates', () => {
     expect(parsed.publicKey.asymmetricKeyType).toBe('ec');
   });
 
+  it.each([
+    ['a leading zero byte', '0012345678'],
+    ['two leading zero bytes', '000012345678'],
+    ['a set high bit', 'ff12345678'],
+    ['a required leading zero before a set high bit', '00ff12345678'],
+    ['a single zero', '00'],
+  ])('encodes a serial number with %s', (_label, serialHex) => {
+    // Regression. The serial is the one field with attacker-irrelevant but
+    // encoder-relevant randomness: a random 8-byte value starts with a zero
+    // byte about once in 256, and a leading zero that carries no sign
+    // information is not valid DER. The old encoder emitted it anyway, so
+    // roughly 1 certificate in 512 was rejected by any real X.509 parser —
+    // measured at 9 of 4000 before this, 0 of 4000 after.
+    //
+    // It surfaced nowhere near here. The suite reported "an x5c entry is not a
+    // valid certificate" from whichever attestation test happened to draw the
+    // unlucky serial, which reads as a verifier problem rather than a fixture
+    // one.
+    const serial = new Uint8Array(Buffer.from(serialHex, 'hex'));
+    const cert = createCertificate({ subject: 'Serial Edge Case', serialNumber: serial });
+
+    const parsed = new X509Certificate(Buffer.from(cert.der));
+    expect(parsed.subject).toContain('Serial Edge Case');
+
+    // Node prints the serial in hex, upper case, with the sign padding and
+    // every leading zero gone — so zero itself prints as a single '0'.
+    const trimmed = serialHex.replace(/^0+/, '');
+    expect(parsed.serialNumber).toBe(trimmed === '' ? '0' : trimmed.toUpperCase());
+  });
+
   it('produces a chain whose signature Node verifies', () => {
     // The real test of the encoder: the TBS bytes it hashed must be exactly
     // the bytes Node re-reads and verifies.
