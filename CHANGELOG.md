@@ -7,6 +7,49 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Android Keystore attestation — WebAuthn §8.4.** Android platform
+  authenticators, and the last of the formats that is not deprecated.
+
+  The signature is over the ceremony the way `packed`'s is, and the attestation
+  certificate holds the credential key. On its own that says only that whoever
+  holds the credential also holds a certificate — which is what any self-signed
+  chain can say. The proof is in an extension Keystore writes into the
+  certificate it issues, and reading it is the whole job:
+
+  - `attestationChallenge` must equal this ceremony's `clientDataHash`. The
+    challenge is fixed when the key is *generated*, so a certificate carrying
+    this hash is one Keystore minted for this registration and could not have
+    minted earlier.
+  - `allApplications` must be absent from both authorization lists. A key
+    marked usable by every application on the device is not scoped to this
+    relying party, and a credential another app can sign with is not a
+    credential.
+  - `origin` must be `KM_ORIGIN_GENERATED` and `purpose` must include
+    `KM_PURPOSE_SIGN`: the key was generated inside the keystore rather than
+    imported into it, and it is a signing key.
+
+  **The list those are read from is a security decision, and the default is the
+  strict one.** Keystore states a key's properties twice — once as the Android
+  OS enforces them, once as the secure hardware does — and §8.4 permits reading
+  either. Ninsho reads `teeEnforced`. A software-enforced authorization list is
+  the operating system vouching for itself, and if the OS's word were enough
+  there would be no reason to be doing attestation at all.
+  `allowSoftwareEnforcedAndroidKey: true` opts into the looser reading for
+  emulators and devices without a TEE; what comes back is then not a hardware
+  claim and should not be recorded as one.
+
+  Reading the extension needed one change to the DER reader: Android puts
+  `allApplications` and `origin` at context tag numbers 600 and 702, which DER
+  writes across several bytes, and the reader previously refused that form
+  outright. It now decodes it, bounded to three groups, with the minimal-length
+  rules enforced as everywhere else — and `Tlv` gained a `number` field so a
+  caller can tell `[600]` from `[702]` at all.
+
+  With this, `@ninsho/webauthn` verifies `none`, `packed`, `apple`, `tpm`,
+  `fido-u2f` and `android-key`. What remains unimplemented is
+  `android-safetynet`, which rests on an API Google has deprecated, and it is
+  still refused rather than rubber-stamped.
+
 - **TPM attestation — WebAuthn §8.3.** Windows Hello's path, and the format
   that takes the most care to get right.
 
@@ -62,9 +105,9 @@ This project uses [Semantic Versioning](https://semver.org/).
   with `allowedAaguids` is refused outright: "0000… is not on the allowed list"
   would be true and would send a caller off to add zeroes to their allowlist.
 
-  With these two, `@ninsho/webauthn` verifies `none`, `packed`, `apple`, `tpm`
-  and `fido-u2f`. Still unimplemented and refused rather than rubber-stamped:
-  `android-key` and `android-safetynet`.
+  With these two, `@ninsho/webauthn` verified `none`, `packed`, `apple`, `tpm`
+  and `fido-u2f`; `android-key` followed, and is the entry above. Still
+  unimplemented and refused rather than rubber-stamped: `android-safetynet`.
 
 - **An attestation panel in the playground.** The newest and least intuitive
   part of the library was the part the demonstration site did not show. Pick a
@@ -112,8 +155,8 @@ This project uses [Semantic Versioning](https://semver.org/).
   tracking identifier.
 
   Still unimplemented at the time and refused rather than rubber-stamped:
-  `tpm`, `android-key`, `android-safetynet`, `fido-u2f`. The first and last of
-  those have since been implemented; see the entries above.
+  `tpm`, `android-key`, `android-safetynet`, `fido-u2f`. All but
+  `android-safetynet` have since been implemented; see the entries above.
 
 - **An interactive protocol explorer — `examples/playground`.** The README
   makes claims and each has a test behind it, which is the right evidence for a

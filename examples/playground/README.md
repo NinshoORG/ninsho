@@ -66,8 +66,8 @@ verifier saw. A decoder that disagreed with the verifier would be worse than non
 
 **Attestation — what the hardware proves.** Pick a format and a scenario; each run is a real
 ceremony with real keys and real certificates, put through the shipped verifier. `packed`, `apple`,
-`tpm` and `fido-u2f` are verified; `android-key` is there to show that allowlisting a format the
-library cannot check still fails closed.
+`tpm`, `fido-u2f` and `android-key` are verified; `android-safetynet` is there to show that
+allowlisting a format the library cannot check still fails closed.
 
 The scenarios are where the panel earns its place. The roots are minted by the demo process, which
 is exactly why **no trust anchors** is worth trying: the chain is genuine, the signature verifies,
@@ -105,7 +105,7 @@ URL — an unfortunate thing for a security demo to be.
 npm run test --workspace @ninsho/playground
 ```
 
-47 tests over real HTTP. A demo does not usually get tests, and this one needs
+52 tests over real HTTP. A demo does not usually get tests, and this one needs
 them: every panel restates a claim from the README to an audience with no way
 to check it. A demonstration that quietly stopped demonstrating would be worse
 than a broken test — a page telling visitors something untrue while looking

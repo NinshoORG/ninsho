@@ -714,6 +714,11 @@ const ATTESTATION_FORMATS: Record<
   'android-key': {
     label: 'android-key',
     hardware: 'Android platform authenticators.',
+    verified: true,
+  },
+  'android-safetynet': {
+    label: 'android-safetynet',
+    hardware: 'Older Android devices. Google has deprecated the API behind it.',
     verified: false,
   },
 };
@@ -777,9 +782,11 @@ app.post(
     } else if (format === 'fido-u2f') {
       registration = await device.register({ ...common, u2fAttestation: { root } });
     } else if (format === 'android-key') {
+      registration = await device.register({ ...common, androidKeyAttestation: { root } });
+    } else if (format === 'android-safetynet') {
       // Nothing to build: the point is that allowlisting an unimplemented
       // format still fails closed.
-      registration = await device.register({ ...common, attestationFormat: 'android-key' });
+      registration = await device.register({ ...common, attestationFormat: 'android-safetynet' });
     } else {
       registration = await device.register({ challenge, origin, rpId });
     }

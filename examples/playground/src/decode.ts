@@ -242,7 +242,7 @@ export function decodeAttestationObject(bytes: Uint8Array): Decoded {
       value: String(fmt),
       note: fmt === 'none'
         ? 'No attestation conveyed — the normal case for passkeys, and what the browser substitutes when the relying party asks for `none`.'
-        : 'A statement format. Ninsho verifies `packed`, `apple`, `tpm` and `fido-u2f` against roots you supply, and refuses the rest rather than parsing them without checking.',
+        : 'A statement format. Ninsho verifies `packed`, `apple`, `tpm`, `fido-u2f` and `android-key` against roots you supply, and refuses the rest rather than parsing them without checking.',
       depth: 1,
     },
     {
@@ -454,6 +454,11 @@ const STATEMENT_NOTES: Record<string, Record<string, string>> = {
   'fido-u2f': {
     sig: 'Signed over `0x00 || rpIdHash || clientDataHash || credentialId || (0x04 || x || y)`. The leading zero is a reserved constant, not padding — it is what stops this being replayed as a U2F authentication response.',
     x5c: 'Exactly one certificate. §8.6 permits no more: accepting a list would mean accepting whichever leaf the client picked out of certificates it supplied itself.',
+  },
+  'android-key': {
+    alg: 'The COSE algorithm of the credential key, which is also the attestation key here.',
+    sig: 'Signed over `authData || SHA-256(clientDataJSON)`, as `packed` is — and, on its own, saying no more than a self-signed chain could.',
+    x5c: 'Where the format actually lives. Keystore writes a key description into this certificate: the challenge fixed when the key was generated (which must be this ceremony’s client data hash), and an authorization list saying the key was generated in the keystore, is a signing key, and is not usable by every application on the device.',
   },
 };
 

@@ -19,10 +19,10 @@
  *
  * A verifier that reports "attestation verified" in that situation is worse
  * than one with no attestation support: it manufactures confidence. So every
- * format that carries a chain — `packed`, `apple`, `tpm` and `fido-u2f` — is
- * accepted only when the relying party supplies the roots it trusts. If you do
- * not have roots, you do not have attestation, and saying so is the honest
- * answer.
+ * format that carries a chain — `packed`, `apple`, `tpm`, `fido-u2f` and
+ * `android-key` — is accepted only when the relying party supplies the roots
+ * it trusts. If you do not have roots, you do not have attestation, and saying
+ * so is the honest answer.
  * ──────────────────────────────────────────────────────────────────────────
  */
 
@@ -33,6 +33,12 @@ import {
   type JsonWebKey as NodeJsonWebKey,
 } from 'node:crypto';
 import { findExtension, readTlv, encodeOid, Asn1Error } from './asn1.js';
+import {
+  ANDROID_KEY_ATTESTATION_OID,
+  AndroidKeyError,
+  parseKeyDescription,
+  verifyAuthorizations,
+} from './android-key.js';
 import {
   TpmError,
   parseTpmAttest,
@@ -70,7 +76,14 @@ export type AttestationType =
 export const FIDO_AAGUID_OID = '1.3.6.1.4.1.45724.1.1.4';
 
 /** Formats this package can actually verify. */
-export const VERIFIABLE_FORMATS: readonly string[] = ['none', 'packed', 'apple', 'tpm', 'fido-u2f'];
+export const VERIFIABLE_FORMATS: readonly string[] = [
+  'none',
+  'packed',
+  'apple',
+  'tpm',
+  'fido-u2f',
+  'android-key',
+];
 
 /** How deep an attestation chain may be, counting the leaf. */
 const MAX_CHAIN_DEPTH = 6;
@@ -82,9 +95,9 @@ export interface AttestationPolicy {
   /**
    * Formats to accept. Default `['none']`.
    *
-   * Adding `'packed'`, `'apple'`, `'tpm'` or `'fido-u2f'` requires
-   * `trustAnchors`; see the note at the top of this file for why that is not
-   * optional.
+   * Adding `'packed'`, `'apple'`, `'tpm'`, `'fido-u2f'` or `'android-key'`
+   * requires `trustAnchors`; see the note at the top of this file for why that
+   * is not optional.
    */
   readonly formats?: readonly string[];
   /**
@@ -111,6 +124,17 @@ export interface AttestationPolicy {
    * party that asked for attestation almost certainly wanted provenance.
    */
   readonly allowSelfAttestation?: boolean;
+  /**
+   * Read `android-key` authorizations from the software-enforced list as well
+   * as the hardware-enforced one. Default `false`.
+   *
+   * WebAuthn §8.4 permits either. Off by default because a software-enforced
+   * authorization list is the Android OS vouching for itself, and if the OS's
+   * word were enough there would be no reason to be doing attestation. Turn it
+   * on if emulators or devices without a TEE have to be able to register, and
+   * know that what you get back is no longer a hardware claim.
+   */
+  readonly allowSoftwareEnforcedAndroidKey?: boolean;
 }
 
 export interface AttestationResult {
@@ -376,19 +400,7 @@ async function verifyAppleAttestation(
   // §8.8 step 5. Without this a genuine Apple certificate could be presented
   // beside a credential key the attacker holds, and everything else would
   // still check out.
-  let credentialSpki: Buffer;
-  try {
-    const { jwk } = parseCoseKey(input.credentialPublicKey, [input.credentialAlgorithm]);
-    credentialSpki = createPublicKey({ key: jwk as NodeJsonWebKey, format: 'jwk' }).export({
-      type: 'spki',
-      format: 'der',
-    });
-  } catch {
-    throw new AttestationError('the credential public key could not be read');
-  }
-
-  const certificateSpki = credCert.publicKey.export({ type: 'spki', format: 'der' });
-  if (!bytesEqual(new Uint8Array(credentialSpki), new Uint8Array(certificateSpki))) {
+  if (!certificateHoldsCredentialKey(credCert, input)) {
     throw new AttestationError(
       'the credential public key does not match the attestation certificate',
     );
@@ -584,6 +596,117 @@ async function verifyU2fAttestation(
 
   if (!verifySignature(ES256, attCert.publicKey, verificationData, sig)) {
     throw new AttestationError('the u2f attestation signature did not verify');
+  }
+
+  if (!chainReachesAnchor(chain, anchors)) {
+    throw new AttestationError('the attestation chain does not reach a trusted root');
+  }
+}
+
+/**
+ * Whether a certificate's subject public key is the credential's public key.
+ *
+ * The check `apple` and `android-key` both turn on. Without it a genuine
+ * attestation certificate could be presented beside a credential key the
+ * attacker generated, and every signature in sight would still verify.
+ *
+ * Compared as SPKI rather than field by field, so the two encodings have to
+ * agree completely rather than in the parts a comparison remembered to look
+ * at.
+ */
+function certificateHoldsCredentialKey(
+  certificate: X509Certificate,
+  input: VerifyAttestationInput,
+): boolean {
+  let credentialSpki: Buffer;
+  try {
+    const { jwk } = parseCoseKey(input.credentialPublicKey, [input.credentialAlgorithm]);
+    credentialSpki = createPublicKey({ key: jwk as NodeJsonWebKey, format: 'jwk' }).export({
+      type: 'spki',
+      format: 'der',
+    });
+  } catch {
+    throw new AttestationError('the credential public key could not be read');
+  }
+
+  const certificateSpki = certificate.publicKey.export({ type: 'spki', format: 'der' });
+  return bytesEqual(new Uint8Array(credentialSpki), new Uint8Array(certificateSpki));
+}
+
+/**
+ * Verifies Android Keystore attestation — WebAuthn §8.4.
+ *
+ * The signature is over the ceremony, as `packed`'s is, and the certificate
+ * holds the credential key. What makes the format mean anything beyond a
+ * self-signed chain is the extension Keystore writes into the certificate it
+ * issues: see `android-key.ts` for what is read out of it and why the
+ * hardware-enforced list is the default one to read.
+ */
+async function verifyAndroidKeyAttestation(
+  input: VerifyAttestationInput,
+  chain: X509Certificate[],
+  anchors: X509Certificate[],
+  alg: CoseAlgorithm,
+  allowSoftwareEnforced: boolean,
+): Promise<void> {
+  const sig = input.statement.get('sig');
+  if (!(sig instanceof Uint8Array) || sig.length === 0) {
+    throw new AttestationError('the android-key statement has no signature');
+  }
+
+  const attCert = chain[0] as X509Certificate;
+
+  // §8.4 step 2.
+  const signedData = new Uint8Array(input.authData.length + input.clientDataHash.length);
+  signedData.set(input.authData, 0);
+  signedData.set(input.clientDataHash, input.authData.length);
+
+  if (!verifySignature(alg, attCert.publicKey, signedData, sig)) {
+    throw new AttestationError('the android-key attestation signature did not verify');
+  }
+
+  // §8.4 step 3.
+  if (!certificateHoldsCredentialKey(attCert, input)) {
+    throw new AttestationError(
+      'the credential public key does not match the attestation certificate',
+    );
+  }
+
+  // §8.4 steps 4-6, all of them read out of the Keystore extension.
+  let extensionBytes: Uint8Array | undefined;
+  try {
+    extensionBytes = findExtension(new Uint8Array(attCert.raw), ANDROID_KEY_ATTESTATION_OID);
+  } catch (error) {
+    throw new AttestationError(
+      `attestation certificate could not be read: ${
+        error instanceof Asn1Error ? error.message : 'unknown error'
+      }`,
+    );
+  }
+  if (extensionBytes === undefined) {
+    throw new AttestationError(
+      'the attestation certificate carries no Android key attestation extension',
+    );
+  }
+
+  let description;
+  try {
+    description = parseKeyDescription(extensionBytes);
+    verifyAuthorizations(description, allowSoftwareEnforced);
+  } catch (error) {
+    throw new AttestationError(
+      error instanceof AndroidKeyError
+        ? error.message
+        : 'the Android key description could not be read',
+    );
+  }
+
+  // §8.4 step 4. The challenge is fixed when the key is *generated*, so a
+  // certificate carrying this ceremony's client data hash is one Keystore
+  // minted for this registration — which is what stops a certificate from an
+  // earlier ceremony being presented here.
+  if (!bytesEqual(description.attestationChallenge, input.clientDataHash)) {
+    throw new AttestationError('the attestation challenge is not this ceremony’s client data hash');
   }
 
   if (!chainReachesAnchor(chain, anchors)) {
@@ -822,6 +945,56 @@ export async function verifyAttestation(
       aaguidVerified: true,
       aaguid: aaguidHex,
       attestationSubject: (tpmChain[0] as X509Certificate).issuer,
+    };
+  }
+
+  // ── android-key ──────────────────────────────────────────────────────────
+
+  if (input.format === 'android-key') {
+    const androidAlg = input.statement.get('alg');
+    if (typeof androidAlg !== 'number' || ![ES256, RS256].includes(androidAlg as CoseAlgorithm)) {
+      throw new AttestationError(
+        `unsupported android-key attestation algorithm: ${String(androidAlg)}`,
+      );
+    }
+
+    const androidChain = readX5c(input.statement);
+    if (androidChain === undefined) {
+      throw new AttestationError('android-key attestation requires an x5c chain');
+    }
+
+    const androidAnchors = policy.trustAnchors ?? [];
+    if (androidAnchors.length === 0) {
+      throw new AttestationError(
+        'android-key attestation requires trustAnchors; without roots, a chain proves nothing',
+      );
+    }
+
+    let anchorCerts: X509Certificate[];
+    try {
+      anchorCerts = androidAnchors.map((der) => new X509Certificate(Buffer.from(der)));
+    } catch {
+      throw new AttestationError('a configured trust anchor is not a valid certificate');
+    }
+
+    await verifyAndroidKeyAttestation(
+      input,
+      androidChain,
+      anchorCerts,
+      androidAlg as CoseAlgorithm,
+      policy.allowSoftwareEnforcedAndroidKey === true,
+    );
+
+    if (policy.allowedAaguids !== undefined && !policy.allowedAaguids.includes(aaguidHex)) {
+      throw new AttestationError(`authenticator model ${aaguidHex} is not on the allowed list`);
+    }
+
+    return {
+      format: 'android-key',
+      type: 'basic',
+      aaguidVerified: true,
+      aaguid: aaguidHex,
+      attestationSubject: (androidChain[0] as X509Certificate).subject,
     };
   }
 

@@ -173,22 +173,32 @@ verified.aaguidVerified    // true only when a trusted chain vouched for the AAG
 verified.attestationSubject
 ```
 
-**Trust anchors are mandatory.** `packed`, `apple`, `tpm` and `fido-u2f` are refused outright
-without them. A chain checked against no root proves nothing — anyone can self-sign a CA and put any AAGUID they like in a certificate
+**Trust anchors are mandatory.** `packed`, `apple`, `tpm`, `fido-u2f` and `android-key` are
+refused outright without them. A chain checked against no root proves nothing — anyone can self-sign a CA and put any AAGUID they like in a certificate
 they issued to themselves — and a verifier reporting success there would manufacture confidence.
 If you have no roots, you have no attestation, and saying so is the honest answer.
 
 ## What is *not* verified
 
-**The Android attestation formats.** `android-key` and `android-safetynet` are not implemented and
-are refused rather than parsed-and-ignored — allowlisting one still fails closed. What *is*
-verified: `packed` covers most security keys including the YubiKey line, `apple` covers Touch ID
-and Face ID, `tpm` covers Windows Hello, and `fido-u2f` covers CTAP1 security keys.
+**`android-safetynet`.** Not implemented, and refused rather than parsed-and-ignored —
+allowlisting it still fails closed. Google has deprecated the SafetyNet Attestation API it rests
+on; `android-key` is the format current Android devices use, and that one *is* verified.
+
+Everything else is: `packed` covers most security keys including the YubiKey line, `apple` covers
+Touch ID and Face ID, `tpm` covers Windows Hello, `fido-u2f` covers CTAP1 security keys, and
+`android-key` covers Android platform authenticators.
 
 **`fido-u2f` conveys no AAGUID.** U2F has no model identifier, so a verified statement proves the
 credential lives on hardware a trusted root vouched for and says nothing about which model.
 `aaguidVerified` stays `false`, and combining the format with `allowedAaguids` is refused rather
 than quietly failing against sixteen zero bytes.
+
+**`android-key` reads the hardware-enforced authorization list by default.** Keystore states a
+key's properties twice — once as the Android OS enforces them and once as the secure hardware
+does. §8.4 permits reading either. Ninsho reads `teeEnforced`, because a software-enforced list is
+the OS vouching for itself, and if the OS's word were enough there would be no reason to be doing
+attestation. `allowSoftwareEnforcedAndroidKey: true` opts into the looser reading for emulators and
+devices without a TEE — and what comes back is then no longer a hardware claim.
 
 **No root store ships here.** Which manufacturers you trust is an operational decision that changes
 without this package changing. FIDO's Metadata Service is where most relying parties draw roots

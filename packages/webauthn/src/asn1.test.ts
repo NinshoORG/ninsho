@@ -50,12 +50,30 @@ describe('reading TLVs', () => {
     ['the reserved length form', '04ff'],
     ['a non-minimal long form', '048101'],
     ['a redundant leading zero in the length', '04820080'],
-    ['a multi-byte tag', '1f0100'],
+    ['a tag number written in the long form when the short form would do', '1f0100'],
+    ['a tag number with a zero leading group', 'bf800100'],
+    ['a tag number needing more than three groups', 'bf8180808001 00'.replace(/ /g, '')],
+    ['a truncated multi-byte tag', 'bf84'],
     ['a length wider than any certificate field', '0484ffffffff'],
     ['content running past the end', '040aff'],
     ['a truncated header', '04'],
   ])('refuses %s', (_label, encoded) => {
     expect(() => readTlv(hex(encoded), 0)).toThrow(Asn1Error);
+  });
+
+  it('reads a high-tag-number tag', () => {
+    // `[600] EXPLICIT`, which is where Android's key attestation extension
+    // puts `allApplications`. Refusing the form would mean refusing to read a
+    // structure that is perfectly valid DER.
+    const tlv = readTlv(hex('bf84580100'), 0);
+    expect(tlv.number).toBe(600);
+    expect(tlv.tag).toBe(0xbf);
+    expect(tlv.end - tlv.start).toBe(1);
+  });
+
+  it('reports the tag number for the ordinary short form too', () => {
+    expect(readTlv(hex('300100'), 0).number).toBe(0x10);
+    expect(readTlv(hex('a30100'), 0).number).toBe(3);
   });
 
   it('never throws anything but Asn1Error on random input', () => {

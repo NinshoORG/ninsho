@@ -46,7 +46,20 @@ const MAX_DEPTH = 12;
 
 /** One tag-length-value triple, with absolute offsets into the buffer. */
 export interface Tlv {
+  /**
+   * The leading identifier byte — class, constructed bit and, for tag numbers
+   * under 31, the number itself. Comparisons against constants like `0x30`
+   * read against this.
+   */
   readonly tag: number;
+  /**
+   * The decoded tag number.
+   *
+   * Equal to `tag & 0x1f` for the usual single-byte form. Android's key
+   * attestation extension uses tag numbers in the hundreds, which DER encodes
+   * across several bytes, and those are only legible here.
+   */
+  readonly number: number;
   /** First byte of the content. */
   readonly start: number;
   /** One past the last byte of the content. */
@@ -69,20 +82,44 @@ export function readTlv(bytes: Uint8Array, offset: number): Tlv {
   }
 
   const tag = bytes[offset] as number;
+  let cursor = offset + 1;
+  let number = tag & 0x1f;
 
-  // High-tag-number form (tag bits all set) would need multi-byte tags.
-  // Nothing in a certificate this reader walks uses one.
-  if ((tag & 0x1f) === 0x1f) {
-    throw new Asn1Error('multi-byte tags are not accepted');
+  if (number === 0x1f) {
+    // High-tag-number form: base-128 groups, continuation bit set on all but
+    // the last. Android's key attestation extension puts its authorization
+    // fields at tag numbers like 600 and 702, so refusing this form would mean
+    // refusing to read a structure that is perfectly valid DER.
+    number = 0;
+    for (let seen = 0; ; seen += 1) {
+      if (cursor >= bytes.length) throw new Asn1Error('truncated multi-byte tag');
+      // Three groups reach 2,097,151. Nothing here uses a tag number remotely
+      // that large, and an unbounded loop over attacker input is not something
+      // to leave open.
+      if (seen >= 3) throw new Asn1Error('tag number is implausibly large');
+
+      const byte = bytes[cursor] as number;
+      cursor += 1;
+      // DER requires the shortest encoding, so the first group cannot be zero.
+      if (seen === 0 && (byte & 0x7f) === 0) throw new Asn1Error('non-minimal tag encoding');
+      number = (number << 7) | (byte & 0x7f);
+      if ((byte & 0x80) === 0) break;
+    }
+    if (number < 0x1f) throw new Asn1Error('non-minimal tag encoding');
   }
 
-  const first = bytes[offset + 1] as number;
+  if (cursor >= bytes.length) {
+    throw new Asn1Error(`truncated TLV header at offset ${offset}`);
+  }
+
+  const first = bytes[cursor] as number;
+  const lengthStart = cursor;
   let length: number;
   let contentStart: number;
 
   if (first < 0x80) {
     length = first;
-    contentStart = offset + 2;
+    contentStart = lengthStart + 1;
   } else {
     if (first === 0x80) throw new Asn1Error('indefinite length is not valid DER');
     if (first === 0xff) throw new Asn1Error('reserved length form');
@@ -90,17 +127,19 @@ export function readTlv(bytes: Uint8Array, offset: number): Tlv {
     const count = first & 0x7f;
     // A certificate field longer than 16 MB is not a certificate field.
     if (count > 3) throw new Asn1Error(`length encoded in ${count} bytes is implausible`);
-    if (offset + 2 + count > bytes.length) throw new Asn1Error('truncated length');
+    if (lengthStart + 1 + count > bytes.length) throw new Asn1Error('truncated length');
 
     length = 0;
     for (let i = 0; i < count; i += 1) {
-      length = (length << 8) | (bytes[offset + 2 + i] as number);
+      length = (length << 8) | (bytes[lengthStart + 1 + i] as number);
     }
     // DER requires the shortest encoding.
     if (length < 0x80) throw new Asn1Error('non-minimal length encoding');
-    if ((bytes[offset + 2] as number) === 0x00) throw new Asn1Error('non-minimal length encoding');
+    if ((bytes[lengthStart + 1] as number) === 0x00) {
+      throw new Asn1Error('non-minimal length encoding');
+    }
 
-    contentStart = offset + 2 + count;
+    contentStart = lengthStart + 1 + count;
   }
 
   const end = contentStart + length;
@@ -108,11 +147,11 @@ export function readTlv(bytes: Uint8Array, offset: number): Tlv {
     throw new Asn1Error(`TLV of ${length} bytes runs past the end of the input`);
   }
 
-  return { tag, start: contentStart, end, next: end };
+  return { tag, number, start: contentStart, end, next: end };
 }
 
 /** Reads the immediate children of a constructed TLV. */
-function children(bytes: Uint8Array, parent: Tlv, depth: number): Tlv[] {
+export function children(bytes: Uint8Array, parent: Tlv, depth: number): Tlv[] {
   if (depth > MAX_DEPTH) {
     throw new Asn1Error(`nesting deeper than ${MAX_DEPTH} is not accepted`);
   }

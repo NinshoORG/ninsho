@@ -119,3 +119,15 @@ export { DerError, derToRawSignature } from './der.js';
 // which TPM certified a credential should not have to re-parse `pubArea`.
 export { TpmError, parseTpmAttest, parseTpmPublic } from './tpm.js';
 export type { TpmAttest, TpmPublic } from './tpm.js';
+
+// Android Keystore's key description, for an application that wants to report
+// what the keystore said about a credential's key.
+export {
+  AndroidKeyError,
+  parseKeyDescription,
+  verifyAuthorizations,
+  ANDROID_KEY_ATTESTATION_OID,
+  KM_ORIGIN_GENERATED,
+  KM_PURPOSE_SIGN,
+} from './android-key.js';
+export type { AuthorizationList, KeyDescription } from './android-key.js';

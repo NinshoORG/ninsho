@@ -381,7 +381,7 @@ describe('the attestation panel demonstrates real verification', () => {
 
   type Verdict = { accepted: boolean; type?: string; format?: string; detail?: string; aaguidVerified?: boolean; aaguid?: string };
 
-  it.each(['packed', 'apple', 'tpm', 'fido-u2f'])(
+  it.each(['packed', 'apple', 'tpm', 'fido-u2f', 'android-key'])(
     'accepts a genuine %s ceremony against the root that issued it',
     async (format) => {
       const result = await attest(format, 'genuine');
@@ -394,7 +394,7 @@ describe('the attestation panel demonstrates real verification', () => {
     },
   );
 
-  it.each(['packed', 'apple', 'tpm', 'fido-u2f'])(
+  it.each(['packed', 'apple', 'tpm', 'fido-u2f', 'android-key'])(
     'refuses a %s ceremony with no trust anchors',
     async (format) => {
       // The scenario the panel exists to make vivid: the chain is genuine and
@@ -409,7 +409,7 @@ describe('the attestation panel demonstrates real verification', () => {
     },
   );
 
-  it.each(['packed', 'apple', 'tpm', 'fido-u2f'])(
+  it.each(['packed', 'apple', 'tpm', 'fido-u2f', 'android-key'])(
     'refuses a %s ceremony checked against the wrong root',
     async (format) => {
       const result = await attest(format, 'wrong-root');
@@ -420,7 +420,7 @@ describe('the attestation panel demonstrates real verification', () => {
     },
   );
 
-  it.each(['packed', 'tpm', 'fido-u2f'])(
+  it.each(['packed', 'tpm', 'fido-u2f', 'android-key'])(
     'refuses a %s ceremony whose signature was tampered with',
     async (format) => {
       // `apple` is absent on purpose: the format carries no signature to
@@ -433,13 +433,24 @@ describe('the attestation panel demonstrates real verification', () => {
     },
   );
 
-  it('refuses android-key even when it is allowlisted', async () => {
-    const result = await attest('android-key', 'genuine');
+  it('refuses android-safetynet even when it is allowlisted', async () => {
+    const result = await attest('android-safetynet', 'genuine');
     const verdict = result['verdict'] as Verdict;
 
     expect(result['expected']).toBe('refused');
     expect(verdict.accepted).toBe(false);
     expect(String(verdict.detail)).toMatch(/cannot be verified/);
+  });
+
+  it('reads android-key from the hardware-enforced authorization list', async () => {
+    // What the panel claims about the format, and the claim most easily
+    // overstated: a software-enforced list is the OS vouching for itself.
+    const result = await attest('android-key', 'genuine');
+    const statement = result['statement'] as { name: string; note: string }[];
+
+    const x5c = statement.find((f) => f.name === 'x5c');
+    expect(x5c?.note).toMatch(/key description/);
+    expect((result['verdict'] as Verdict).accepted).toBe(true);
   });
 
   it('reports fido-u2f as conveying no verified AAGUID', async () => {
@@ -504,7 +515,7 @@ describe('the attestation panel demonstrates real verification', () => {
     const response = await fetch(`${baseUrl}/api/attestation`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ format: 'android-safetynet', scenario: 'genuine' }),
+      body: JSON.stringify({ format: 'not-a-format', scenario: 'genuine' }),
     });
     expect(response.status).toBe(400);
   });

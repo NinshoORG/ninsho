@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateKeyPairSync } from 'node:crypto';
+import { createSign, generateKeyPairSync } from 'node:crypto';
 import { AttestationError } from './attestation.js';
 import { WebAuthnError, verifyRegistration, type RegistrationExpectations } from './ceremony.js';
 import { ES256, EdDSA } from './cose.js';
@@ -699,7 +699,7 @@ describe('the credential still works after attestation', () => {
 const AIK_EKU = '2.23.133.8.3';
 
 /** The `attStmt` fields and `authData`, as a shape the tests can rebuild from. */
-function tpmParts(attestationObject: Uint8Array): {
+function statementParts(attestationObject: Uint8Array): {
   fields: Map<string | number, Encodable>;
   authData: Uint8Array;
 } {
@@ -711,10 +711,14 @@ function tpmParts(attestationObject: Uint8Array): {
 }
 
 /** Re-encodes an attestation object around edited `attStmt` fields. */
-function packTpm(fields: Map<string | number, Encodable>, authData: Uint8Array): Uint8Array {
+function packStatement(
+  format: string,
+  fields: Map<string | number, Encodable>,
+  authData: Uint8Array,
+): Uint8Array {
   return encodeCbor(
     new Map<string, Encodable>([
-      ['fmt', 'tpm'],
+      ['fmt', format],
       ['attStmt', fields],
       ['authData', authData],
     ]),
@@ -991,14 +995,14 @@ describe('tpm attestation', () => {
       tpmAttestation: { root, aik },
     });
 
-    const { fields } = tpmParts(first.attestationObject);
-    const { authData } = tpmParts(second.attestationObject);
+    const { fields } = statementParts(first.attestationObject);
+    const { authData } = statementParts(second.attestationObject);
 
     const error = await rejection(
       verifyRegistration(
         {
           clientDataJSON: second.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(secondChallenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1030,14 +1034,14 @@ describe('tpm attestation', () => {
       new Uint8Array(Buffer.from(strangerJwk.y as string, 'base64url')),
     );
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     fields.set('pubArea', otherPubArea);
 
     const error = await rejection(
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1061,7 +1065,7 @@ describe('tpm attestation', () => {
       tpmAttestation: { root },
     });
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     const pubArea = fields.get('pubArea') as Uint8Array;
     const certInfo = Uint8Array.from(fields.get('certInfo') as Uint8Array);
 
@@ -1075,7 +1079,7 @@ describe('tpm attestation', () => {
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1099,7 +1103,7 @@ describe('tpm attestation', () => {
       tpmAttestation: { root },
     });
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     const pubArea = fields.get('pubArea') as Uint8Array;
     const certInfo = Uint8Array.from(fields.get('certInfo') as Uint8Array);
 
@@ -1115,7 +1119,7 @@ describe('tpm attestation', () => {
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1138,7 +1142,7 @@ describe('tpm attestation', () => {
       tpmAttestation: { root },
     });
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     const certInfo = Uint8Array.from(fields.get('certInfo') as Uint8Array);
     certInfo[0] = 0x00;
     fields.set('certInfo', certInfo);
@@ -1147,7 +1151,7 @@ describe('tpm attestation', () => {
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1172,7 +1176,7 @@ describe('tpm attestation', () => {
       tpmAttestation: { root },
     });
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     const certInfo = Uint8Array.from(fields.get('certInfo') as Uint8Array);
     certInfo[4] = 0x80;
     certInfo[5] = 0x18; // TPM_ST_ATTEST_QUOTE
@@ -1182,7 +1186,7 @@ describe('tpm attestation', () => {
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1204,14 +1208,14 @@ describe('tpm attestation', () => {
       tpmAttestation: { root },
     });
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     fields.delete(field);
 
     const error = await rejection(
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1236,7 +1240,7 @@ describe('tpm attestation', () => {
       tpmAttestation: { root },
     });
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     const pubArea = fields.get('pubArea') as Uint8Array;
     fields.set('pubArea', pubArea.subarray(0, pubArea.length - 10));
 
@@ -1244,7 +1248,7 @@ describe('tpm attestation', () => {
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1267,14 +1271,14 @@ describe('tpm attestation', () => {
       tpmAttestation: { root },
     });
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     fields.set('ver', '1.2');
 
     const error = await rejection(
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1296,14 +1300,14 @@ describe('tpm attestation', () => {
       tpmAttestation: { root },
     });
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     fields.set('alg', -8); // EdDSA, which the TPM formats do not carry
 
     const error = await rejection(
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1325,14 +1329,14 @@ describe('tpm attestation', () => {
       tpmAttestation: { root },
     });
 
-    const { fields, authData } = tpmParts(response.attestationObject);
+    const { fields, authData } = statementParts(response.attestationObject);
     fields.delete('x5c');
 
     const error = await rejection(
       verifyRegistration(
         {
           clientDataJSON: response.clientDataJSON,
-          attestationObject: packTpm(fields, authData),
+          attestationObject: packStatement('tpm', fields, authData),
         },
         expectations(challenge, {
           attestation: { formats: ['tpm'], trustAnchors: [root.der] },
@@ -1843,5 +1847,408 @@ describe('fido-u2f attestation', () => {
       ),
     );
     expect(error.detail).toMatch(/is not accepted/);
+  });
+});
+
+/**
+ * Android Keystore attestation — WebAuthn §8.4.
+ *
+ * The signature is over the ceremony and the certificate holds the credential
+ * key, which on its own is what any self-signed chain can manage. What makes
+ * the format mean something is the extension Keystore writes: the challenge
+ * fixed when the key was *generated*, and the authorization list saying the
+ * key was generated in the keystore, is a signing key, and is not usable by
+ * every application on the device. Most of what follows is about those.
+ */
+describe('android-key attestation', () => {
+  const keystoreRoot = (): GeneratedCertificate =>
+    createCertificate({ subject: 'Android Keystore Root', isCa: true });
+
+  const run = async (
+    device: VirtualAuthenticator,
+    root: GeneratedCertificate,
+    spec: Record<string, unknown> = {},
+    policy: Record<string, unknown> = {},
+  ) => {
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      androidKeyAttestation: { root, ...spec },
+    });
+    return {
+      response,
+      verify: () =>
+        verifyRegistration(
+          response,
+          expectations(challenge, {
+            attestation: { formats: ['android-key'], trustAnchors: [root.der], ...policy },
+          }),
+        ),
+      challenge,
+    };
+  };
+
+  it('verifies a genuine hardware-backed statement', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+
+    const verified = await (await run(device, root)).verify();
+
+    expect(verified.attestationFormat).toBe('android-key');
+    expect(verified.attestationType).toBe('basic');
+    expect(verified.aaguidVerified).toBe(true);
+    expect(verified.attestationSubject).toContain('Android Keystore Key');
+  });
+
+  it('accepts the credential the ceremony produced', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    const verified = await (await run(device, root)).verify();
+
+    const { verifyAuthentication } = await import('./ceremony.js');
+    const assertionChallenge = challengeBytes();
+    const assertion = await device.authenticate({
+      challenge: assertionChallenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+    });
+
+    await expect(
+      verifyAuthentication(assertion, {
+        rpId: RP_ID,
+        origin: ORIGIN,
+        challenge: b64u(assertionChallenge),
+        credential: {
+          credentialId: verified.credentialId,
+          publicKey: verified.credentialPublicKey,
+          signCount: verified.signCount,
+        },
+      }),
+    ).resolves.toBeTruthy();
+  });
+
+  it('refuses a tampered signature', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      androidKeyAttestation: { root },
+      breakAttestationSignature: true,
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['android-key'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/signature did not verify/);
+  });
+
+  it('refuses a chain that reaches no configured root', async () => {
+    const device = await VirtualAuthenticator.create();
+    const attackerRoot = createCertificate({ subject: 'Not Google', isCa: true });
+    const realRoot = keystoreRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      androidKeyAttestation: { root: attackerRoot },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, {
+          attestation: { formats: ['android-key'], trustAnchors: [realRoot.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/does not reach a trusted root/);
+  });
+
+  it('refuses android-key with no trust anchors configured', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      androidKeyAttestation: { root },
+    });
+
+    const error = await rejection(
+      verifyRegistration(
+        response,
+        expectations(challenge, { attestation: { formats: ['android-key'] } }),
+      ),
+    );
+    expect(error.detail).toMatch(/requires trustAnchors/);
+  });
+
+  it('refuses a challenge belonging to another ceremony', async () => {
+    // The binding. Keystore fixes the challenge when the key is generated, so
+    // a certificate carrying someone else's hash is a certificate minted for
+    // someone else's registration.
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    const { verify } = await run(device, root, { challengeOverride: new Uint8Array(32) });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/attestation challenge is not this ceremony/);
+  });
+
+  it('refuses a certificate carrying no key attestation extension', async () => {
+    // Without it the format degrades to "someone holds a certificate", which
+    // is what any self-signed chain can say.
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      androidKeyAttestation: { root },
+    });
+
+    const bare = createCertificate({
+      subject: 'No Extension',
+      issuer: root,
+      keyPair: device.nodeKeyPair(),
+    });
+
+    const { fields, authData } = statementParts(response.attestationObject);
+    fields.set('x5c', [bare.der]);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packStatement('android-key', fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['android-key'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/no Android key attestation extension/);
+  });
+
+  it('refuses a certificate whose key is not the credential key', async () => {
+    // The check that keeps a genuine Keystore certificate from vouching for a
+    // key the attacker generated. The impostor signs the ceremony itself, so
+    // only the key comparison can catch it.
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      androidKeyAttestation: { root },
+    });
+
+    const clientDataHash = new Uint8Array(
+      await crypto.subtle.digest('SHA-256', response.clientDataJSON),
+    );
+    const { fields, authData } = statementParts(response.attestationObject);
+
+    const impostorKey = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+    const impostor = createCertificate({
+      subject: 'Right Extension, Wrong Key',
+      issuer: root,
+      keyPair: impostorKey,
+      androidKey: { challenge: clientDataHash },
+    });
+
+    const signedData = new Uint8Array(authData.length + clientDataHash.length);
+    signedData.set(authData, 0);
+    signedData.set(clientDataHash, authData.length);
+
+    fields.set('sig', new Uint8Array(createSign('SHA256').update(signedData).sign(impostorKey.privateKey)));
+    fields.set('x5c', [impostor.der]);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packStatement('android-key', fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['android-key'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/does not match the attestation certificate/);
+  });
+
+  it.each([
+    ['teeEnforced', { teeEnforced: { purposes: [2], origin: 0, allApplications: true } }],
+    ['softwareEnforced', { softwareEnforced: { allApplications: true } }],
+  ])('refuses allApplications in %s', async (_where, spec) => {
+    // A key every application on the device can sign with is not scoped to
+    // this relying party, and a credential another app can use is not a
+    // credential.
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    const { verify } = await run(device, root, spec);
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/usable by every application/);
+  });
+
+  it('refuses a key that was imported rather than generated', async () => {
+    // KM_ORIGIN_IMPORTED. A key the keystore was handed is a key that existed
+    // outside it first, which is the opposite of what attestation is for.
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    const { verify } = await run(device, root, { teeEnforced: { purposes: [2], origin: 1 } });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/not generated in the keystore/);
+  });
+
+  it('refuses a key not authorized for signing', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    // KM_PURPOSE_VERIFY only.
+    const { verify } = await run(device, root, { teeEnforced: { purposes: [3], origin: 0 } });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/not authorized for signing/);
+  });
+
+  it('refuses properties asserted only by software', async () => {
+    // The default reading. A software-enforced authorization list is the OS
+    // vouching for itself, and if that were enough there would be no reason to
+    // be doing attestation.
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    const { verify } = await run(device, root, {
+      softwareEnforced: { purposes: [2], origin: 0 },
+      teeEnforced: {},
+    });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/no hardware-enforced origin/);
+  });
+
+  it('accepts software-enforced properties when the caller opts in', async () => {
+    // §8.4 permits it, so it is available — but it has to be asked for, and
+    // what comes back is no longer a hardware claim.
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    const { verify } = await run(
+      device,
+      root,
+      { softwareEnforced: { purposes: [2], origin: 0 }, teeEnforced: {} },
+      { allowSoftwareEnforcedAndroidKey: true },
+    );
+
+    await expect(verify()).resolves.toMatchObject({ attestationFormat: 'android-key' });
+  });
+
+  it('still refuses allApplications when software enforcement is allowed', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    const { verify } = await run(
+      device,
+      root,
+      { softwareEnforced: { purposes: [2], origin: 0, allApplications: true }, teeEnforced: {} },
+      { allowSoftwareEnforcedAndroidKey: true },
+    );
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/usable by every application/);
+  });
+
+  it('refuses a truncated key description', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    const { verify } = await run(device, root, { fieldCount: 6 });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/KeyDescription has 8 fields/);
+  });
+
+  it('refuses an unsupported attestation algorithm', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      androidKeyAttestation: { root },
+    });
+
+    const { fields, authData } = statementParts(response.attestationObject);
+    fields.set('alg', -8); // EdDSA
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packStatement('android-key', fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['android-key'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(/unsupported android-key attestation algorithm/);
+  });
+
+  it.each([['sig'], ['x5c']])('refuses a statement with no %s', async (field) => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+
+    const challenge = challengeBytes();
+    const response = await device.register({
+      challenge,
+      origin: ORIGIN,
+      rpId: RP_ID,
+      androidKeyAttestation: { root },
+    });
+
+    const { fields, authData } = statementParts(response.attestationObject);
+    fields.delete(field);
+
+    const error = await rejection(
+      verifyRegistration(
+        {
+          clientDataJSON: response.clientDataJSON,
+          attestationObject: packStatement('android-key', fields, authData),
+        },
+        expectations(challenge, {
+          attestation: { formats: ['android-key'], trustAnchors: [root.der] },
+        }),
+      ),
+    );
+    expect(error.detail).toMatch(field === 'sig' ? /has no signature/ : /requires an x5c chain/);
+  });
+
+  it('enforces an AAGUID allowlist', async () => {
+    const device = await VirtualAuthenticator.create();
+    const root = keystoreRoot();
+    const { verify } = await run(device, root, {}, { allowedAaguids: ['0'.repeat(32)] });
+
+    const error = await rejection(verify());
+    expect(error.detail).toMatch(/is not on the allowed list/);
   });
 });

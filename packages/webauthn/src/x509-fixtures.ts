@@ -67,6 +67,31 @@ const utf8String = (value: string): Uint8Array => tlv(0x0c, new TextEncoder().en
 /** EXPLICIT context-specific tag, constructed. */
 const context = (number: number, content: Uint8Array): Uint8Array => tlv(0xa0 | number, content);
 
+/**
+ * EXPLICIT context-specific tag, constructed, for tag numbers of 31 or more.
+ *
+ * Android's authorization lists put fields at numbers like 600 and 702, which
+ * DER writes as base-128 groups after a leading `0xbf`.
+ */
+function highContext(number: number, content: Uint8Array): Uint8Array {
+  if (number < 0x1f) throw new Error('use `context` for tag numbers under 31');
+
+  const groups: number[] = [];
+  let value = number;
+  while (value > 0) {
+    groups.unshift(value & 0x7f);
+    value >>>= 7;
+  }
+  const tag = [0xbf];
+  for (let i = 0; i < groups.length - 1; i += 1) tag.push((groups[i] as number) | 0x80);
+  tag.push(groups[groups.length - 1] as number);
+
+  return concat([new Uint8Array(tag), encodeLength(content.length), content]);
+}
+
+/** ENUMERATED, which is how Keystore writes its security levels. */
+const enumerated = (value: number): Uint8Array => tlv(0x0a, new Uint8Array([value]));
+
 /** A positive INTEGER, with a leading zero when the high bit would read as negative. */
 function integer(value: Uint8Array | number): Uint8Array {
   let digits: Uint8Array;
@@ -127,6 +152,9 @@ export const FIDO_AAGUID_OID = '1.3.6.1.4.1.45724.1.1.4';
 
 /** Apple's ceremony-nonce extension (`id-apple-anonymous-attestation`). */
 export const APPLE_NONCE_OID = '1.2.840.113635.100.8.2';
+
+/** Android Keystore's key attestation extension. */
+export const ANDROID_KEY_OID = '1.3.6.1.4.1.11129.2.1.17';
 const BASIC_CONSTRAINTS_OID = '2.5.29.19';
 const EKU_OID = '2.5.29.37';
 
@@ -136,6 +164,52 @@ function extension(oidText: string, value: Uint8Array, critical = false): Uint8A
     ...(critical ? [boolean_(true)] : []),
     octetString(value),
   );
+}
+
+/** The `AuthorizationList` fields WebAuthn §8.4 reads. */
+export interface AndroidAuthorizations {
+  /** `purpose [1]`. `2` is `KM_PURPOSE_SIGN`. */
+  readonly purposes?: readonly number[];
+  /** `allApplications [600]`. Its presence alone is what §8.4 refuses. */
+  readonly allApplications?: boolean;
+  /** `origin [702]`. `0` is `KM_ORIGIN_GENERATED`. */
+  readonly origin?: number;
+}
+
+/** Encodes an `AuthorizationList`, fields ascending by tag as Keystore writes them. */
+function authorizationList(list: AndroidAuthorizations): Uint8Array {
+  const parts: Uint8Array[] = [];
+  if (list.purposes !== undefined) {
+    parts.push(context(1, set(...list.purposes.map((p) => integer(p)))));
+  }
+  if (list.allApplications === true) {
+    parts.push(highContext(600, tlv(0x05, new Uint8Array(0))));
+  }
+  if (list.origin !== undefined) {
+    parts.push(highContext(702, integer(list.origin)));
+  }
+  return sequence(...parts);
+}
+
+/** Encodes a `KeyDescription`, the payload of Android's attestation extension. */
+function keyDescription(options: {
+  challenge: Uint8Array;
+  softwareEnforced?: AndroidAuthorizations;
+  teeEnforced?: AndroidAuthorizations;
+  fieldCount?: number;
+}): Uint8Array {
+  const fields = [
+    integer(200), // attestationVersion
+    enumerated(1), // attestationSecurityLevel — TrustedEnvironment
+    integer(41), // keymasterVersion
+    enumerated(1), // keymasterSecurityLevel
+    octetString(options.challenge),
+    octetString(new Uint8Array(0)), // uniqueId
+    authorizationList(options.softwareEnforced ?? {}),
+    authorizationList(options.teeEnforced ?? { purposes: [2], origin: 0 }),
+  ];
+
+  return sequence(...fields.slice(0, options.fieldCount ?? fields.length));
 }
 
 export interface CertificateKeyPair {
@@ -173,6 +247,21 @@ export interface CreateCertificateOptions {
    * produces.
    */
   readonly extendedKeyUsage?: readonly string[];
+  /**
+   * Embeds Android Keystore's key attestation extension.
+   *
+   * `challenge` is what the verifier compares against `clientDataHash`, and
+   * the two authorization lists are what it reads the key's properties from.
+   * Both default to the shape a real device produces: nothing software
+   * enforced, and a hardware-enforced signing key generated in the keystore.
+   */
+  readonly androidKey?: {
+    readonly challenge: Uint8Array;
+    readonly softwareEnforced?: AndroidAuthorizations;
+    readonly teeEnforced?: AndroidAuthorizations;
+    /** Truncates the outer SEQUENCE to fewer than its eight fields. */
+    readonly fieldCount?: number;
+  };
   readonly notBefore?: Date;
   readonly notAfter?: Date;
   /** Reuse an existing key instead of generating one. */
@@ -220,6 +309,10 @@ export function createCertificate(options: CreateCertificateOptions): GeneratedC
     extensions.push(
       extension(APPLE_NONCE_OID, sequence(context(1, octetString(options.appleNonce)))),
     );
+  }
+
+  if (options.androidKey) {
+    extensions.push(extension(ANDROID_KEY_OID, keyDescription(options.androidKey)));
   }
 
   const serial = new Uint8Array(8);

@@ -409,21 +409,22 @@ describe('attestation', () => {
   });
 
   it('refuses a format this package cannot verify even when allowlisted', async () => {
-    // android-key, android-safetynet and fido-u2f are unimplemented.
-    // Allowlisting one must not produce a result that reads as verified.
+    // `android-safetynet` is unimplemented — Google deprecated the API it
+    // rests on. Allowlisting it must not produce a result that reads as
+    // verified.
     const authenticator = await VirtualAuthenticator.create();
     const challenge = challengeBytes();
     const response = await authenticator.register({
       challenge,
       origin: ORIGIN,
       rpId: RP_ID,
-      attestationFormat: 'android-key',
+      attestationFormat: 'android-safetynet',
     });
 
     const error = await rejection(
       verifyRegistration(response, {
         ...registrationExpectations(challenge),
-        attestation: { formats: ['none', 'android-key'] },
+        attestation: { formats: ['none', 'android-safetynet'] },
       }),
     );
     expect(error.detail).toMatch(/cannot be verified/);

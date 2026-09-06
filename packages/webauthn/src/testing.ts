@@ -28,7 +28,12 @@
 
 import { createSign, KeyObject, type webcrypto } from 'node:crypto';
 import { ES256, EdDSA, RS256, type CoseAlgorithm } from './cose.js';
-import { createCertificate, type CertificateChain, type GeneratedCertificate } from './x509-fixtures.js';
+import {
+  createCertificate,
+  type AndroidAuthorizations,
+  type CertificateChain,
+  type GeneratedCertificate,
+} from './x509-fixtures.js';
 
 // ─── CBOR encoding ─────────────────────────────────────────────────────────
 
@@ -382,6 +387,22 @@ export class VirtualAuthenticator {
    * DER — so a harness that signed raw would make the verifier look correct
    * while it was in fact incompatible with all production hardware.
    */
+  /**
+   * The credential key pair as node `KeyObject`s.
+   *
+   * The bridge between the WebCrypto keys this holds and the certificate
+   * builder, which works in `KeyObject`s. It keeps the *same* key rather than
+   * generating a parallel one, which is the whole point wherever a fixture
+   * needs a certificate that holds the credential key — `apple` and
+   * `android-key` both turn on exactly that.
+   */
+  nodeKeyPair(): { privateKey: KeyObject; publicKey: KeyObject } {
+    return {
+      privateKey: KeyObject.from(this.#keyPair.privateKey),
+      publicKey: KeyObject.from(this.#keyPair.publicKey),
+    };
+  }
+
   async sign(data: Uint8Array): Promise<Uint8Array> {
     const signature = new Uint8Array(
       await crypto.subtle.sign(SIGN_PARAMS[this.alg] as webcrypto.EcdsaParams, this.#keyPair.privateKey, data),
@@ -461,6 +482,23 @@ export class VirtualAuthenticator {
      * identifier and the browser does not invent one.
      */
     u2fAttestation?: { root: GeneratedCertificate; leaf?: GeneratedCertificate };
+    /**
+     * Produces an Android Keystore attestation instead.
+     *
+     * The certificate holds the *credential* key — which is the format's
+     * point: Keystore attests to a key it generated — and carries the key
+     * description extension, with the challenge fixed to this ceremony's
+     * client data hash unless overridden.
+     */
+    androidKeyAttestation?: {
+      root: GeneratedCertificate;
+      softwareEnforced?: AndroidAuthorizations;
+      teeEnforced?: AndroidAuthorizations;
+      /** Truncates the KeyDescription, to test a short structure. */
+      fieldCount?: number;
+      /** Puts a different challenge in the extension. */
+      challengeOverride?: Uint8Array;
+    };
   }): Promise<RegistrationResult> {
     const authData = await buildAuthenticatorData({
       rpId: options.rpId,
@@ -496,10 +534,7 @@ export class VirtualAuthenticator {
       // holds WebCrypto CryptoKeys. `KeyObject.from` is the bridge, and it
       // keeps the *same* key rather than generating a parallel one — which is
       // the whole point of this check.
-      const credentialKey = {
-        privateKey: KeyObject.from(this.#keyPair.privateKey),
-        publicKey: KeyObject.from(this.#keyPair.publicKey),
-      };
+      const credentialKey = this.nodeKeyPair();
       const credCert = createCertificate({
         subject: 'Apple Anonymous Attestation',
         issuer: options.appleAttestation.root,
@@ -509,6 +544,33 @@ export class VirtualAuthenticator {
 
       format = options.attestationFormat ?? 'apple';
       attStmt.set('x5c', [credCert.der]);
+    }
+
+    if (options.androidKeyAttestation) {
+      const spec = options.androidKeyAttestation;
+      // Keystore attests to a key it generated, so the certificate's subject
+      // key is the credential key rather than a separate device key.
+      const credentialKey = this.nodeKeyPair();
+
+      const attCert = createCertificate({
+        subject: 'Android Keystore Key',
+        issuer: spec.root,
+        keyPair: credentialKey,
+        androidKey: {
+          challenge: spec.challengeOverride ?? clientDataHash,
+          ...(spec.softwareEnforced !== undefined && { softwareEnforced: spec.softwareEnforced }),
+          ...(spec.teeEnforced !== undefined && { teeEnforced: spec.teeEnforced }),
+          ...(spec.fieldCount !== undefined && { fieldCount: spec.fieldCount }),
+        },
+      });
+
+      const signature = await this.sign(signedData);
+      if (options.breakAttestationSignature) signature[0] = (signature[0] as number) ^ 0xff;
+
+      format = options.attestationFormat ?? 'android-key';
+      attStmt.set('alg', this.alg);
+      attStmt.set('sig', signature);
+      attStmt.set('x5c', [attCert.der]);
     }
 
     if (options.u2fAttestation) {
@@ -577,7 +639,11 @@ export class VirtualAuthenticator {
       attStmt.set('certInfo', certInfo);
       attStmt.set('pubArea', pubArea);
       attStmt.set('x5c', [aik.der]);
-    } else if (options.appleAttestation || options.u2fAttestation) {
+    } else if (
+      options.appleAttestation ||
+      options.u2fAttestation ||
+      options.androidKeyAttestation
+    ) {
       // Already assembled above.
     } else if (options.attestationChain) {
       format = options.attestationFormat ?? 'packed';
@@ -653,6 +719,8 @@ export {
   createCertificate,
   createChain,
   FIDO_AAGUID_OID,
+  ANDROID_KEY_OID,
+  type AndroidAuthorizations,
   type CertificateChain,
   type GeneratedCertificate,
   type CreateCertificateOptions,

@@ -144,28 +144,38 @@ authorization data inside a `Principal`.
 Stated plainly, because a limitation you know about is manageable and one you
 have been reassured about is not.
 
-### WebAuthn attestation does not cover the Android formats
+### WebAuthn attestation does not cover `android-safetynet`
 
-`@ninsho/webauthn` verifies the `none`, `packed`, `apple`, `tpm` and `fido-u2f`
-formats. It does **not** verify `android-key` or `android-safetynet`, and
-allowlisting one of those does not change that — the ceremony refuses it
-regardless. There is deliberately no arrangement of options that turns an
-unverified attestation into a verified one.
+`@ninsho/webauthn` verifies the `none`, `packed`, `apple`, `tpm`, `fido-u2f`
+and `android-key` formats. It does **not** verify `android-safetynet`, and
+allowlisting it does not change that — the ceremony refuses it regardless.
+There is deliberately no arrangement of options that turns an unverified
+attestation into a verified one.
 
 `packed` covers most security keys, the YubiKey line included; `apple` covers
 Touch ID and Face ID; `tpm` covers Windows Hello; `fido-u2f` covers CTAP1
-security keys. What remains uncovered is Android platform authenticators
-(`android-key`, `android-safetynet`); if your policy has to cover those
-devices' attestation, that work is not done.
+security keys; `android-key` covers Android platform authenticators. Google has
+deprecated the SafetyNet Attestation API that `android-safetynet` rests on, so
+what remains uncovered is a format Android itself is retiring — but if your
+policy has to cover devices that still send it, that work is not done.
 
 `fido-u2f` is verified but conveys no AAGUID — U2F has no model identifier.
 A verified U2F statement proves the credential lives on vouched-for hardware
 and nothing about which model, so `aaguidVerified` stays `false` and pairing
 the format with `allowedAaguids` is refused rather than silently unenforceable.
 
-**Trust anchors are mandatory, not optional.** `packed`, `apple`, `tpm` and
-`fido-u2f` are refused unless the relying party supplies the root certificates
-it trusts. A chain checked against
+`android-key` is read from the **hardware-enforced** authorization list by
+default. Keystore states a key's properties twice, once as the Android OS
+enforces them and once as the secure hardware does, and §8.4 permits reading
+either. Reading the software-enforced list means accepting the operating
+system's word about the operating system, which is the thing attestation exists
+to replace. `allowSoftwareEnforcedAndroidKey: true` opts into it for emulators
+and TEE-less devices; what comes back is then not a hardware claim, and should
+not be recorded as one.
+
+**Trust anchors are mandatory, not optional.** `packed`, `apple`, `tpm`,
+`fido-u2f` and `android-key` are refused unless the relying party supplies the
+root certificates it trusts. A chain checked against
 no root proves nothing — anyone can self-sign a CA and put any AAGUID they like
 in a certificate they issued to themselves — and a verifier reporting
 "attestation verified" in that situation manufactures confidence.
