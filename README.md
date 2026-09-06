@@ -94,7 +94,7 @@ Every claim below links to executable proof.
 | No input produces an uncontrolled exception | every parser on the untrusted path | `fuzz.test.ts` — randomised and mutation testing |
 | Every single-byte mutation of a token is rejected | Ed25519 signature | `fuzz.test.ts` › *rejects every single-byte mutation* |
 | Junk submitted in bulk cannot revoke a live session | tombstone required | `fuzz.test.ts` › *leaves a live session untouched* |
-| The whole system holds together over real HTTP | assembled app | `examples/express-api` — 93 end-to-end tests |
+| The whole system holds together over real HTTP | assembled app | `examples/express-api` — 94 end-to-end tests |
 | A denied request never reaches a Fastify route handler | `toFastify()` returns the reply, not undefined | `fastify.test.ts` — asserted against real Fastify |
 | A denied request never reaches a Hono route handler | `toHono()` returns a Response rather than calling `next()` | `hono.test.ts` — asserted against real Hono |
 | A denied request never reaches a Koa route handler | `toKoa()` declines to call `next()` | `koa.test.ts` — asserted against real Koa over real HTTP |
@@ -162,9 +162,9 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,756 tests passing · typecheck clean · no flaky runs over 3 full repeats
-core 4.9 KB, zero dependencies · server 118 KB, ioredis only — no Express dependency
-webauthn 85 KB, zero dependencies · client 12 KB, browser-only
+1,810 tests passing · typecheck clean · no flaky runs over 3 full repeats
+core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
+webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```
 
 ### Documentation
