@@ -892,10 +892,12 @@ app.post(
   route(async (req, res) => {
     const world = await visitor(req, res);
 
-    // A short window so the boundary arrives while you are looking at it.
+    const windowMs = 2_000;
+    const limit = 4;
+
     const limiter = world.auth.rateLimit({
-      action: 'boundary-demo',
-      perIp: { limit: 4, windowMs: 1_000 },
+      action: `boundary-demo-${Date.now()}`,
+      perIp: { limit, windowMs },
       trustProxy: false,
       identify: () => undefined,
     });
@@ -903,36 +905,55 @@ app.post(
     const ip = '203.0.113.50';
     const timeline: string[] = [];
     let allowedTotal = 0;
+    const sleep = (ms: number): Promise<void> =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+
+    // ─── Why this waits for the boundary rather than sleeping past one ──────
+    // Windows are aligned to absolute time, so the *only* moment a fixed-window
+    // counter can be robbed is the tick itself: spend the allowance in the last
+    // moments of one window, then again in the first moments of the next.
+    //
+    // Sleeping a whole window between bursts would demonstrate nothing — after
+    // a full window the earlier requests have legitimately aged out, and
+    // allowing four more is correct behaviour rather than a flaw. Getting that
+    // wrong is what made an earlier version of this panel intermittently report
+    // that the attack had succeeded.
+    const msToBoundary = windowMs - (Date.now() % windowMs);
+    await sleep(Math.max(0, msToBoundary - 400));
 
     const { trace } = await traced(world, async () => {
-      // Spend the whole allowance at the end of one window.
-      for (let i = 0; i < 4; i += 1) {
+      for (let i = 0; i < limit; i += 1) {
         const outcome = await callMiddleware(limiter, loginAttempt(ip, 'anyone@example.com'));
         if (outcome.allowed) allowedTotal += 1;
-        timeline.push(`window 1, request ${i + 1}: ${outcome.allowed ? 'allowed' : 'refused'}`);
+        timeline.push(
+          `just before the boundary, request ${i + 1}: ${outcome.allowed ? 'allowed' : 'refused'}`,
+        );
       }
 
-      // Cross the boundary and immediately try to spend it again.
-      await new Promise((resolve) => setTimeout(resolve, 1_050));
+      // Over the tick, and straight back at it.
+      await sleep(500);
 
-      for (let i = 0; i < 4; i += 1) {
+      for (let i = 0; i < limit; i += 1) {
         const outcome = await callMiddleware(limiter, loginAttempt(ip, 'anyone@example.com'));
         if (outcome.allowed) allowedTotal += 1;
-        timeline.push(`just after the boundary, request ${i + 1}: ${outcome.allowed ? 'allowed' : 'refused'}`);
+        timeline.push(
+          `just after the boundary, request ${i + 1}: ${outcome.allowed ? 'allowed' : 'refused'}`,
+        );
       }
     });
 
     res.json({
-      summary: `${allowedTotal} of 8 requests allowed across a window boundary.`,
+      summary: `${allowedTotal} of ${limit * 2} requests allowed across a window boundary.`,
       note:
         'A fixed-window counter resets to zero on the tick, so an attacker who spends the ' +
-        'allowance just before the boundary and again just after gets twice the limit in a moment. ' +
-        'This is a sliding window: the requests from the previous window still weigh on the ' +
-        'decision, in proportion to how much of it remains in view.',
-      rejected: allowedTotal < 8,
-      perIpLimit: 4,
-      windowMs: 1_000,
-      requestsSent: 8,
+        'allowance in the last moments of one window and again in the first moments of the next ' +
+        'gets twice the limit in a couple of seconds. This is a sliding window: the previous ' +
+        'window still weighs on the decision, in proportion to how much of it remains in view — ' +
+        'so immediately after a boundary it counts for almost everything.',
+      rejected: allowedTotal < limit * 2,
+      perIpLimit: limit,
+      windowMs,
+      requestsSent: limit * 2,
       allowedTotal,
       timeline,
       trace,

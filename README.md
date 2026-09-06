@@ -117,6 +117,8 @@ Every claim below links to executable proof.
 | **A stolen token is useless without the key** | `binding: 'dpop'` (RFC 9449) | `dpop-integration.test.ts` › *a stolen token is useless without the key* |
 | JWK thumbprints match the specification | RFC 7638 canonical form | `dpop-proof.test.ts` — the specification's own vector |
 | A DPoP proof cannot be replayed | single-use `jti`, store-backed | `dpop-integration.test.ts` › *refuses a captured proof replayed* |
+| The request URI a proof is checked against cannot be steered by the client | the request target contributes a path, never an authority | `dpop-request.test.ts` › *does not let … replace the authority* |
+| Ceremony options offer exactly the algorithms verification accepts | one setting wired to both | `options.test.ts` › *the algorithms offered are the algorithms accepted* |
 | `alg: none` and HMAC confusion are refused | allowlist, not denylist | `dpop-proof.test.ts` › *algorithm confusion* |
 | Refresh tokens are bound too | RFC 9449 §5 | `dpop-integration.test.ts` › *refresh tokens are bound too* |
 | A rejected proof cannot destroy a session | binding checked before `take()` | `dpop-integration.test.ts` › *regression: a rejected proof must not consume* |
@@ -163,7 +165,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,885 tests passing · typecheck clean · no flaky runs over 3 full repeats
+1,933 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```

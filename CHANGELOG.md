@@ -7,6 +7,21 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Direct tests for the two modules only reached through a happy path.**
+  `options.ts` builds the JSON a browser starts a ceremony with, and was
+  exercised only through `WebAuthnServer`; `dpop-middleware.ts` reconstructs
+  the URI a proof is checked against, and was exercised only through a
+  wired-up application. Neither had a test file of its own.
+
+  48 tests between them. The options builder came out clean — the interesting
+  rules there are `requireResidentKey` staying in step with `residentKey`,
+  where a mismatch turns a discoverable credential into a non-discoverable one
+  and nothing at verification time would say so, and the coherence between the
+  algorithms the options *offer* and the ones verification *accepts*, which
+  are set in two different places and are now asserted to be one list.
+
+  The DPoP request handling did not come out clean; see below.
+
 - **A rate-limiting panel in the playground.** Four demonstrations of the two
   buckets: credential stuffing spread across twelve addresses that no per-IP
   limit would notice, two colleagues behind one office address where only one
@@ -718,6 +733,57 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **The URI a DPoP proof is checked against could be steered by the client.**
+  `defaultRequestUrl` built the absolute URI as `new URL(target, base)` where
+  `target` was `req.originalUrl ?? req.url`. That is not always the `/path` it
+  looks like: HTTP permits an absolute-form request target
+  (`GET https://elsewhere/x HTTP/1.1`), and a protocol-relative one
+  (`//elsewhere/x`) is a path as far as every framework in the chain is
+  concerned. `new URL` discards the base entirely for either — measured:
+  `new URL('//evil.example/orders', 'https://api.example.com/')` is
+  `https://evil.example/orders`.
+
+  So a client could make the server reconstruct any origin it liked, and the
+  `htu` comparison — which exists to keep a proof scoped to the endpoint it was
+  minted for — compared two values the client controlled. Not an
+  impersonation: the proof is signed, so this is a client relaxing its own
+  binding rather than a third party defeating it. But the binding was silently
+  removable by a request line nobody looked at, which is not the guarantee
+  RFC 9449 §4.3 describes.
+
+  The target now contributes a path and query and nothing else, and the
+  function is total — it is called outside the block that turns proof failures
+  into a 401, so a throw would have surfaced as a 500 where a mismatch is the
+  right answer.
+
+- **The duplicate-`DPoP`-header check could not fire on Node.** The same shape
+  as the `Authorization` finding, in the other header: RFC 9449 §4.3 step 1
+  requires exactly one `DPoP` header, and the check tested
+  `Array.isArray(headers.dpop)`. Node joins duplicates of this header with a
+  comma rather than arraying them — measured — so the array branch was
+  unreachable there.
+
+  A joined pair was still refused, because `proof-A, proof-B` is not a
+  parseable JWS. But it was refused as malformed input rather than as the
+  ambiguity it is, and a runtime that behaved differently would have had no
+  check at all. `rawHeaders` is now consulted first, and a comma in the header
+  is refused outright: a JWS contains none.
+
+- **The playground's window-boundary demonstration was measuring the wrong
+  thing.** It spent the rate-limit allowance, slept a full window, and spent it
+  again — then asserted that fewer than twice the limit got through.
+
+  After a full window the earlier requests have legitimately aged out, so
+  allowing four more is correct behaviour rather than a flaw. Whether the
+  assertion held came down to how long eight HTTP round trips happened to take,
+  which is why it passed alone and failed under load.
+
+  A double burst is a *boundary* phenomenon: the allowance spent in the last
+  moments of one window and again in the first moments of the next. The demo
+  now waits for the tick and straddles it deliberately, which is both the
+  property being claimed and a deterministic thing to measure. Repeated full
+  passes of the playground suite are clean.
 
 - **The rate limiter resolved the wrong client address, off by one hop.**
   `clientIp` read the chain at `chain.length - 1 - trustProxy`. It should be
