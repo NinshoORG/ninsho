@@ -7,6 +7,45 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **FIDO Metadata Service support — `parseMetadataBlob()` and
+  `toAttestationPolicy()`.** Attestation is refused without trust anchors,
+  which is correct and leaves a relying party holding a question: where do the
+  roots come from? FIDO publishes them, in a signed document listing every
+  certified authenticator — its AAGUID, its attestation roots, and whether it
+  has since been found compromised.
+
+  Verifying that document is library work: it is a signature, a chain, and a
+  set of rules about what a status report means, and getting any of them wrong
+  is a security bug. **Fetching it is not, and is deliberately absent.** A
+  library that reaches out to the network on your behalf decides your caching,
+  your update cadence, and your failure mode when the service is down — at
+  exactly the moment you least want a surprise. Hand over a BLOB you fetched;
+  this does no I/O.
+
+  Two rules in it are judgement calls worth stating:
+
+  - **A compromise is permanent.** An entry carries a history of status
+    reports, and FIDO can certify a model, later mark its attestation key
+    compromised, and later still certify a new revision. Reading only the
+    newest status would quietly re-admit a model whose attestation key is known
+    to be in someone else's hands — the key that vouches for every unit ever
+    made. Any of `ATTESTATION_KEY_COMPROMISE`, `USER_VERIFICATION_BYPASS`,
+    `USER_KEY_REMOTE_COMPROMISE`, `USER_KEY_PHYSICAL_COMPROMISE` or `REVOKED`
+    anywhere in the history disqualifies the entry.
+  - **A stale BLOB is refused by default.** It still verifies and still looks
+    authoritative, and it is missing every compromise published since. A fetch
+    that has been quietly failing for months should announce itself rather than
+    keep working. `allowStale` opts out.
+
+  `SELF_ASSERTION_SUBMITTED` and `NOT_FIDO_CERTIFIED` are not accepted statuses:
+  they mean the vendor filled in a form, and drawing trust anchors on that basis
+  would make the metadata service a directory of people who asked to be trusted.
+
+  28 tests, of which the two that matter most check that a policy built this way
+  is one the ceremony actually enforces: a model the BLOB certifies registers, a
+  model it does not is refused, and the same device stops registering once the
+  BLOB reports its attestation key compromised.
+
 - **SafetyNet attestation — WebAuthn §8.5.** The last format, and the one that
   completes WebAuthn L3's attestation coverage: `none`, `packed`, `apple`,
   `tpm`, `fido-u2f`, `android-key` and `android-safetynet` are all verified,

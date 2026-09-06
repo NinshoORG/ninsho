@@ -152,6 +152,9 @@ Every claim below links to executable proof.
 | A self-signed CA cannot forge attestation | trust anchors are mandatory for every format but `none` | `attestation.test.ts` › *refuses a chain that does not reach a configured root* |
 | An attestation lifted from another device is refused | certificate AAGUID must match the authenticator data | `attestation.test.ts` |
 | An attestation format the library does not know is refused | allowlisting one still fails closed | `ceremony.test.ts` › *cannot be verified* |
+| **Trust anchors can come from FIDO rather than by hand** | `parseMetadataBlob()` → `toAttestationPolicy()` | `mds.test.ts` › *a metadata policy drives real verification* |
+| A compromised model stops being admitted | any compromise in an entry's history disqualifies it | `mds.test.ts` › *stops admitting a model once the BLOB reports it compromised* |
+| A stale metadata BLOB is refused, not silently trusted | `nextUpdate` enforced by default | `mds.test.ts` › *refuses a BLOB that was due to be replaced* |
 | Generated test certificates are real certificates | cross-checked by Node's own X.509 parser | `asn1.test.ts` › *the generated certificates are real certificates* |
 | Passkeys work end to end over real HTTP | assembled app, real keys, real signatures | `examples/express-api/src/passkey.test.ts` — 32 tests |
 | A passkey confers identity, never authority | roles come from the directory | `passkey.test.ts` › *carries roles from the directory, not from the passkey* |
@@ -181,12 +184,18 @@ webauthn 85 KB, zero dependencies · client 12 KB, browser-only
 
 ### What does not exist yet
 
-**A FIDO root store, and MDS.** `@ninsho/webauthn` verifies every attestation
-format WebAuthn L3 defines — `none`, `packed`, `apple`, `tpm`, `fido-u2f`,
-`android-key` and `android-safetynet` — but each against roots *you* supply.
-No root store ships with the package, and FIDO Metadata Service integration is
-not implemented: which manufacturers you trust is an operational decision, not
-library content.
+**A shipped root store, and the network fetch that fills it.**
+`@ninsho/webauthn` verifies every attestation format WebAuthn L3 defines —
+`none`, `packed`, `apple`, `tpm`, `fido-u2f`, `android-key` and
+`android-safetynet` — but each against roots *you* supply.
+
+`parseMetadataBlob()` verifies a FIDO Metadata Service BLOB and
+`toAttestationPolicy()` turns it into the roots and AAGUID allowlist to pass
+in, so you do not have to curate them by hand. What is deliberately absent is
+the HTTP call that downloads it: a library that fetches on your behalf decides
+your caching, your update cadence, and what happens when the service is down —
+at exactly the moment you least want a surprise. Fetch it yourself, on your
+schedule, and hand it over.
 
 **Koa.** The middleware is Express-shaped; `@ninsho/server/fastify` and
 `@ninsho/server/hono` adapt it, each a couple of kilobytes, neither depending

@@ -142,3 +142,20 @@ export {
   SAFETYNET_MAX_AGE_MS,
 } from './safetynet.js';
 export type { SafetyNetResponse } from './safetynet.js';
+
+// ── FIDO Metadata Service ───────────────────────────────────────────────────
+// Verifying the BLOB is library work; fetching it is not. See `mds.ts`.
+export {
+  MetadataError,
+  parseMetadataBlob,
+  toAttestationPolicy,
+  DISQUALIFYING_STATUSES,
+  DEFAULT_ACCEPTED_STATUSES,
+} from './mds.js';
+export type {
+  MetadataBlob,
+  MetadataEntry,
+  MetadataStatusReport,
+  ParseMetadataOptions,
+  PolicyFromMetadataOptions,
+} from './mds.js';

@@ -206,9 +206,27 @@ the OS vouching for itself, and if the OS's word were enough there would be no r
 attestation. `allowSoftwareEnforcedAndroidKey: true` opts into the looser reading for emulators and
 devices without a TEE — and what comes back is then no longer a hardware claim.
 
-**No root store ships here.** Which manufacturers you trust is an operational decision that changes
-without this package changing. FIDO's Metadata Service is where most relying parties draw roots
-from; fetching it, verifying its signature and honouring its revocations is not implemented.
+**No root store ships here, and nothing is fetched for you.** Which manufacturers you trust is an
+operational decision that changes without this package changing.
+
+FIDO's Metadata Service is where most relying parties draw roots from, and verifying that document
+*is* library work — it is a signature, a chain, and a set of rules about what a status report
+means:
+
+```ts
+import { parseMetadataBlob, toAttestationPolicy } from '@ninsho/webauthn';
+
+const blob = parseMetadataBlob(await yourFetch(), { trustAnchors: [fidoRootDer] });
+const attestation = toAttestationPolicy(blob);   // { formats, trustAnchors, allowedAaguids }
+```
+
+A compromise or revocation anywhere in an entry's history disqualifies that model — a later
+re-certification does not un-leak the attestation key that vouches for every unit ever made — and a
+BLOB past its own `nextUpdate` is refused unless you pass `allowStale`, because a stale one still
+verifies, still looks authoritative, and is missing every compromise published since.
+
+The HTTP call is yours. A library that fetches on your behalf decides your caching, your update
+cadence, and your behaviour when the service is down.
 
 **Self-attestation proves nothing about hardware.** It is off by default, and reports
 `aaguidVerified: false` even when enabled — the credential key signing for itself adds nothing

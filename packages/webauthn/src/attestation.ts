@@ -196,7 +196,7 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
  * signature or the certificate — the same rule the rest of this package
  * follows, for the same reason.
  */
-function verifySignature(
+export function verifySignature(
   alg: CoseAlgorithm,
   key: ReturnType<typeof createPublicKey>,
   data: Uint8Array,
@@ -253,7 +253,10 @@ function certificateAaguid(certificate: Uint8Array): Uint8Array | undefined {
  * trust anchor was reached — never a partial result, because "the chain was
  * fine until it wasn't" is not a security answer.
  */
-function chainReachesAnchor(chain: X509Certificate[], anchors: X509Certificate[]): boolean {
+export function chainReachesAnchor(
+  chain: X509Certificate[],
+  anchors: X509Certificate[],
+): boolean {
   const now = new Date();
   const valid = (cert: X509Certificate): boolean =>
     cert.validFromDate <= now && now <= cert.validToDate;

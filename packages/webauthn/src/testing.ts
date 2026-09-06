@@ -790,6 +790,89 @@ export class VirtualAuthenticator {
   }
 }
 
+// ─── FIDO Metadata Service fixtures ────────────────────────────────────────
+
+/** One entry, in the shape FIDO publishes. */
+export interface MetadataEntryFixture {
+  aaguid?: string;
+  description?: string;
+  /** DER roots. Encoded as base64 in the BLOB, as FIDO does. */
+  attestationRootCertificates?: readonly Uint8Array[];
+  statusReports?: readonly { status: string; effectiveDate?: string }[];
+}
+
+/**
+ * Builds a signed FIDO metadata BLOB.
+ *
+ * Signed with RSA by a certificate chaining to `root`, because that is what
+ * FIDO does and the verifier accepts nothing else — a fixture that signed with
+ * something more convenient would be testing a document FIDO never publishes.
+ */
+export function buildMetadataBlob(options: {
+  root: GeneratedCertificate;
+  entries: readonly MetadataEntryFixture[];
+  /** Defaults to a year out. */
+  nextUpdate?: string;
+  number?: number;
+  /** Replaces the header's `alg`, to test the allowlist. */
+  algOverride?: string;
+  /** Signs with a certificate that does not chain to `root`. */
+  signer?: GeneratedCertificate;
+  breakSignature?: boolean;
+}): string {
+  const key = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const signingCert =
+    options.signer ??
+    createCertificate({ subject: 'FIDO Metadata Signer', issuer: options.root, keyPair: key });
+
+  const b64u = (value: string): string => Buffer.from(value, 'utf8').toString('base64url');
+
+  const header = b64u(
+    JSON.stringify({
+      alg: options.algOverride ?? 'RS256',
+      typ: 'JWT',
+      x5c: [Buffer.from(signingCert.der).toString('base64')],
+    }),
+  );
+
+  const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  const payload = b64u(
+    JSON.stringify({
+      legalHeader: 'https://fidoalliance.org/metadata/metadata-legal-terms/',
+      no: options.number ?? 76,
+      nextUpdate: options.nextUpdate ?? nextYear,
+      entries: options.entries.map((entry) => ({
+        ...(entry.aaguid !== undefined && { aaguid: entry.aaguid }),
+        statusReports: entry.statusReports ?? [
+          { status: 'FIDO_CERTIFIED_L1', effectiveDate: '2023-01-01' },
+        ],
+        timeOfLastStatusChange: '2023-01-01',
+        metadataStatement: {
+          description: entry.description ?? 'Test Authenticator',
+          ...(entry.attestationRootCertificates !== undefined && {
+            attestationRootCertificates: entry.attestationRootCertificates.map((der) =>
+              Buffer.from(der).toString('base64'),
+            ),
+          }),
+        },
+      })),
+    }),
+  );
+
+  const signingInput = `${header}.${payload}`;
+  const signature = new Uint8Array(
+    createSign('SHA256').update(signingInput).sign(
+      options.signer === undefined ? key.privateKey : options.signer.privateKey,
+    ),
+  );
+  if (options.breakSignature) signature[0] = (signature[0] as number) ^ 0xff;
+
+  return `${signingInput}.${Buffer.from(signature).toString('base64url')}`;
+}
+
 // ─── X.509 fixtures ────────────────────────────────────────────────────────
 export {
   createCertificate,
