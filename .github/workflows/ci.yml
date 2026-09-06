@@ -82,7 +82,12 @@ jobs:
       # Running them here is not a performance gate. It is a check that the
       # documented figures can still be reproduced by the command the
       # documentation tells you to run.
+      # Only on the newest matrix entry: the benchmark scripts run TypeScript
+      # directly through `--experimental-strip-types`, which Node 20 does not
+      # have — it exits 9 on the unknown flag. The scripts are checked for
+      # still running, not for a number, so once per matrix is the whole point.
       - name: Benchmarks still run
+        if: matrix.node == '22'
         run: |
           npm run bench --workspace @ninsho/server
           npm run bench --workspace @ninsho/webauthn
@@ -108,29 +113,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # ─── The npm regenerating has to be the npm that wrote the file ──────
+      # npm 10 and npm 11 disagree about `"peer": true` markers: 11 writes
+      # them, 10 strips them. Node 20 ships npm 10, Node 24 ships npm 11, so on
+      # Node 20 this gate failed on a difference that says nothing about the
+      # dependency tree. Diagnosed by regenerating the committed file under
+      # both and diffing — the only changes were those lines.
+      #
+      # `npm install -g npm@11` was tried first and did not take: setup-node's
+      # shim kept resolving its bundled npm. Setting the Node version is what
+      # setup-node actually honours.
+      #
+      # A gate that cannot pass gets disabled, and a disabled gate is how a
+      # lockfile drifts unnoticed — which is what this job exists to catch.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
 
       # Catches the case where a manifest changed but the lockfile was not
       # regenerated — the exact mistake that shipped a broken release before.
-      # ─── The npm doing the regenerating has to be the npm that wrote it ──
-      # npm 10 and npm 11 disagree about `"peer": true` markers: 11 writes
-      # them, 10 strips them. Node 20 ships npm 10 and Node 24 ships npm 11, so
-      # without pinning, this gate fails for whichever npm did not write the
-      # committed file — and it fails on a difference that means nothing about
-      # the dependency tree.
-      #
-      # Diagnosed by regenerating the committed lockfile under both and
-      # diffing: the only changes were `"peer": true` lines.
-      #
-      # A gate that cannot pass gets disabled, and a disabled gate is how a
-      # lockfile drifts out of sync unnoticed — which is the thing this job
-      # exists to catch.
-      - name: Pin the npm the lockfile was written with
-        run: npm install -g npm@11
-
       - name: Regenerate lockfile and assert no drift
         run: |
           npm install --package-lock-only
