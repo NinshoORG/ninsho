@@ -132,6 +132,7 @@ function renderDecode(decode) {
 function render(data) {
   let html = '';
 
+  if (data.claim) html += renderVerdict(data.claim.text, data.claim.holds === true);
   if (data.rejected === true) html += renderVerdict('The attack was refused', true);
   if (data.rejected === false) html += renderVerdict('The attack SUCCEEDED — that is a bug', false);
   if (data.ok === false && data.rejected === undefined && data.message) {
@@ -174,7 +175,7 @@ function render(data) {
 
   const scalars = {};
   for (const [k, v] of Object.entries(data)) {
-    if (['note', 'trace', 'tokens', 'ok', 'rejected', 'keys', 'events', 'decodes', 'summary', 'clientDataJSON', 'expected', 'statement'].includes(k)) continue;
+    if (['note', 'trace', 'tokens', 'ok', 'rejected', 'keys', 'events', 'decodes', 'summary', 'clientDataJSON', 'expected', 'statement', 'attempts', 'timeline', 'outcomes', 'claim'].includes(k)) continue;
     if (v === null || typeof v === 'object') continue;
     scalars[k] = v;
   }
@@ -187,6 +188,29 @@ function render(data) {
   if (data.context) {
     html += `<h4 class="sub">Verified identity</h4><dl class="kv">${Object.entries(data.context)
       .map(([k, v]) => `<dt>${escape(k)}</dt><dd>${escape(JSON.stringify(v))}</dd>`)
+      .join('')}</dl>`;
+  }
+
+  if (data.attempts) {
+    html += `<h4 class="sub">Attempts (${data.attempts.length})</h4>
+      <div class="scroll"><table>
+        <thead><tr><th>#</th><th>from</th><th>outcome</th></tr></thead>
+        <tbody>${data.attempts
+          .map(
+            (a, i) =>
+              `<tr><td class="dim">${i + 1}</td><td class="hash">${escape(
+                a.ip ?? a.forwarded ?? '',
+              )}</td><td class="${a.allowed ? '' : 'op'}">${
+                a.allowed ? 'allowed' : `refused${a.code ? ` — ${escape(a.code)}` : ''}`
+              }</td></tr>`,
+          )
+          .join('')}</tbody>
+      </table></div>`;
+  }
+
+  if (data.timeline) {
+    html += `<dl class="kv">${data.timeline
+      .map((line) => `<dt>step</dt><dd>${escape(line)}</dd>`)
       .join('')}</dl>`;
   }
 

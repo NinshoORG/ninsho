@@ -7,6 +7,17 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **A rate-limiting panel in the playground.** Four demonstrations of the two
+  buckets: credential stuffing spread across twelve addresses that no per-IP
+  limit would notice, two colleagues behind one office address where only one
+  is limited, five forged `X-Forwarded-For` chains that all resolve to one
+  bucket, and a burst either side of a window boundary that a fixed-window
+  counter would let through at twice the limit.
+
+  Each runs the real middleware against synthesised requests, and each is
+  asserted in the HTTP tests rather than left to look convincing — which is how
+  the address off-by-one below was found.
+
 - **A Koa adapter — `@ninsho/server/koa`.** The middleware is Express-shaped,
   and Fastify and Hono already had adapters; Koa was the one framework the
   README had to say was not claimed. It is claimed now.
@@ -707,6 +718,38 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **The rate limiter resolved the wrong client address, off by one hop.**
+  `clientIp` read the chain at `chain.length - 1 - trustProxy`. It should be
+  `chain.length - trustProxy`: each trusted proxy appends the address it
+  received the request from, so `n` proxies contribute the last `n` entries and
+  the client is the one just before them.
+
+  One position is enough to produce **both** of the failure modes that module
+  was written to prevent, and which one you got depended on your deployment.
+
+  Behind a single proxy — the ordinary case — the chain holds one entry, the
+  index ran off the start, and the resolution fell back to the peer address:
+  the proxy's own. Every user of the service in one bucket, so five failed
+  logins from anyone locked out everyone.
+
+  And with anything prepended, the index moved onto an entry the client had
+  supplied. Rotating one header minted a fresh allowance per request, which is
+  the limiter counting nothing at all.
+
+  The existing test passed because it used a three-entry chain where the index
+  happened to land on an honest value, and its comment mislabelled which entry
+  was the client. Corrected, with two regression tests written from the
+  deployment rather than from the code: the single-proxy case must resolve to
+  the client and not the proxy, and prepending onto a one-entry chain must not
+  shift the result.
+
+  `trustProxy: 0` now explicitly means what `false` means — no proxy is
+  entitled to speak for the client, so the header is not read.
+
+  Found by building the playground's rate-limit panel: the demonstration showed
+  five separate buckets and refused nothing, while its own prose said the
+  opposite.
 
 - **An `Asn1Error` could escape `parseKeyDescription`.** The function's contract
   is that it throws `AndroidKeyError`; the DER walk through an authorization

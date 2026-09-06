@@ -30,6 +30,7 @@ import {
   generateDpopKeyPair,
   createDpopProof,
   jwkThumbprint,
+  type Middleware,
   type Principal,
   type SecurityEvent,
 } from '@ninsho/server';
@@ -673,6 +674,271 @@ app.post(
 
 // ─── Inspection ────────────────────────────────────────────────────────────
 
+
+
+// ─── Rate limiting: two dimensions, and why one is not enough ──────────────
+// Each of these runs the real middleware against synthesised requests, so what
+// the page reports is the limiter's own verdict rather than this file's.
+
+/** Drives one request through a middleware and reports what it decided. */
+async function callMiddleware(
+  middleware: Middleware,
+  req: Record<string, unknown>,
+): Promise<{ allowed: boolean; status: number; code?: string }> {
+  let status = 200;
+  let code: string | undefined;
+  let allowed = false;
+
+  const res = {
+    status(value: number) {
+      status = value;
+      return res;
+    },
+    json(body: unknown) {
+      code = (body as { error?: { code?: string } })?.error?.code;
+      return body;
+    },
+    setHeader() {
+      return res;
+    },
+  };
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = (): void => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      const out = originalJson(body);
+      finish();
+      return out;
+    };
+    void Promise.resolve(
+      middleware(req as never, res as never, () => {
+        allowed = true;
+        finish();
+      }),
+    ).catch(finish);
+  });
+
+  return { allowed, status, ...(code !== undefined && { code }) };
+}
+
+/** A login attempt from one address for one account. */
+const loginAttempt = (ip: string, email: string, forwarded?: string) => ({
+  headers: forwarded === undefined ? {} : { 'x-forwarded-for': forwarded },
+  socket: { remoteAddress: ip },
+  body: { email },
+});
+
+app.post(
+  '/api/attack/credential-stuffing',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    // Deliberately generous per-IP, tight per-account: the shape a botnet is
+    // built to slip through.
+    const limiter = world.auth.rateLimit({
+      action: 'stuffing-demo',
+      perIp: { limit: 100, windowMs: 60_000 },
+      perAccount: { limit: 5, windowMs: 60_000 },
+      identify: (r) => (r.body as { email?: string })?.email,
+      trustProxy: false,
+    });
+
+    const attempts: { ip: string; allowed: boolean; code?: string }[] = [];
+    const { trace } = await traced(world, async () => {
+      for (let i = 0; i < 12; i += 1) {
+        // A different address every time — no per-IP bucket gets near 100.
+        const ip = `203.0.113.${i + 1}`;
+        const outcome = await callMiddleware(limiter, loginAttempt(ip, 'victim@example.com'));
+        attempts.push({ ip, allowed: outcome.allowed, ...(outcome.code && { code: outcome.code }) });
+      }
+    });
+
+    const blocked = attempts.filter((a) => !a.allowed).length;
+
+    res.json({
+      summary: 'One account, twelve addresses, five allowed.',
+      note:
+        'A per-IP limit alone does not stop credential stuffing: the attacker spreads attempts so ' +
+        'no single address approaches it. Every request here comes from a different address and ' +
+        'none exceeds the per-IP allowance of 100 — what stops the twelfth is the per-account ' +
+        'bucket, which is the half the predecessor lacked.',
+      rejected: blocked > 0,
+      distinctAddresses: attempts.length,
+      perIpLimit: 100,
+      perAccountLimit: 5,
+      allowedAttempts: attempts.length - blocked,
+      blockedAttempts: blocked,
+      attempts,
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/attack/nat-bystander',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    const limiter = world.auth.rateLimit({
+      action: 'nat-demo',
+      perIp: { limit: 50, windowMs: 60_000 },
+      perAccount: { limit: 3, windowMs: 60_000 },
+      identify: (r) => (r.body as { email?: string })?.email,
+      trustProxy: false,
+    });
+
+    const office = '198.51.100.7';
+    const outcomes: string[] = [];
+
+    const { trace } = await traced(world, async () => {
+      // One colleague forgets their password repeatedly.
+      for (let i = 0; i < 5; i += 1) {
+        const outcome = await callMiddleware(limiter, loginAttempt(office, 'forgetful@example.com'));
+        outcomes.push(`forgetful@example.com attempt ${i + 1}: ${outcome.allowed ? 'allowed' : 'refused'}`);
+      }
+      // Someone else on the same NAT signs in for the first time.
+      const bystander = await callMiddleware(limiter, loginAttempt(office, 'bystander@example.com'));
+      outcomes.push(
+        `bystander@example.com first attempt: ${bystander.allowed ? 'allowed' : 'refused — that would be a bug'}`,
+      );
+    });
+
+    const bystanderAllowed = outcomes[outcomes.length - 1]?.includes('allowed') === true;
+
+    res.json({
+      summary: 'One office address, two people, only one of them locked out.',
+      note:
+        'The reverse of credential stuffing, and the reason the two buckets are separate rather ' +
+        'than combined. A per-IP limit alone punishes shared NAT: an office or a carrier trips a ' +
+        'limit no individual caused, and everyone behind it is signed out by a colleague’s bad ' +
+        'memory.',
+      // Not an attack, so `rejected` would be the wrong word for it: the
+      // claim is that a bystander keeps working, and the panel says whether
+      // that held.
+      claim: {
+        text: bystanderAllowed
+          ? 'The colleague was limited; the bystander signed in normally'
+          : 'The bystander was locked out by someone else\u2019s failures — that is a bug',
+        holds: bystanderAllowed,
+      },
+      sharedAddress: office,
+      outcomes,
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/attack/forged-forwarded-for',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    // One proxy hop, which is the deployment this setting describes.
+    const limiter = world.auth.rateLimit({
+      action: 'xff-demo',
+      perIp: { limit: 3, windowMs: 60_000 },
+      trustProxy: 1,
+      identify: () => undefined,
+    });
+
+    const proxy = '198.51.100.1';
+    const attacker = '203.0.113.99';
+    const attempts: { forwarded: string; allowed: boolean }[] = [];
+
+    const { trace } = await traced(world, async () => {
+      for (let i = 0; i < 5; i += 1) {
+        // Each attempt prepends more invented hops, trying to make the
+        // resolved address look new and win a fresh bucket.
+        const forged = Array.from({ length: i }, (_, n) => `10.0.0.${n + 1}`);
+        const forwarded = [...forged, attacker].join(', ');
+        const outcome = await callMiddleware(
+          limiter,
+          loginAttempt(proxy, 'anyone@example.com', forwarded),
+        );
+        attempts.push({ forwarded, allowed: outcome.allowed });
+      }
+    });
+
+    const blocked = attempts.filter((a) => !a.allowed).length;
+
+    res.json({
+      summary: 'Five attempts, five different X-Forwarded-For chains, one bucket.',
+      note:
+        'The address is counted from the trusted end of the chain inwards, by hop count — never ' +
+        'by taking the leftmost entry. Anything the client prepends sits beyond the hop it is ' +
+        'entitled to, so inventing hops cannot mint a fresh bucket. `trustProxy` has no default ' +
+        'and must be stated, because guessing it wrong in either direction is a security bug: too ' +
+        'high trusts a forged header, too low rate-limits your own load balancer.',
+      rejected: blocked > 0,
+      trustProxy: 1,
+      perIpLimit: 3,
+      resolvedTo: attacker,
+      blockedAttempts: blocked,
+      attempts,
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/attack/window-boundary',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    // A short window so the boundary arrives while you are looking at it.
+    const limiter = world.auth.rateLimit({
+      action: 'boundary-demo',
+      perIp: { limit: 4, windowMs: 1_000 },
+      trustProxy: false,
+      identify: () => undefined,
+    });
+
+    const ip = '203.0.113.50';
+    const timeline: string[] = [];
+    let allowedTotal = 0;
+
+    const { trace } = await traced(world, async () => {
+      // Spend the whole allowance at the end of one window.
+      for (let i = 0; i < 4; i += 1) {
+        const outcome = await callMiddleware(limiter, loginAttempt(ip, 'anyone@example.com'));
+        if (outcome.allowed) allowedTotal += 1;
+        timeline.push(`window 1, request ${i + 1}: ${outcome.allowed ? 'allowed' : 'refused'}`);
+      }
+
+      // Cross the boundary and immediately try to spend it again.
+      await new Promise((resolve) => setTimeout(resolve, 1_050));
+
+      for (let i = 0; i < 4; i += 1) {
+        const outcome = await callMiddleware(limiter, loginAttempt(ip, 'anyone@example.com'));
+        if (outcome.allowed) allowedTotal += 1;
+        timeline.push(`just after the boundary, request ${i + 1}: ${outcome.allowed ? 'allowed' : 'refused'}`);
+      }
+    });
+
+    res.json({
+      summary: `${allowedTotal} of 8 requests allowed across a window boundary.`,
+      note:
+        'A fixed-window counter resets to zero on the tick, so an attacker who spends the ' +
+        'allowance just before the boundary and again just after gets twice the limit in a moment. ' +
+        'This is a sliding window: the requests from the previous window still weigh on the ' +
+        'decision, in proportion to how much of it remains in view.',
+      rejected: allowedTotal < 8,
+      perIpLimit: 4,
+      windowMs: 1_000,
+      requestsSent: 8,
+      allowedTotal,
+      timeline,
+      trace,
+    });
+  }),
+);
 
 // ─── Attestation: what the hardware proves, and what it does not ───────────
 // Every format below runs a genuine ceremony through the shipped verifier.

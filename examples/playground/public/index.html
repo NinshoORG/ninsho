@@ -94,8 +94,42 @@
       </section>
 
       <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel danger">
+        <h2>3 · Rate limiting, in two dimensions</h2>
+        <p class="explain">
+          A per-address limit alone does not stop credential stuffing: an attacker with a botnet
+          spreads attempts so no single address approaches it. A per-account limit alone punishes
+          shared offices, where one colleague&rsquo;s bad memory signs everyone out. Ninsho keeps
+          both buckets, separately, and each button below runs the real middleware against
+          synthesised requests.
+        </p>
+        <div class="grid">
+          <div>
+            <button data-post="/api/attack/credential-stuffing" data-target="out-ratelimit"
+              class="attack-btn">
+              Stuff one account from twelve addresses
+            </button>
+            <button data-post="/api/attack/nat-bystander" data-target="out-ratelimit">
+              Share one office address
+            </button>
+          </div>
+          <div>
+            <button data-post="/api/attack/forged-forwarded-for" data-target="out-ratelimit"
+              class="attack-btn">
+              Forge X-Forwarded-For
+            </button>
+            <button data-post="/api/attack/window-boundary" data-target="out-ratelimit"
+              class="attack-btn">
+              Burst across a window boundary
+            </button>
+          </div>
+        </div>
+        <div id="out-ratelimit" class="out"></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel live">
-        <h2>3 · Your browser holds the key</h2>
+        <h2>4 · Your browser holds the key</h2>
         <p class="explain">
           Everything above ran on the server. This section does not: the private key is generated
           <em>in this page</em>, marked non-extractable, and never leaves it. What reaches the
@@ -115,7 +149,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>4 · Anatomy — the actual bytes</h2>
+        <h2>5 · Anatomy — the actual bytes</h2>
         <p class="explain">
           Each of these generates a genuine artefact with the shipped code, then annotates it byte
           by byte: where each field sits, how wide it is, and why it is there. Nothing below is a
@@ -134,7 +168,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>5 · Attestation — what the hardware proves</h2>
+        <h2>6 · Attestation — what the hardware proves</h2>
         <p class="explain">
           A passkey ceremony proves someone holds a private key. Attestation proves something
           else: that the key was generated inside a particular piece of hardware, vouched for by
@@ -170,7 +204,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>6 · What is actually in the store</h2>
+        <h2>7 · What is actually in the store</h2>
         <p class="explain">
           The live keyspace. Paste any token this page has shown you into the box and search for
           it — the claim is that you will not find it, because only
@@ -187,7 +221,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>7 · The audit trail</h2>
+        <h2>8 · The audit trail</h2>
         <p class="explain">
           Structured security events. The shape is deliberately narrow — there is no free-form
           payload that could accidentally carry a token, a password, or a request body.

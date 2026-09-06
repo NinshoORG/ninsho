@@ -33,6 +33,16 @@ and it will not be found among the live keys.
 | Redeem a password-reset link twice | First accepted, second refused — the atomic `take()` that makes a forwarded email useless |
 | Race two reset requests | Exactly one link survives. This one found a real bug: an index of outstanding tokens could not guarantee it under concurrency, and 80 of 80 raced tokens survived before the fix |
 
+**Rate limiting, in two dimensions.** A per-address limit alone does not stop credential
+stuffing — an attacker with a botnet spreads attempts so no single address approaches it — and a
+per-account limit alone punishes shared offices. Four buttons run the real middleware against
+synthesised requests: twelve addresses against one account, two colleagues behind one office
+address, five forged `X-Forwarded-For` chains, and a burst either side of a window boundary.
+
+The `X-Forwarded-For` one is the reason this panel exists. Writing it found a real off-by-one in
+the client-address resolution: before the fix the panel showed five separate buckets and refused
+nothing, while its own prose said the opposite.
+
 **Your browser holds the key.** The one section that does not run on the server, and therefore
 the one a visitor does not have to take on trust. It imports `@ninsho/client` — served from the
 package it was built from, not a copy — and walks six steps:
@@ -108,7 +118,7 @@ URL — an unfortunate thing for a security demo to be.
 npm run test --workspace @ninsho/playground
 ```
 
-57 tests over real HTTP. A demo does not usually get tests, and this one needs
+61 tests over real HTTP. A demo does not usually get tests, and this one needs
 them: every panel restates a claim from the README to an audience with no way
 to check it. A demonstration that quietly stopped demonstrating would be worse
 than a broken test — a page telling visitors something untrue while looking

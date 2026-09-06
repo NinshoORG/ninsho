@@ -84,7 +84,8 @@ Every claim below links to executable proof.
 | **Ambiguous duplicate auth headers are refused** | `rawHeaders` consulted, because Node hides the duplicate from `headers` | `api.test.ts` › *a repeated Authorization header*, and the same over Koa and Fastify |
 | **Distributed credential stuffing is caught** | per-account bucket | `ratelimit.test.ts` › *stops distributed credential stuffing against one account* |
 | Shared NAT does not punish bystanders | separate per-IP and per-account buckets | `ratelimit.test.ts` › *does not punish other accounts from the same address* |
-| A forged `X-Forwarded-For` cannot mint a fresh bucket | hop-counting from the trusted end | `ratelimit.test.ts` › *does not let prepended entries shift the resolved address* |
+| A forged `X-Forwarded-For` cannot mint a fresh bucket | hop-counting from the trusted end | `ratelimit.test.ts` › *does not let a prepended entry become the resolved address* |
+| Behind one proxy, the client is the client — not the proxy | `clientIp` counts `chain.length - n` | `ratelimit.test.ts` › *resolves the client, not the proxy, behind a single proxy* |
 | `trustProxy` has no default and must be stated | `assertTrustProxy` | `ratelimit.test.ts` › *trustProxy validation* |
 | No 2× burst at a window boundary | sliding-window counter | `ratelimit.test.ts` › *does not permit a double burst across a window boundary* |
 | Rate limits hold under concurrency | atomic `increment` | `store.contract.test.ts` › *gives every concurrent caller a distinct value* |
@@ -162,7 +163,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,878 tests passing · typecheck clean · no flaky runs over 3 full repeats
+1,885 tests passing · typecheck clean · no flaky runs over 3 full repeats
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```

@@ -68,12 +68,66 @@ describe('client address resolution', () => {
     expect(a).toBe(b);
   });
 
+  /**
+   * Each trusted proxy appends the address it received the request from, so
+   * `n` proxies contribute the *last* `n` entries and the client is the one
+   * just before them. Everything further left is whatever the client typed.
+   */
   it('counts hops from the trusted end of the chain', () => {
-    // client, proxy-a, proxy-b — one trusted proxy means the client is the
-    // second entry from the right.
     const r = req({ 'x-forwarded-for': '1.2.3.4, 5.6.7.8, 9.9.9.9' });
-    expect(clientIp(r, 1)).toBe('5.6.7.8');
-    expect(clientIp(r, 2)).toBe('1.2.3.4');
+
+    // One trusted proxy: it appended `9.9.9.9`, so that is the furthest left
+    // this deployment is entitled to believe.
+    expect(clientIp(r, 1)).toBe('9.9.9.9');
+    expect(clientIp(r, 2)).toBe('5.6.7.8');
+    expect(clientIp(r, 3)).toBe('1.2.3.4');
+  });
+
+  /**
+   * REGRESSION: the ordinary single-proxy deployment, and the case the
+   * off-by-one broke worst.
+   *
+   * One proxy in front means the chain holds exactly one entry — the client's
+   * address, put there by that proxy. Reading one position further left ran
+   * off the start of the chain and fell back to the peer, which is the
+   * proxy's own address: every user of the service in one bucket, so five
+   * failed logins from anyone locked out everyone. That is the first of the
+   * two failure modes this module exists to prevent.
+   */
+  it('resolves the client, not the proxy, behind a single proxy', () => {
+    const behindProxy = req({ 'x-forwarded-for': '203.0.113.9' }, '198.51.100.1');
+
+    expect(clientIp(behindProxy, 1)).toBe('203.0.113.9');
+    expect(clientIp(behindProxy, 1)).not.toBe('198.51.100.1');
+  });
+
+  /**
+   * REGRESSION: the second failure mode, from the same off-by-one.
+   *
+   * With a one-entry chain and the index reading one too far left, prepending
+   * a single entry moved the resolved address onto a value the attacker chose
+   * — so rotating the header minted a fresh bucket per request and the
+   * limiter counted nothing.
+   */
+  it('does not let a prepended entry become the resolved address', () => {
+    const honest = req({ 'x-forwarded-for': '203.0.113.9' }, '198.51.100.1');
+    const forged = req({ 'x-forwarded-for': 'evil-1, 203.0.113.9' }, '198.51.100.1');
+    const forgedMore = req(
+      { 'x-forwarded-for': 'evil-1, evil-2, evil-3, 203.0.113.9' },
+      '198.51.100.1',
+    );
+
+    expect(clientIp(forged, 1)).toBe(clientIp(honest, 1));
+    expect(clientIp(forgedMore, 1)).toBe(clientIp(honest, 1));
+    expect(clientIp(forgedMore, 1)).toBe('203.0.113.9');
+  });
+
+  it('treats zero trusted proxies as trusting no header at all', () => {
+    // `0` and `false` are the same statement: nothing upstream is entitled to
+    // speak for the client.
+    const r = req({ 'x-forwarded-for': 'evil' }, '198.51.100.1');
+    expect(clientIp(r, 0)).toBe('198.51.100.1');
+    expect(clientIp(r, 0)).toBe(clientIp(r, false));
   });
 
   /**

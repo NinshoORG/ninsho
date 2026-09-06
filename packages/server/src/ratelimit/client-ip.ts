@@ -24,9 +24,14 @@ import type { HttpRequest } from '../http/types.js';
  *   - `false` — take the peer address only, ignoring forwarding headers.
  *     Correct when the process is directly exposed.
  *
- *   - a number — the count of trusted proxies in front of this process. The
- *     client address is taken that many hops from the right of the chain,
- *     because entries an attacker can append are on the *left*.
+ *   - a number — the count of trusted proxies in front of this process.
+ *
+ *     Each proxy appends the address it received the request from, so `n`
+ *     trusted proxies contribute the *last* `n` entries of the chain and the
+ *     client is at `chain.length - n`. Everything to the left of that is
+ *     whatever the client typed. With one proxy and a chain of `[client]`,
+ *     the client is `chain[0]`; `0` means no proxies and is treated as
+ *     `false`.
  *
  *   - `'all'` — trust the leftmost entry. Only correct when something upstream
  *     is already rewriting the header; otherwise the value is whatever the
@@ -102,6 +107,12 @@ export function clientIp(req: HttpRequest, trustProxy: TrustProxy): string {
     return peer === undefined ? 'unknown' : normalise(peer);
   }
 
+  // Zero trusted proxies is the same statement as `false`: nothing upstream is
+  // entitled to speak for the client, so the header is not consulted at all.
+  if (trustProxy === 0) {
+    return peer === undefined ? 'unknown' : normalise(peer);
+  }
+
   const forwarded = firstHeader(req, 'x-forwarded-for');
   if (forwarded === undefined) {
     return peer === undefined ? 'unknown' : normalise(peer);
@@ -123,10 +134,20 @@ export function clientIp(req: HttpRequest, trustProxy: TrustProxy): string {
     return normalise(chain[0] as string);
   }
 
-  // Count back from the right. Entries an attacker prepends sit on the left,
-  // so hop-counting from the trusted end is what makes them unreachable.
-  const index = chain.length - 1 - trustProxy;
-  if (index < 0) {
+  // ─── Where the client sits, and why it is not one further left ───────────
+  // Each trusted proxy appends the address it received the request from, so
+  // `n` proxies contribute the last `n` entries and the client is the one just
+  // before them. Entries an attacker prepends land to the *left* of that
+  // index, which is what puts them out of reach.
+  //
+  // Reading one position further left is not a rounding error: with a single
+  // proxy the chain holds one entry, so it lands past the start and falls back
+  // to the peer — the proxy's own address — putting every user of the service
+  // in one bucket. And an attacker who prepends a single entry moves the index
+  // onto a value they chose. Those are the two failure modes named at the top
+  // of this file, and off-by-one is enough to produce both.
+  const index = chain.length - trustProxy;
+  if (index < 0 || index >= chain.length) {
     // The chain is shorter than the configured proxy count — the request did
     // not traverse the expected path. Fall back to the peer address rather
     // than reaching for an attacker-supplied entry.

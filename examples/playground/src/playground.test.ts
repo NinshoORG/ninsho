@@ -533,3 +533,74 @@ describe('the attestation panel demonstrates real verification', () => {
     expect(response.status).toBe(400);
   });
 });
+
+/**
+ * The rate-limit panel makes four claims a visitor cannot check by looking.
+ *
+ * The X-Forwarded-For one is the reason these tests exist rather than a
+ * screenshot: writing this panel is what found the resolution off-by-one, and
+ * before the fix the demonstration showed five separate buckets and zero
+ * refusals while its own prose said the opposite.
+ */
+describe('the rate-limit panel demonstrates real limiting', () => {
+  it('stops credential stuffing that no per-IP bucket would notice', async () => {
+    const result = await call('/api/attack/credential-stuffing');
+    const attempts = result['attempts'] as { ip: string; allowed: boolean }[];
+
+    expect(result['rejected']).toBe(true);
+
+    // Every attempt from a different address, and none of them near the
+    // per-IP allowance — so the per-account bucket is doing all the work.
+    const addresses = new Set(attempts.map((a) => a.ip));
+    expect(addresses.size).toBe(attempts.length);
+    expect(attempts.length).toBeLessThan(result['perIpLimit'] as number);
+
+    expect(result['allowedAttempts']).toBe(result['perAccountLimit']);
+    expect(result['blockedAttempts']).toBeGreaterThan(0);
+  });
+
+  it('does not sign out a bystander behind the same address', async () => {
+    const result = await call('/api/attack/nat-bystander');
+    const outcomes = result['outcomes'] as string[];
+    const claim = result['claim'] as { text: string; holds: boolean };
+
+    // The last line is the bystander's first ever attempt.
+    expect(outcomes[outcomes.length - 1]).toContain('allowed');
+    expect(claim.holds).toBe(true);
+    expect(claim.text).not.toContain('bug');
+    // And the colleague really was limited, or the test proves nothing.
+    expect(outcomes.filter((o) => o.includes('refused')).length).toBeGreaterThan(0);
+  });
+
+  it('resolves every forged X-Forwarded-For chain to one bucket', async () => {
+    // REGRESSION. With the resolution off by one this returned five distinct
+    // buckets and refused nothing: rotating the header minted a fresh
+    // allowance per request, which is the limiter counting nothing at all.
+    const result = await call('/api/attack/forged-forwarded-for');
+    const attempts = result['attempts'] as { forwarded: string; allowed: boolean }[];
+
+    expect(result['rejected']).toBe(true);
+    expect(result['blockedAttempts']).toBe(attempts.length - (result['perIpLimit'] as number));
+
+    // Each attempt prepended more invented hops, and none of them helped.
+    const chains = new Set(attempts.map((a) => a.forwarded));
+    expect(chains.size).toBe(attempts.length);
+
+    const buckets = new Set(
+      (result['trace'] as { storeOps: { key: string }[] }).storeOps
+        .filter((op) => op.key.includes(':ip:'))
+        .map((op) => op.key.split(':ip:')[1]?.split(':')[0]),
+    );
+    expect([...buckets]).toEqual([result['resolvedTo']]);
+  });
+
+  it('does not permit a double burst across a window boundary', async () => {
+    // A fixed-window counter resets on the tick, so spending the allowance
+    // either side of it yields twice the limit in a moment.
+    const result = await call('/api/attack/window-boundary');
+
+    expect(result['requestsSent']).toBe(8);
+    expect(result['allowedTotal']).toBeLessThan(8);
+    expect(result['rejected']).toBe(true);
+  });
+});
