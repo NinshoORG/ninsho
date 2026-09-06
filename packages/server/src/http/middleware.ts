@@ -141,6 +141,12 @@ function sendError(res: HttpResponse, error: unknown, scheme = 'Bearer'): void {
  * into `process.on('unhandledRejection')` and the client waits until timeout.
  * A hung request on an auth route is worse than a 401: it looks like a network
  * fault rather than a refusal.
+ *
+ * Express 5 forwards rejections itself, and this is kept regardless. The
+ * package supports Express 4, and the Fastify, Hono and Koa adapters all
+ * reconcile "the middleware answered" against "the middleware continued" by
+ * observing which of the two signals arrives — a convention that needs the
+ * settling to happen here rather than in whatever framework is on top.
  */
 function guard(
   handler: (req: HttpRequest, res: HttpResponse) => Promise<boolean>,
@@ -425,7 +431,7 @@ export function createRequireOwner(audit: AuditSink) {
     guard(async (req) => {
       const auth = getAuth(req);
 
-      let resourceOwner: string | undefined;
+      let resourceOwner: string | readonly string[] | undefined;
       try {
         resourceOwner = selector(req);
       } catch {
@@ -436,6 +442,11 @@ export function createRequireOwner(audit: AuditSink) {
       // Absent is not allowed. A selector pointing at a renamed route
       // parameter returns undefined, and treating that as a pass would
       // silently disable the check across every route using it.
+      //
+      // Neither is an array. Express 5 route parameters can be repeatable, so
+      // a selector really can return several matched segments — and several
+      // segments are not one owner. Picking an element would be inventing an
+      // answer to a question the route did not ask.
       if (typeof resourceOwner !== 'string' || resourceOwner.length === 0) {
         deny(audit, auth, 'ownership could not be determined');
       }
@@ -464,7 +475,10 @@ export function createRequireTenant(audit: AuditSink) {
         deny(audit, auth, 'token carries no tenant');
       }
 
-      let resourceTenant: string | undefined;
+      // Same widening as `requireOwner`, for the same reason: an Express 5
+      // route parameter can be repeatable, and several matched segments are
+      // not one tenant.
+      let resourceTenant: string | readonly string[] | undefined;
       try {
         resourceTenant = selector(req);
       } catch {

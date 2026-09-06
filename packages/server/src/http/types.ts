@@ -40,8 +40,21 @@ export interface HttpRequest {
    * fall back to what `headers` can show, which is less.
    */
   readonly rawHeaders?: readonly string[];
-  /** Route parameters, when the framework provides them. */
-  readonly params?: Readonly<Record<string, string | undefined>>;
+  /**
+   * Route parameters, when the framework provides them.
+   *
+   * A value can be an array. Express 5's path-to-regexp supports repeatable
+   * segments — `/files/*splat` puts every matched segment in one parameter —
+   * and its types say so, which is why an Express 5 request does not
+   * structurally satisfy a `params` typed as `string` alone.
+   *
+   * Widening it is not only about compiling. A selector reading
+   * `req.params.id` on such a route really can receive an array, and a type
+   * that promised otherwise meant the case was never considered. `requireOwner`
+   * refuses one rather than picking an element: several matched segments are
+   * not one owner, and choosing among them would be inventing an answer.
+   */
+  readonly params?: Readonly<Record<string, string | readonly string[] | undefined>>;
   readonly query?: Readonly<Record<string, unknown>>;
   readonly body?: unknown;
   /**
@@ -78,4 +91,4 @@ export type Middleware = (
  * "allowed" is how ownership checks silently stop working when a route is
  * renamed.
  */
-export type ValueSelector = (req: HttpRequest) => string | undefined;
+export type ValueSelector = (req: HttpRequest) => string | readonly string[] | undefined;

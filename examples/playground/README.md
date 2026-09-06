@@ -177,7 +177,7 @@ URL — an unfortunate thing for a security demo to be.
 npm run test --workspace @ninsho/playground
 ```
 
-67 tests over real HTTP. A demo does not usually get tests, and this one needs
+72 tests over real HTTP. A demo does not usually get tests, and this one needs
 them: every panel restates a claim from the README to an audience with no way
 to check it. A demonstration that quietly stopped demonstrating would be worse
 than a broken test — a page telling visitors something untrue while looking

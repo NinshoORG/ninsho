@@ -694,3 +694,56 @@ describe('the deployment surface', () => {
     expect(await res.json()).toMatchObject({ error: { code: 'RATE_LIMIT_EXCEEDED' } });
   });
 });
+
+/**
+ * Two things the HTTP tests could not see, both found in a browser.
+ *
+ * The suite drives the API. The page drives the API *and* renders the result,
+ * and the strict Content Security Policy applies to the rendering — so a
+ * violation there is invisible here unless it is asserted deliberately.
+ */
+describe('the page satisfies its own content policy', () => {
+  it('ships no inline style attributes to apply', async () => {
+    // REGRESSION. The byte-map renderer indented nested fields with
+    // `style="padding-left:2rem"`, which `style-src 'self'` forbids: the rows
+    // rendered flat and the console filled with violations. A demonstration
+    // that had to relax its own policy to indent a table would be arguing
+    // against itself, so the indent is a class and the policy stays.
+    const client = await fetch(`${baseUrl}/app.js`);
+    const source = await client.text();
+
+    expect(source).not.toMatch(/style\s*=\s*["'`]/);
+    expect(source).toContain('nested');
+
+    const page = await fetch(`${baseUrl}/`);
+    expect(await page.text()).not.toMatch(/<[^>]+\sstyle\s*=/);
+  });
+
+  it('defines the class the renderer reaches for', async () => {
+    // The other half: a class nothing styles indents nothing, and the page
+    // would look correct in a test and wrong on screen.
+    const css = await (await fetch(`${baseUrl}/style.css`)).text();
+    expect(css).toMatch(/\.nested\s*\{[^}]*padding-left/);
+  });
+});
+
+/**
+ * The browser posts with a JSON content type and no body for every button that
+ * takes no arguments. The tests always send `{}`, so this shape was never
+ * exercised — and Express 5's body parser is stricter than Express 4's about
+ * what an empty body means.
+ */
+describe('a button that sends no body', () => {
+  it.each([
+    ['/api/session/create'],
+    ['/api/anatomy/webauthn'],
+    ['/api/attack/credential-stuffing'],
+  ])('is accepted at %s, as the page sends it', async (path) => {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
+
+    expect(res.status).toBe(200);
+  });
+});

@@ -100,7 +100,11 @@ export function createRateLimit(
       ];
 
       if (perAccount !== undefined && identify !== undefined) {
-        let identifier: string | undefined;
+        // Widened because `ValueSelector` can now return an array: an Express 5
+        // route parameter may be repeatable. The `typeof === 'string'` check
+        // below already refused one; only the declared type claimed it could
+        // not arrive.
+        let identifier: string | readonly string[] | undefined;
         try {
           identifier = identify(req);
         } catch {

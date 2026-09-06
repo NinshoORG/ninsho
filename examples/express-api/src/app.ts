@@ -102,16 +102,18 @@ function readCookie(req: Request, name: string): string | undefined {
 /**
  * Forwards a rejected async handler to the error middleware.
  *
- * ─── Why every async route needs this ─────────────────────────────────────
- * Express 4 does not catch rejections from an `async` handler. A handler that
- * throws — a store outage, a rejected passkey ceremony — produces an unhandled
- * rejection, the request hangs until the client times out, and the error
- * middleware below never runs. The response never arrives, so a monitoring
- * dashboard sees a timeout rather than the 400 or 503 that actually happened.
+ * ─── Kept, though Express 5 no longer needs it ────────────────────────────
+ * Express 4 did not catch rejections from an `async` handler: a handler that
+ * threw — a store outage, a rejected passkey ceremony — produced an unhandled
+ * rejection, the request hung until the client timed out, and the error
+ * middleware never ran. A dashboard saw a timeout rather than the 400 or 503
+ * that actually happened.
  *
- * Express 5 does this itself. Until then it is one wrapper, applied to every
- * async route, which is why it lives here rather than being remembered at each
- * call site.
+ * Express 5 forwards them itself, so on this version the wrapper is a no-op.
+ * It stays for two reasons: this file is meant to be copied, and a reader who
+ * pastes a route into an Express 4 application should not inherit that bug
+ * silently; and it makes the forwarding visible rather than something you have
+ * to know about the framework version to reason about.
  * ──────────────────────────────────────────────────────────────────────────
  */
 function route(

@@ -698,3 +698,73 @@ describe('error handler', () => {
     expect(res.statusCode).toBeUndefined();
   });
 });
+
+/**
+ * A route parameter that is an array.
+ *
+ * Express 5's path-to-regexp supports repeatable segments — `/files/*splat`
+ * collects every matched segment into one parameter — so a selector reading
+ * `req.params.id` really can receive an array. `HttpRequest.params` used to be
+ * typed as `string` alone, which is why an Express 5 request did not
+ * structurally satisfy it and why this case had never been considered.
+ *
+ * The guards already refused it, because they test `typeof === 'string'`
+ * rather than truthiness. These pin that, since the type no longer rules it
+ * out and a later "convenience" that joined or indexed the array would be
+ * choosing an owner the route never named.
+ */
+describe('a repeatable route parameter', () => {
+  const arrayParams = (values: readonly string[]): HttpRequest =>
+    ({
+      headers: {},
+      params: { id: values },
+      auth: { userId: 'user_alice', roles: ['user'], scopes: [], sessionId: 's1' },
+    }) as unknown as HttpRequest;
+
+  it('is refused by requireOwner rather than resolved to one of its elements', async () => {
+    const result = await run(
+      createRequireOwner(audit)((req) => req.params?.['id']),
+      arrayParams(['user_alice', 'user_bob']),
+    );
+
+    expect(result.res.statusCode).toBe(403);
+    expect(result.nextCalled).toBe(false);
+  });
+
+  it('is refused even when every element is the caller', async () => {
+    // The tempting case. Joining or de-duplicating would let this through, and
+    // the route still matched several segments where the guard expects one.
+    const result = await run(
+      createRequireOwner(audit)((req) => req.params?.['id']),
+      arrayParams(['user_alice', 'user_alice']),
+    );
+
+    expect(result.res.statusCode).toBe(403);
+    expect(result.nextCalled).toBe(false);
+  });
+
+  it('is refused when it holds a single element', async () => {
+    // `['user_alice']` is still not `'user_alice'`. Unwrapping a one-element
+    // array is the change that would look harmless and reintroduce the rest.
+    const result = await run(
+      createRequireOwner(audit)((req) => req.params?.['id']),
+      arrayParams(['user_alice']),
+    );
+
+    expect(result.res.statusCode).toBe(403);
+    expect(result.nextCalled).toBe(false);
+  });
+
+  it('still admits an ordinary string parameter', async () => {
+    const result = await run(
+      createRequireOwner(audit)((req) => req.params?.['id']),
+      ({
+        headers: {},
+        params: { id: 'user_alice' },
+        auth: { userId: 'user_alice', roles: ['user'], scopes: [], sessionId: 's1' },
+      }) as unknown as HttpRequest,
+    );
+
+    expect(result.nextCalled).toBe(true);
+  });
+});

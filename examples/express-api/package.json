@@ -11,11 +11,11 @@
   },
   "dependencies": {
     "@ninsho/server": "0.1.0",
-    "express": "^4.21.2",
+    "express": "^5.2.1",
     "@ninsho/webauthn": "0.1.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21"
+    "@types/express": "^5.0.0"
   },
   "engines": {
     "node": ">=20.0.0"

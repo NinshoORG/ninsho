@@ -113,14 +113,14 @@ established. Owning credential verification would mean owning your user model.
 npm run test --workspace @ninsho/example-express-api
 ```
 
-100 end-to-end tests over real HTTP. They exist to catch what unit tests
+100 end-to-end tests over real HTTP, on Express 5. They exist to catch what unit tests
 structurally cannot — a middleware mounted in the wrong order, a cookie flag
 that never reaches the wire, an error mapped to the wrong status by the
 framework.
 
 They have found two real bugs in this example so far. The first was an error
 handler turning body-parser's 413 into a 500. The second was every `async`
-route: Express 4 does not catch a rejected handler, so a failing route produced
+route: Express 4 did not catch a rejected handler, so a failing route produced
 an unhandled rejection and a request that never got a response — the client
 would time out instead of seeing the 400 or 503 that actually happened. Both
 are fixed; the second is why every async handler here is wrapped in `route()`.

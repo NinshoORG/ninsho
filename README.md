@@ -100,6 +100,7 @@ Every claim below links to executable proof.
 | A denied request never reaches a Fastify route handler | `toFastify()` returns the reply, not undefined | `fastify.test.ts` — asserted against real Fastify |
 | A denied request never reaches a Hono route handler | `toHono()` returns a Response rather than calling `next()` | `hono.test.ts` — asserted against real Hono |
 | A denied request never reaches a Koa route handler | `toKoa()` declines to call `next()` | `koa.test.ts` — asserted against real Koa over real HTTP |
+| A repeatable route parameter is refused, not resolved to one element | Express 5 params can be arrays; `requireOwner` takes none of them | `middleware.test.ts` › *a repeatable route parameter* |
 | A 401 carries a challenge, as RFC 7235 requires | `WWW-Authenticate`, scheme follows the binding | `middleware.test.ts` › *the 401 challenge* |
 | A logout cannot be outrun by a concurrent rotation | session tombstone written before enumeration | `session.test.ts` › *regression: revocation racing rotation* |
 | Invariants hold under parallel load | 50-way rotation, racing revocation, mixed traffic | `concurrency.test.ts` |
@@ -169,7 +170,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,977 tests passing (`npm run test`) · typecheck clean · no flaky runs over repeated full passes
+1,986 tests passing (`npm run test`) · typecheck clean · verified from a fresh clone
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```

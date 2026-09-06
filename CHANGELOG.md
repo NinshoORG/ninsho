@@ -7,6 +7,24 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **The examples run on Express 5.** The last audit advisory was `qs`, pinned
+  by Express 4 at `~6.15.1` where no override could reach it. Express 5 clears
+  it: the whole workspace now reports **zero vulnerabilities**, not just the
+  published packages.
+
+  The upgrade also surfaced a library-level incompatibility. Express 5 types a
+  route parameter as `string | string[]`, because path-to-regexp v8 supports
+  repeatable segments — so an Express 5 request did not structurally satisfy
+  `HttpRequest`, and `auth.verify()` could not be used as Express 5 middleware
+  without a cast. `HttpRequest.params` and `ValueSelector` are widened to match.
+
+  That is not only a typing fix. A selector reading `req.params.id` on a
+  repeatable route really can receive an array, and the old type said it could
+  not, so the case had never been considered. The guards already refused it —
+  they test `typeof === 'string'` rather than truthiness — and there are now
+  tests pinning that, including for a single-element array, which is the
+  unwrapping that would look harmless and reintroduce the rest.
+
 - **Direct tests for the client's key handling and encoding.** `keys.ts`,
   `encoding.ts` and `storage.ts` were reached only through `client.test.ts`,
   which drives a whole request cycle and therefore only ever sees a key this
@@ -766,6 +784,26 @@ This project uses [Semantic Versioning](https://semver.org/).
   Opt-in, because enabling it is a breaking change for clients.
 
 ### Fixed
+
+- **The playground's own content policy blocked the playground.** The strict
+  CSP added with the deployment work forbids inline styles, and the byte-map
+  renderer indented nested fields with `style="padding-left:2rem"`. Nested rows
+  rendered flat and the console filled with violations.
+
+  The earlier check missed it because it exercised the API and the first panel,
+  not the ones that render indented decodes. Found by clicking through the page
+  after the Express 5 upgrade.
+
+  The indent is a class now and the policy is unchanged — a demonstration that
+  had to relax its own policy to indent a table would be arguing against
+  itself. Two tests pin it: no `style=` in the shipped client, and a `.nested`
+  rule that actually exists, since a class nothing styles indents nothing and
+  would look correct in a test and wrong on screen.
+
+  A second gap the same session found: every panel button posts with a JSON
+  content type and no body, while the tests always sent `{}`. That shape was
+  never exercised, and Express 5's body parser is stricter than Express 4's
+  about what an empty body means. It is fine — checked — and now asserted.
 
 - **Attestation was inert on Node 20.** `chainReachesAnchor` read
   `cert.validFromDate` and `cert.validToDate`, getters that arrived in Node

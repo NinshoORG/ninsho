@@ -107,12 +107,16 @@ function renderEvents(events) {
 function renderDecode(decode) {
   const rows = decode.fields
     .map((f) => {
-      const indent = f.depth ? ' style="padding-left:2rem"' : '';
+      // A class rather than a style attribute: the page's own Content Security
+      // Policy is `style-src 'self'` with no `unsafe-inline`, and an inline
+      // style is exactly what that forbids. A demonstration that had to relax
+      // its own policy to indent a table would be arguing against itself.
+      const nameClass = f.depth ? 'op nested' : 'op';
       const span = f.length > 0 && !f.sizeOnly ? `${f.offset} … ${f.offset + f.length - 1}` : '';
       return `<tr>
         <td class="dim">${escape(span)}</td>
         <td class="dim">${f.length > 0 ? escape(f.length) : ''}</td>
-        <td class="op"${indent}>${escape(f.name)}</td>
+        <td class="${nameClass}">${escape(f.name)}</td>
         <td class="hash">${escape(f.hex)}</td>
         <td>${escape(f.value)}</td>
       </tr>

@@ -335,3 +335,9 @@ td.dim {
   border-color: #2c4a3a;
   background: linear-gradient(180deg, #141d19, var(--panel));
 }
+
+/* Indented rows in a byte map. A class, not a style attribute, because the
+   page is served under `style-src 'self'` with no `unsafe-inline`. */
+td.nested {
+  padding-left: 2rem;
+}

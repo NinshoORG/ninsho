@@ -2,7 +2,7 @@
   "name": "@ninsho/playground",
   "version": "0.1.0",
   "private": true,
-  "description": "Interactive protocol explorer for Ninsho \u2014 shows the real bytes, and the real attacks failing.",
+  "description": "Interactive protocol explorer for Ninsho — shows the real bytes, and the real attacks failing.",
   "type": "module",
   "scripts": {
     "dev": "node --experimental-strip-types src/server.ts",
@@ -14,10 +14,10 @@
     "@ninsho/client": "0.1.0",
     "@ninsho/server": "0.1.0",
     "@ninsho/webauthn": "0.1.0",
-    "express": "^4.21.2"
+    "express": "^5.2.1"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21"
+    "@types/express": "^5.0.0"
   },
   "engines": {
     "node": ">=20.0.0"
