@@ -1,0 +1,20 @@
+# Every change gets a review from the maintainer by default.
+*                       @Djain912
+
+# The files where a mistake is a security bug rather than a defect.
+# Listed separately so a reviewer can see at a glance that a pull request
+# touches one of them, not so that ownership differs.
+/packages/core/                 @Djain912
+/packages/server/src/http/      @Djain912
+/packages/server/src/session/   @Djain912
+/packages/server/src/store/     @Djain912
+/packages/server/src/dpop/      @Djain912
+/packages/server/src/engine/    @Djain912
+/packages/server/src/config.ts  @Djain912
+/packages/webauthn/src/         @Djain912
+
+# The evidence and the gates that enforce it.
+/.github/workflows/     @Djain912
+/SECURITY.md            @Djain912
+/AGENTS.md              @Djain912
+/CONTRIBUTING.md        @Djain912

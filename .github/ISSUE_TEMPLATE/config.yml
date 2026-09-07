@@ -1,0 +1,23 @@
+# A blank issue gives a reporter no idea what a useful report contains, and
+# gives a maintainer a thread that takes three round trips to become actionable.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Djain912/ninsho/blob/main/SECURITY.md
+    about: >
+      Do not open a public issue. SECURITY.md has the threat model, the known
+      limitations, and the private reporting channel.
+
+  - name: Working on the project (agents and contributors)
+    url: https://github.com/Djain912/ninsho/blob/main/AGENTS.md
+    about: >
+      Repository map, commands, the invariants CI enforces, and the traps that
+      have already cost people hours. Read before opening a pull request.
+
+  - name: Is this already a known limitation?
+    url: https://github.com/Djain912/ninsho/blob/main/SECURITY.md#known-limitations
+    about: >
+      Several behaviours that look like bugs are documented decisions — timing
+      on the reset endpoint, what each attestation format actually proves, and
+      what a bearer token can still do without DPoP.

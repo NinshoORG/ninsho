@@ -177,12 +177,25 @@ webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 
 ### Documentation
 
+**[docs/](./docs/)** is the reference material — [getting
+started](./docs/getting-started.md), [configuration](./docs/configuration.md),
+[authorization](./docs/authorization.md), [framework
+adapters](./docs/frameworks.md), [architecture](./docs/architecture.md) and
+[deployment](./docs/deployment.md).
+
+**[AGENTS.md](./AGENTS.md)** is the context document — hand it to an AI agent,
+or read it yourself on day one. Repository map, the commands that actually work,
+the invariants CI enforces, the conventions, and the traps that have already
+cost people hours.
+
 - **[SECURITY.md](./SECURITY.md)** — security model, threat model, and the
   limitations stated plainly
 - **[PERFORMANCE.md](./PERFORMANCE.md)** — benchmarks, and what they say about
   the architecture
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — the rule this project runs on, and
   the design constraints that are settled
+- **[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)** — how review works here, and
+  the line between rigour about code and rigour about people
 - **[examples/playground](./examples/playground)** — an interactive protocol
   explorer, and the fastest way to see the whole library work. Ten panels: a
   session end to end, three devices and signing them out, every authorization
@@ -363,6 +376,7 @@ packages/
   server/        @ninsho/server — store, engines, config, audit.
     fastify.ts   @ninsho/server/fastify — adapter, no Fastify dependency
     hono.ts      @ninsho/server/hono — adapter, no Hono dependency
+    koa.ts       @ninsho/server/koa — adapter, no Koa dependency
     store/       NinshoStore interface · RedisStore · MemoryStore
     engine/      TokenEngine interface · OpaqueEngine · PasetoEngine
     session/     SessionManager — rotation, families, reuse detection
@@ -372,6 +386,12 @@ packages/
     ratelimit/   sliding-window counter, per-IP and per-account buckets
     tokens/      single-use tokens — reset, verification, magic links
     dpop/        RFC 9449 proof verification, JWK thumbprints, replay guard
+examples/
+  express-api/   a complete integration meant to be copied
+  playground/    the interactive demonstration — ten panels, real library
+docs/            reference documentation
+AGENTS.md        context for an agent or a new contributor
+.github/         CI, issue templates, pull request template, CODEOWNERS
 ```
 
 ### Testing against Redis

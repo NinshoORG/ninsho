@@ -1,0 +1,90 @@
+name: Bug report
+description: Something behaves differently from what the documentation says
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **If this is a security vulnerability, stop.** Do not open an issue —
+        read [SECURITY.md](../blob/main/SECURITY.md) and use the private channel
+        described there. A public issue tells everyone about the hole before
+        there is a fix.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, and what the library did.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      description: >
+        If the documentation says otherwise, quote it — that is a documentation
+        bug at minimum and this project treats those as real.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: >
+        A failing test is the most useful form this can take, and the form a fix
+        will need anyway. Otherwise, the smallest code that shows the behaviour.
+      render: typescript
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Ninsho version or commit
+      placeholder: "0.1.0, or a commit SHA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: node
+    attributes:
+      label: Node version
+      options:
+        - "20.x"
+        - "22.x"
+        - "24.x"
+        - Other (say which below)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: store
+    attributes:
+      label: Store
+      options:
+        - MemoryStore
+        - RedisStore
+        - A store I implemented myself
+    validations:
+      required: true
+
+  - type: dropdown
+    id: strategy
+    attributes:
+      label: Token strategy
+      options:
+        - opaque (default)
+        - paseto
+        - Not relevant to this bug
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >
+        Framework and version, whether DPoP is enabled, what is in front of the
+        process (a proxy changes how `clientIp` resolves), relevant audit events.

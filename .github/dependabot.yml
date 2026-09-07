@@ -1,0 +1,55 @@
+# Dependency updates.
+#
+# Weekly rather than daily: this repository has few dependencies by design —
+# three of the four packages ship with none — so a daily cadence would produce
+# noise rather than signal. Grouped so a routine bump is one review, not five.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      # Everything that only affects how the project is built and tested.
+      # A consumer never installs any of it.
+      dev-tooling:
+        patterns:
+          - "typescript"
+          - "tsup"
+          - "vitest"
+          - "rimraf"
+          - "@types/*"
+          - "esbuild"
+        update-types:
+          - minor
+          - patch
+      # The framework packages the adapters are tested against. They are
+      # devDependencies of @ninsho/server only — an adapter that started
+      # importing one would fail the bundle-purity gate.
+      adapter-frameworks:
+        patterns:
+          - "express"
+          - "fastify"
+          - "hono"
+          - "koa"
+          - "@koa/*"
+        update-types:
+          - minor
+          - patch
+    # ioredis is the one runtime dependency a consumer installs, and a major
+    # bump changes behaviour the store contract depends on. Kept out of the
+    # groups above so it always arrives as its own reviewable pull request.
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
