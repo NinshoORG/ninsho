@@ -19,6 +19,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
+import { fileURLToPath } from 'node:url';
 import express, { type Request, type Response } from 'express';
 import {
   MemoryStore,
@@ -168,7 +169,7 @@ export const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '64kb' }));
 const localPath = (relative: string): string =>
-  new URL(relative, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+  fileURLToPath(new URL(relative, import.meta.url));
 
 /**
  * Headers a page served from the internet should carry.
