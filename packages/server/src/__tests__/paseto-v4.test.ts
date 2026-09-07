@@ -93,7 +93,7 @@ describe('PAE', () => {
   });
 });
 
-describe('le64 MSB rejection', () => {
+describe('le64 MSB rejection and validation', () => {
   it('accepts boundary values with MSB cleared (0, 1, 0x7fffffffffffffff)', () => {
     expect(le64(0).toString('hex')).toBe('0000000000000000');
     expect(le64(1).toString('hex')).toBe('0100000000000000');
@@ -103,7 +103,18 @@ describe('le64 MSB rejection', () => {
   it('rejects values with bit 63 (MSB) set (0x8000000000000000, 0xffffffffffffffff)', () => {
     // REGRESSION: previously le64 masked the MSB with 0x7fffffffffffffffn rather than rejecting it.
     expect(() => le64(0x8000000000000000n)).toThrow(PasetoFormatError);
+    expect(() => le64(0x8000000000000001n)).toThrow(PasetoFormatError);
     expect(() => le64(0xffffffffffffffffn)).toThrow(PasetoFormatError);
+  });
+
+  it('rejects invalid inputs (negative, non-integer, NaN, Infinity, oversized)', () => {
+    expect(() => le64(-1)).toThrow(PasetoFormatError);
+    expect(() => le64(-100n)).toThrow(PasetoFormatError);
+    expect(() => le64(NaN)).toThrow(PasetoFormatError);
+    expect(() => le64(Infinity)).toThrow(PasetoFormatError);
+    expect(() => le64(-Infinity)).toThrow(PasetoFormatError);
+    expect(() => le64(1.5)).toThrow(PasetoFormatError);
+    expect(() => le64(0x10000000000000000n)).toThrow(PasetoFormatError);
   });
 });
 

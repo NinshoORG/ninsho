@@ -80,7 +80,16 @@ function b64uDecode(value: string): Buffer {
  * implementations to reject any integer with bit 63 set.
  */
 export function le64(value: number | bigint): Buffer {
-  const b = BigInt(value);
+  let b: bigint;
+  try {
+    if (typeof value === 'number' && !Number.isInteger(value)) {
+      throw new PasetoFormatError('integer must be an integer');
+    }
+    b = BigInt(value);
+  } catch (error) {
+    if (error instanceof PasetoFormatError) throw error;
+    throw new PasetoFormatError('invalid integer value for le64');
+  }
   if (b < 0n || b > 0x7fffffffffffffffn || (b & 0x8000000000000000n) !== 0n) {
     throw new PasetoFormatError('integer MSB is set or out of range');
   }
