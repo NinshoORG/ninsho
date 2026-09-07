@@ -98,6 +98,76 @@ function renderEvents(events) {
 }
 
 /**
+ * A table of authorization decisions.
+ *
+ * Two lines per decision, because the interesting half is underneath: what the
+ * caller carried, and what the audit trail recorded that the caller was not
+ * told. A one-line table would show the verdict and hide the reasoning.
+ */
+function renderChecks(checks) {
+  const rows = checks
+    .map((c) => {
+      const landed = (c.allowed ? 'allowed' : 'refused') === c.expected;
+      const outcome = c.allowed ? 'allowed' : `refused · ${c.status}${c.code ? ` ${c.code}` : ''}`;
+      const detail = [
+        c.carries,
+        c.auditReason ? `audit: ${c.auditReason}` : '',
+        landed ? '' : `EXPECTED ${c.expected} — that is a bug`,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+
+      return `<tr>
+        <td class="${c.allowed ? 'dim' : 'op'}">${landed ? '' : '✗ '}${escape(outcome)}</td>
+        <td class="hash">${escape(c.guard)}</td>
+        <td>${escape(c.caller)}</td>
+        <td>${escape(c.request)}</td>
+      </tr>
+      <tr><td colspan="4" class="fieldnote">${escape(detail)}</td></tr>`;
+    })
+    .join('');
+
+  return `<h4 class="sub">Decisions (${checks.length})</h4>
+    <div class="scroll"><table>
+      <thead><tr><th>outcome</th><th>guard</th><th>caller</th><th>request</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+/**
+ * A user's live sessions, as an account settings page would list them.
+ *
+ * Rendered field by field rather than as a JSON dump, because the interesting
+ * part is the shape: there is no column here that could carry a token, and the
+ * signals are truncated hashes rather than the user agent and address they
+ * were computed from.
+ */
+function renderSessions(sessions) {
+  const rows = sessions
+    .map(
+      (s) => `<tr>
+        <td class="hash">${escape(s.sessionId)}</td>
+        <td class="dim">${escape(s.createdAt)}</td>
+        <td class="dim">${escape(s.lastUsedAt)}</td>
+        <td>${escape(s.generation)}</td>
+        <td class="${s.current ? 'op' : 'dim'}">${s.current ? 'this device' : ''}</td>
+        <td class="hash">${escape(
+          Object.entries(s.signals ?? {})
+            .map(([k, v]) => `${k}=${v}`)
+            .join(' ') || '—',
+        )}</td>
+      </tr>`,
+    )
+    .join('');
+
+  return `<h4 class="sub">Live sessions (${sessions.length})</h4>
+    <div class="scroll"><table>
+      <thead><tr><th>session</th><th>created</th><th>last used</th><th>gen</th><th></th><th>signals</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+/**
  * A byte map.
  *
  * Offsets and widths are shown because they are the thing a spec diagram gives
@@ -168,6 +238,7 @@ function render(data) {
   }
 
   html += renderNote(data.note);
+  html += renderNote(data.secondNote);
   html += renderTokens(data.tokens);
 
   if (data.verdict && data.verdict.accepted) {
@@ -179,7 +250,7 @@ function render(data) {
 
   const scalars = {};
   for (const [k, v] of Object.entries(data)) {
-    if (['note', 'trace', 'tokens', 'ok', 'rejected', 'keys', 'events', 'decodes', 'summary', 'clientDataJSON', 'expected', 'statement', 'attempts', 'timeline', 'outcomes', 'claim'].includes(k)) continue;
+    if (['note', 'secondNote', 'trace', 'tokens', 'ok', 'rejected', 'keys', 'events', 'decodes', 'summary', 'clientDataJSON', 'expected', 'statement', 'attempts', 'timeline', 'outcomes', 'claim', 'checks', 'sessions'].includes(k)) continue;
     if (v === null || typeof v === 'object') continue;
     scalars[k] = v;
   }
@@ -194,6 +265,9 @@ function render(data) {
       .map(([k, v]) => `<dt>${escape(k)}</dt><dd>${escape(JSON.stringify(v))}</dd>`)
       .join('')}</dl>`;
   }
+
+  if (data.sessions) html += renderSessions(data.sessions);
+  if (data.checks) html += renderChecks(data.checks);
 
   if (data.attempts) {
     html += `<h4 class="sub">Attempts (${data.attempts.length})</h4>

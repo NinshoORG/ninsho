@@ -24,6 +24,44 @@ So the playground shows it happening, with the store operations underneath.
 `SHA-256(token)` and never the token — paste any credential the page shows you into the search box
 and it will not be found among the live keys.
 
+**Devices, and signing them out.** The feature every account settings page has, and the one a
+self-contained token cannot actually provide. Three devices sign in as one user; the list shows
+what a session summary contains and — more to the point — what it does not, since there is no
+column that could carry a token and the client signals are truncated hashes rather than the user
+agent and address they were computed from.
+
+Then one device is signed out, and the panel presents all three tokens again. One is refused; two
+keep working. The refused token has not expired — its expiry is printed beside the time of the
+check, and it is in the future — so what you are watching is revocation rather than the clock.
+That is what the one store read on every authenticated request buys.
+
+The third button changes the password. Every session ends, the reason recorded is
+`credential_changed` rather than a generic sign-out — the one an incident review greps for, since
+whoever forced the reset may already hold a session — and the refresh families die with the access
+tokens. Ending the access tokens alone would let every device sign itself straight back in within
+minutes while the user was being told they had been signed out.
+
+**Authorization — who may do what.** Signing in answers *who is this*. Five buttons answer the
+harder question, and each row runs a shipped guard behind the shipped `verify()` against a request
+carrying a token this process really minted — nothing hands the guard a synthesised `req.auth`,
+because a demonstration that invents the thing under test proves nothing.
+
+| Button | The row worth looking at |
+| --- | --- |
+| Roles | `requireAllRoles` refusing an administrator who holds one of the two roles it names — the difference between "any of" and "all of", which reads correctly at either call site |
+| Scopes | An administrator refused an order write, because they hold no `orders:write` scope. Roles and scopes are independent axes, and a check that waved admins through would turn every delegated token into a full one |
+| Ownership | Four refusals. The IDOR attempt, and then *absent*, *repeated* and *thrown* — because the only safe reading of "I could not determine the owner" is no |
+| Tenant isolation | A genuine admin of `acme`, refused at `globex`; and a token carrying no tenant claim refused everywhere |
+| Step-up | A freshly refreshed token — minted this second — still failing `requireFreshAuth`, because rotating a credential is not re-proving who you are |
+
+Each row prints what the caller was told next to what the audit trail recorded. They differ on
+purpose: the ownership refusal says only "forbidden", because naming the owner would confirm the
+resource exists and belongs to someone, which is an enumeration oracle.
+
+The panel also states in advance what each decision *should* have been and prints a single verdict
+line over the table. A guard that stopped guarding would otherwise render as a tidy table of the
+wrong answers.
+
 **Four attacks, and what stops each:**
 
 | Attack | What you see |
@@ -177,7 +215,7 @@ URL — an unfortunate thing for a security demo to be.
 npm run test --workspace @ninsho/playground
 ```
 
-72 tests over real HTTP. A demo does not usually get tests, and this one needs
+95 tests over real HTTP. A demo does not usually get tests, and this one needs
 them: every panel restates a claim from the README to an audience with no way
 to check it. A demonstration that quietly stopped demonstrating would be worse
 than a broken test — a page telling visitors something untrue while looking
@@ -188,6 +226,14 @@ store and its SHA-256 present, that the trace shown beside it leaks no
 credential either, that the replay is refused *and* classified as coming from a
 different client, that exactly one of two raced reset links survives, and that
 the byte offsets in the anatomy view are the ones the specification gives.
+
+Two of them are about the panels rather than the library. Every authorization
+and revocation decision is asserted against what the panel says it should have
+been — a table of wrong answers looks exactly like a table of right ones — and
+every route a button names is checked to exist, because the panels are wired by
+`data-post` attributes, so a renamed route breaks a button with no compile-time
+and no test-time signal. It fails when a visitor clicks it, which is the worst
+possible moment and the least likely place for anyone to notice.
 
 ## What it is not
 

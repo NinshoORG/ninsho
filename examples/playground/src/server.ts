@@ -33,6 +33,8 @@ import {
   type Middleware,
   type Principal,
   type SecurityEvent,
+  type SessionSummary,
+  type TokenPair,
 } from '@ninsho/server';
 import { decodeCbor, verifyRegistration } from '@ninsho/webauthn';
 import { VirtualAuthenticator, createCertificate } from '@ninsho/webauthn/testing';
@@ -385,6 +387,760 @@ app.post(
     } catch (error) {
       res.json({ ok: false, ...describe(error) });
     }
+  }),
+);
+
+// ─── Authorization: who may do what ────────────────────────────────────────
+// Authentication answers "who is this". Authorization answers "may they do
+// *this*", and it is the half applications usually write by hand at each call
+// site — which is why broken object-level authorization has sat at number one
+// on the OWASP API Security Top Ten for as long as the list has existed.
+//
+// Every check below runs a shipped guard behind the shipped `verify()`,
+// against a request carrying a token this process really minted. Nothing here
+// synthesises a `req.auth`: the identity being checked arrives the way it
+// arrives in production — inside a signed token that has to survive
+// verification before any guard sees it. A demonstration that invented the
+// very thing under test would prove nothing.
+
+/** One authorization decision, with what the client and the log each learned. */
+interface AuthzCheck {
+  readonly guard: string;
+  readonly caller: string;
+  readonly carries: string;
+  readonly request: string;
+  readonly expected: 'allowed' | 'refused';
+  readonly allowed: boolean;
+  readonly status: number;
+  readonly code?: string;
+  /** What the caller is told. */
+  readonly clientSees?: string;
+  /** What the audit trail recorded — deliberately more than the caller learns. */
+  readonly auditReason?: string;
+}
+
+/** A request as a framework would hand it to the middleware. */
+const asRequest = (
+  accessToken: string | undefined,
+  over: Record<string, unknown> = {},
+): Record<string, unknown> => ({
+  method: 'GET',
+  url: '/',
+  headers: accessToken === undefined ? {} : { authorization: `Bearer ${accessToken}` },
+  ...over,
+});
+
+/** Runs one chain and records both halves of what came out of it. */
+async function authzCheck(
+  world: World,
+  spec: {
+    guard: string;
+    caller: string;
+    carries: string;
+    request: string;
+    expected: 'allowed' | 'refused';
+    chain: readonly Middleware[];
+    req: Record<string, unknown>;
+  },
+): Promise<AuthzCheck> {
+  const before = world.audit.events.length;
+  const outcome = await runChain(spec.chain, spec.req);
+
+  const reason = world.audit.events
+    .slice(before)
+    .map((event) => (event as { reason?: string }).reason)
+    .find((value): value is string => typeof value === 'string');
+
+  return {
+    guard: spec.guard,
+    caller: spec.caller,
+    carries: spec.carries,
+    request: spec.request,
+    expected: spec.expected,
+    allowed: outcome.allowed,
+    status: outcome.status,
+    ...(outcome.code !== undefined && { code: outcome.code }),
+    ...(outcome.message !== undefined && { clientSees: outcome.message }),
+    ...(reason !== undefined && { auditReason: reason }),
+  };
+}
+
+/**
+ * Whether every check landed where the route asked it to.
+ *
+ * Stated as a claim the page can be wrong about rather than as prose. A guard
+ * that stopped guarding would otherwise render as a tidy table of the wrong
+ * answers.
+ */
+function authzVerdict(checks: readonly AuthzCheck[]): { text: string; holds: boolean } {
+  const wrong = checks.filter((check) => (check.allowed ? 'allowed' : 'refused') !== check.expected);
+  return {
+    text:
+      wrong.length === 0
+        ? `All ${checks.length} decisions landed the way the route asked`
+        : `${wrong.length} of ${checks.length} decisions did not match the route — that is a bug`,
+    holds: wrong.length === 0,
+  };
+}
+
+/** Renders a principal the way the table column reads. */
+const carriedBy = (principal: Principal): string =>
+  [
+    `roles: ${principal.roles.length > 0 ? principal.roles.join(', ') : '—'}`,
+    `scopes: ${principal.scopes.length > 0 ? principal.scopes.join(', ') : '—'}`,
+    ...(principal.tenant !== undefined ? [`tenant: ${principal.tenant}`] : []),
+  ].join(' · ');
+
+app.post(
+  '/api/authz/roles',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    const staff: Principal = { userId: 'usr_alice', roles: ['user'], scopes: ['profile:read'] };
+    const root: Principal = {
+      userId: 'usr_root',
+      roles: ['admin', 'support'],
+      scopes: ['profile:read'],
+    };
+
+    const checks: AuthzCheck[] = [];
+    const { trace } = await traced(world, async () => {
+      const staffSession = await world.auth.createSession(staff);
+      const rootSession = await world.auth.createSession(root);
+
+      checks.push(
+        await authzCheck(world, {
+          guard: "verify() + requireRole('admin')",
+          caller: root.userId,
+          carries: carriedBy(root),
+          request: 'GET /admin/users',
+          expected: 'allowed',
+          chain: [world.auth.verify(), world.auth.requireRole('admin')],
+          req: asRequest(rootSession.accessToken),
+        }),
+        await authzCheck(world, {
+          guard: "verify() + requireRole('admin')",
+          caller: staff.userId,
+          carries: carriedBy(staff),
+          request: 'GET /admin/users',
+          expected: 'refused',
+          chain: [world.auth.verify(), world.auth.requireRole('admin')],
+          req: asRequest(staffSession.accessToken),
+        }),
+        await authzCheck(world, {
+          guard: "requireRole(['admin', 'support']) — any of",
+          caller: root.userId,
+          carries: carriedBy(root),
+          request: 'GET /tickets',
+          expected: 'allowed',
+          chain: [world.auth.verify(), world.auth.requireRole(['admin', 'support'])],
+          req: asRequest(rootSession.accessToken),
+        }),
+        // The distinction the two names exist for. `requireRole` is a union;
+        // `requireAllRoles` is an intersection, and reaching for the wrong one
+        // is the kind of mistake that reads correctly at the call site.
+        await authzCheck(world, {
+          guard: "requireAllRoles(['admin', 'security-officer']) — all of",
+          caller: root.userId,
+          carries: carriedBy(root),
+          request: 'POST /admin/keys/rotate',
+          expected: 'refused',
+          chain: [world.auth.verify(), world.auth.requireAllRoles(['admin', 'security-officer'])],
+          req: asRequest(rootSession.accessToken),
+        }),
+        // Not authorization at all, and shown next to it deliberately: an
+        // anonymous request never reaches the guard, and 401 and 403 are
+        // different answers to different questions.
+        await authzCheck(world, {
+          guard: "verify() + requireRole('admin')",
+          caller: 'anonymous',
+          carries: 'no token',
+          request: 'GET /admin/users',
+          expected: 'refused',
+          chain: [world.auth.verify(), world.auth.requireRole('admin')],
+          req: asRequest(undefined),
+        }),
+      );
+    });
+
+    res.json({
+      summary: 'Coarse-grained roles, checked by the shipped middleware.',
+      note:
+        'Two guards, because "any of these roles" and "all of these roles" are different questions ' +
+        'and a call site that reaches for the wrong one still reads correctly. Note the last row: ' +
+        'a request with no token is refused by verify() with 401 before any guard runs — 401 says ' +
+        'the server does not know who you are, 403 says it knows and the answer is still no. An ' +
+        'empty role list is refused at construction rather than permitting everyone.',
+      claim: authzVerdict(checks),
+      checks,
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/authz/scopes',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    const reader: Principal = { userId: 'usr_alice', roles: ['user'], scopes: ['orders:read'] };
+    const writer: Principal = {
+      userId: 'usr_bob',
+      roles: ['user'],
+      scopes: ['orders:read', 'orders:write'],
+    };
+    // Deliberately an administrator with no order scopes at all.
+    const root: Principal = { userId: 'usr_root', roles: ['admin'], scopes: [] };
+
+    const checks: AuthzCheck[] = [];
+    const { trace } = await traced(world, async () => {
+      const readerSession = await world.auth.createSession(reader);
+      const writerSession = await world.auth.createSession(writer);
+      const rootSession = await world.auth.createSession(root);
+
+      checks.push(
+        await authzCheck(world, {
+          guard: "requireScope('orders:read')",
+          caller: reader.userId,
+          carries: carriedBy(reader),
+          request: 'GET /orders',
+          expected: 'allowed',
+          chain: [world.auth.verify(), world.auth.requireScope('orders:read')],
+          req: asRequest(readerSession.accessToken),
+        }),
+        await authzCheck(world, {
+          guard: "requireScope('orders:write')",
+          caller: reader.userId,
+          carries: carriedBy(reader),
+          request: 'POST /orders',
+          expected: 'refused',
+          chain: [world.auth.verify(), world.auth.requireScope('orders:write')],
+          req: asRequest(readerSession.accessToken),
+        }),
+        await authzCheck(world, {
+          guard: "requireScope('orders:write')",
+          caller: writer.userId,
+          carries: carriedBy(writer),
+          request: 'POST /orders',
+          expected: 'allowed',
+          chain: [world.auth.verify(), world.auth.requireScope('orders:write')],
+          req: asRequest(writerSession.accessToken),
+        }),
+        // The row worth pausing on. Roles and scopes are independent axes, and
+        // an administrator holding no order scope is refused an order write —
+        // which is what "least privilege" means when it is enforced rather
+        // than asserted.
+        await authzCheck(world, {
+          guard: "requireScope('orders:write')",
+          caller: root.userId,
+          carries: carriedBy(root),
+          request: 'POST /orders',
+          expected: 'refused',
+          chain: [world.auth.verify(), world.auth.requireScope('orders:write')],
+          req: asRequest(rootSession.accessToken),
+        }),
+      );
+    });
+
+    res.json({
+      summary: 'Fine-grained scopes, on an axis of their own.',
+      note:
+        'A role is who someone is; a scope is what this credential may do. They do not imply one ' +
+        'another, and the fourth row is the reason: an administrator whose token carries no ' +
+        'orders:write scope is refused an order write. A scope check that quietly waved through ' +
+        'anyone holding an admin role would turn every delegated token into a full one.',
+      claim: authzVerdict(checks),
+      checks,
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/authz/ownership',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    const alice: Principal = { userId: 'usr_alice', roles: ['user'], scopes: ['orders:read'] };
+    const owner = world.auth.requireOwner((r) => (r.params as { id?: string })?.id);
+
+    const checks: AuthzCheck[] = [];
+    const { trace } = await traced(world, async () => {
+      const session = await world.auth.createSession(alice);
+      const token = session.accessToken;
+
+      checks.push(
+        await authzCheck(world, {
+          guard: 'requireOwner(req => req.params.id)',
+          caller: alice.userId,
+          carries: carriedBy(alice),
+          request: 'GET /accounts/usr_alice/statements',
+          expected: 'allowed',
+          chain: [world.auth.verify(), owner],
+          req: asRequest(token, { params: { id: 'usr_alice' } }),
+        }),
+        // The attack. Every credential is valid; the request is simply for
+        // somebody else's data, and nothing about the token says so.
+        await authzCheck(world, {
+          guard: 'requireOwner(req => req.params.id)',
+          caller: alice.userId,
+          carries: carriedBy(alice),
+          request: 'GET /accounts/usr_bob/statements',
+          expected: 'refused',
+          chain: [world.auth.verify(), owner],
+          req: asRequest(token, { params: { id: 'usr_bob' } }),
+        }),
+        // A selector pointing at a parameter the route no longer has. Absent
+        // is refused rather than skipped: treating "could not tell" as "allow"
+        // would silently disable the check across every route sharing the
+        // selector, and it would keep passing its tests.
+        await authzCheck(world, {
+          guard: 'requireOwner — selector finds nothing',
+          caller: alice.userId,
+          carries: carriedBy(alice),
+          request: 'GET /accounts//statements',
+          expected: 'refused',
+          chain: [world.auth.verify(), owner],
+          req: asRequest(token, { params: {} }),
+        }),
+        // Express 5 route parameters can be repeatable, so a selector really
+        // can return several matched segments. Several segments are not one
+        // owner, and picking one would be inventing an answer.
+        await authzCheck(world, {
+          guard: 'requireOwner — repeatable route parameter',
+          caller: alice.userId,
+          carries: carriedBy(alice),
+          request: 'GET /accounts/usr_alice/usr_bob/statements',
+          expected: 'refused',
+          chain: [world.auth.verify(), owner],
+          req: asRequest(token, { params: { id: ['usr_alice', 'usr_bob'] } }),
+        }),
+        // A selector that throws is not permission either.
+        await authzCheck(world, {
+          guard: 'requireOwner — selector throws',
+          caller: alice.userId,
+          carries: carriedBy(alice),
+          request: 'GET /accounts/.../statements',
+          expected: 'refused',
+          chain: [
+            world.auth.verify(),
+            world.auth.requireOwner(() => {
+              throw new Error('the selector blew up');
+            }),
+          ],
+          req: asRequest(token, { params: { id: 'usr_alice' } }),
+        }),
+      );
+    });
+
+    const refusal = checks.find((check) => check.allowed === false);
+
+    res.json({
+      summary: 'Object-level authorization — OWASP API Security #1.',
+      note:
+        'Every request in this table carries a valid, unexpired, unrevoked token. That is the ' +
+        'whole difficulty: authentication cannot answer this, because nothing is wrong with the ' +
+        'credential — the request is simply for somebody else’s data. Read the last three ' +
+        'rows together: absent, repeated and thrown are all refusals, because the only safe ' +
+        'reading of "I could not determine the owner" is "no".',
+      secondNote:
+        'Compare the two values below. The caller is told "forbidden" and nothing else — naming ' +
+        'the owner would confirm the record exists and belongs to someone, which is an ' +
+        'enumeration oracle. The audit trail keeps the reason.',
+      claim: authzVerdict(checks),
+      clientSees: refusal?.clientSees ?? '—',
+      auditRecords: refusal?.auditReason ?? '—',
+      checks,
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/authz/tenant',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    const acme: Principal = {
+      userId: 'usr_alice',
+      roles: ['admin'],
+      scopes: ['orders:read'],
+      tenant: 'acme',
+    };
+    const globex: Principal = {
+      userId: 'usr_carol',
+      roles: ['user'],
+      scopes: ['orders:read'],
+      tenant: 'globex',
+    };
+    // Issued before the deployment had tenants, or by a path that forgot to
+    // set one. Either way it has no business reaching tenant-scoped data.
+    const untenanted: Principal = { userId: 'usr_dave', roles: ['admin'], scopes: [] };
+
+    const tenant = world.auth.requireTenant((r) => (r.params as { tenant?: string })?.tenant);
+
+    const checks: AuthzCheck[] = [];
+    const { trace } = await traced(world, async () => {
+      const acmeSession = await world.auth.createSession(acme);
+      const globexSession = await world.auth.createSession(globex);
+      const untenantedSession = await world.auth.createSession(untenanted);
+
+      checks.push(
+        await authzCheck(world, {
+          guard: 'requireTenant(req => req.params.tenant)',
+          caller: acme.userId,
+          carries: carriedBy(acme),
+          request: 'GET /t/acme/orders',
+          expected: 'allowed',
+          chain: [world.auth.verify(), tenant],
+          req: asRequest(acmeSession.accessToken, { params: { tenant: 'acme' } }),
+        }),
+        // An administrator — of the wrong organisation. The role is real and
+        // irrelevant.
+        await authzCheck(world, {
+          guard: 'requireTenant(req => req.params.tenant)',
+          caller: acme.userId,
+          carries: carriedBy(acme),
+          request: 'GET /t/globex/orders',
+          expected: 'refused',
+          chain: [world.auth.verify(), tenant],
+          req: asRequest(acmeSession.accessToken, { params: { tenant: 'globex' } }),
+        }),
+        await authzCheck(world, {
+          guard: 'requireTenant(req => req.params.tenant)',
+          caller: globex.userId,
+          carries: carriedBy(globex),
+          request: 'GET /t/globex/orders',
+          expected: 'allowed',
+          chain: [world.auth.verify(), tenant],
+          req: asRequest(globexSession.accessToken, { params: { tenant: 'globex' } }),
+        }),
+        // A token with no tenant claim never passes, on any path.
+        await authzCheck(world, {
+          guard: 'requireTenant — token carries no tenant',
+          caller: untenanted.userId,
+          carries: carriedBy(untenanted),
+          request: 'GET /t/acme/orders',
+          expected: 'refused',
+          chain: [world.auth.verify(), tenant],
+          req: asRequest(untenantedSession.accessToken, { params: { tenant: 'acme' } }),
+        }),
+      );
+    });
+
+    res.json({
+      summary: 'Tenant isolation — a role from the wrong organisation is still the wrong one.',
+      note:
+        'The second row is the interesting one: usr_alice is a genuine admin, and being an admin ' +
+        'of acme grants nothing at globex. The fourth is the fail-closed case — a token with no ' +
+        'tenant claim is refused rather than treated as universal, because in a tenanted ' +
+        'deployment an absent tenant means the token predates tenanting or was minted by a ' +
+        'misconfigured path, and neither should reach tenant-scoped data.',
+      claim: authzVerdict(checks),
+      checks,
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/authz/step-up',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+    const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const alice: Principal = { userId: 'usr_alice', roles: ['user'], scopes: ['profile:write'] };
+
+    // A one-second window, and a real wait — the same shape as the rate-limit
+    // boundary demonstration. Faking the clock here would demonstrate the fake
+    // clock. In an application this number is minutes; the pause you are about
+    // to sit through is that compressed into something a page can show.
+    const WINDOW_SECONDS = 1;
+
+    const checks: AuthzCheck[] = [];
+    const timeline: string[] = [];
+    let authenticatedAt = '';
+    let issuedAtBefore = '';
+    let issuedAtAfter = '';
+
+    const { trace } = await traced(world, async () => {
+      const session = await world.auth.createSession(alice);
+      const context = await world.auth.engine.verify(session.accessToken);
+      authenticatedAt = context.authenticatedAt;
+      issuedAtBefore = context.issuedAt;
+      timeline.push('signed in — authentication is 0s old');
+
+      checks.push(
+        await authzCheck(world, {
+          guard: `requireFreshAuth(${WINDOW_SECONDS})`,
+          caller: alice.userId,
+          carries: carriedBy(alice),
+          request: 'POST /account/email — immediately after signing in',
+          expected: 'allowed',
+          chain: [world.auth.verify(), world.auth.requireFreshAuth(WINDOW_SECONDS)],
+          req: asRequest(session.accessToken),
+        }),
+      );
+
+      await sleep(WINDOW_SECONDS * 1000 + 300);
+      timeline.push(
+        `waited past the ${WINDOW_SECONDS}s window — the session is still perfectly valid`,
+      );
+
+      checks.push(
+        await authzCheck(world, {
+          guard: `requireFreshAuth(${WINDOW_SECONDS})`,
+          caller: alice.userId,
+          carries: carriedBy(alice),
+          request: 'POST /account/email — after the window',
+          expected: 'refused',
+          chain: [world.auth.verify(), world.auth.requireFreshAuth(WINDOW_SECONDS)],
+          req: asRequest(session.accessToken),
+        }),
+        // Still allowed on an ordinary route: the session did not end, it just
+        // stopped being fresh enough for this one operation.
+        await authzCheck(world, {
+          guard: "verify() + requireScope('profile:write')",
+          caller: alice.userId,
+          carries: carriedBy(alice),
+          request: 'POST /profile — an ordinary route, same moment',
+          expected: 'allowed',
+          chain: [world.auth.verify(), world.auth.requireScope('profile:write')],
+          req: asRequest(session.accessToken),
+        }),
+      );
+
+      // ─── The row this whole panel exists for ────────────────────────────
+      // Rotating the refresh token mints a brand-new access token with a new
+      // `issuedAt`. If the freshness check read the token's age, that would
+      // silently satisfy it — and a stolen refresh token would buy an attacker
+      // a step-up they never passed. It reads `authenticatedAt`, which a
+      // refresh does not move.
+      const rotated = await world.auth.refresh(session.refreshToken);
+      const after = await world.auth.engine.verify(rotated.accessToken);
+      issuedAtAfter = after.issuedAt;
+      timeline.push('refreshed — a brand-new access token, minted this second');
+
+      checks.push(
+        await authzCheck(world, {
+          guard: `requireFreshAuth(${WINDOW_SECONDS}) — with the freshly minted token`,
+          caller: alice.userId,
+          carries: carriedBy(alice),
+          request: 'POST /account/email — after refreshing',
+          expected: 'refused',
+          chain: [world.auth.verify(), world.auth.requireFreshAuth(WINDOW_SECONDS)],
+          req: asRequest(rotated.accessToken),
+        }),
+      );
+    });
+
+    res.json({
+      summary: 'Step-up — being signed in is not always enough.',
+      note:
+        'Some operations should need more than a live session: changing an email address, adding ' +
+        'a passkey, moving money. requireFreshAuth reads when the user *authenticated*, not when ' +
+        'the token was issued — and the last row is why that distinction is the whole mechanism. ' +
+        'Refreshing mints a token issued this second, and the check still refuses, because ' +
+        'rotating a credential is not re-proving who you are. Only signing in again is.',
+      secondNote:
+        'The third row matters just as much: the session was not ended, and ordinary routes keep ' +
+        'working. A step-up failure that signed the user out would be a denial of service wearing ' +
+        'a security feature’s clothes.',
+      claim: authzVerdict(checks),
+      windowSeconds: WINDOW_SECONDS,
+      authenticatedAt,
+      issuedAtBeforeRefresh: issuedAtBefore,
+      issuedAtAfterRefresh: issuedAtAfter,
+      timeline,
+      checks,
+      trace,
+    });
+  }),
+);
+
+// ─── Sessions, devices, and ending them ────────────────────────────────────
+// The feature every account settings page has — "you are signed in on three
+// devices, sign the others out" — and the one a stateless token cannot
+// actually provide. A self-contained JWT is valid until it expires because
+// nothing is consulted when it is presented; the honest versions of this
+// feature keep a denylist, and the dishonest ones shorten the expiry and hope.
+//
+// Ninsho consults the store on every request. That is the one read the README
+// admits to, and this is what it buys.
+
+/** The devices a demonstration signs in from. */
+const DEVICES = [
+  { label: 'laptop', userAgent: 'Ninsho/1.0 (laptop)', ip: '203.0.113.10' },
+  { label: 'phone', userAgent: 'Ninsho/1.0 (phone)', ip: '198.51.100.22' },
+  { label: 'tablet', userAgent: 'Ninsho/1.0 (tablet)', ip: '192.0.2.44' },
+] as const;
+
+const DEVICE_USER: Principal = {
+  userId: 'usr_alice',
+  roles: ['user'],
+  scopes: ['orders:read'],
+};
+
+/** Signs in from each device and hands back the pairs, in order. */
+async function signInEverywhere(world: World): Promise<TokenPair[]> {
+  const pairs: TokenPair[] = [];
+  for (const device of DEVICES) {
+    pairs.push(
+      await world.auth.createSession(DEVICE_USER, {
+        signals: { userAgent: device.userAgent, ip: device.ip },
+      }),
+    );
+  }
+  return pairs;
+}
+
+/**
+ * Presents each device's access token and reports what the server decided.
+ *
+ * Written as the same row shape the authorization panel uses, because it is
+ * the same question asked at a different moment: this is `verify()` on an
+ * ordinary request, which is exactly where a revoked session has to die.
+ */
+async function presentEach(
+  world: World,
+  pairs: readonly TokenPair[],
+  expected: readonly ('allowed' | 'refused')[],
+  when: string,
+): Promise<AuthzCheck[]> {
+  const rows: AuthzCheck[] = [];
+  for (const [index, pair] of pairs.entries()) {
+    rows.push(
+      await authzCheck(world, {
+        guard: 'verify()',
+        caller: DEVICE_USER.userId,
+        carries: `${DEVICES[index]?.label ?? 'device'} · session ${pair.sessionId}`,
+        request: `GET /orders — from the ${DEVICES[index]?.label ?? 'device'}, ${when}`,
+        expected: expected[index] ?? 'allowed',
+        chain: [world.auth.verify()],
+        req: asRequest(pair.accessToken),
+      }),
+    );
+  }
+  return rows;
+}
+
+app.post(
+  '/api/sessions/list',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    let sessions: SessionSummary[] = [];
+    const { trace } = await traced(world, async () => {
+      const pairs = await signInEverywhere(world);
+      // The second device is "this" one, the way an account page marks the
+      // session doing the asking so a visitor does not sign themselves out.
+      sessions = await world.auth.listSessions(DEVICE_USER.userId, pairs[1]?.sessionId);
+    });
+
+    res.json({
+      summary: 'Three devices, one account — what an account settings page can show.',
+      note:
+        'Look at what a summary contains, and more importantly what it does not: no token, no ' +
+        'hash a token could be recognised from, no user agent string and no IP address. The ' +
+        'signals are truncated hashes, which is enough to group sessions or highlight the odd one ' +
+        'out and not enough to render "Chrome on macOS" — if you want that shown to a user, keep ' +
+        'your own record of it. A session list is a page users are encouraged to visit when they ' +
+        'are worried, and it should not be the place a stolen database learns where they live.',
+      sessions,
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/sessions/revoke-one',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    const checks: AuthzCheck[] = [];
+    let revokedSession = '';
+    let revokedTokenExpiresAt = '';
+
+    const { trace } = await traced(world, async () => {
+      const pairs = await signInEverywhere(world);
+      revokedSession = pairs[1]?.sessionId ?? '';
+      revokedTokenExpiresAt = pairs[1]?.accessExpiresAt ?? '';
+
+      checks.push(...(await presentEach(world, pairs, ['allowed', 'allowed', 'allowed'], 'before')));
+
+      // "Sign out this device." One session ends; the others are untouched.
+      await world.auth.revokeSession(revokedSession, 'logout');
+
+      checks.push(...(await presentEach(world, pairs, ['allowed', 'refused', 'allowed'], 'after')));
+    });
+
+    res.json({
+      summary: 'Signing one device out, and only that one.',
+      note:
+        'The refused token in the second half has not expired — its expiry is below, and it is in ' +
+        'the future. It is still perfectly well-formed and its signature still verifies. It is ' +
+        'refused because the session it belongs to is gone, and the server looks. That lookup is ' +
+        'the one store read on every authenticated request, and this is the entire reason it is ' +
+        'there: a token nothing consults is valid until it expires, whatever the account settings ' +
+        'page claims.',
+      secondNote:
+        'The other two devices keep working, which is the half that is easy to get wrong in the ' +
+        'other direction. Revocation that reaches further than asked is its own outage.',
+      claim: authzVerdict(checks),
+      revokedSession,
+      revokedTokenExpiresAt,
+      checkedAt: new Date().toISOString(),
+      checks,
+      trace,
+    });
+  }),
+);
+
+app.post(
+  '/api/sessions/revoke-all',
+  route(async (req, res) => {
+    const world = await visitor(req, res);
+
+    const checks: AuthzCheck[] = [];
+    let refreshRejected = '';
+
+    const { trace } = await traced(world, async () => {
+      const pairs = await signInEverywhere(world);
+      checks.push(...(await presentEach(world, pairs, ['allowed', 'allowed', 'allowed'], 'before')));
+
+      // The operation a password change must perform. `credential_changed`
+      // rather than `logout_all` because an incident review looks for it
+      // specifically: whoever forced the reset may already hold a session, and
+      // a password change that left those alive accomplished nothing.
+      await world.auth.revokeAllForUser(DEVICE_USER.userId, 'credential_changed');
+
+      checks.push(...(await presentEach(world, pairs, ['refused', 'refused', 'refused'], 'after')));
+
+      // The refresh token has to die with it. A revocation that ended the
+      // access tokens and left the families alive would sign everyone back in
+      // within the access token's lifetime — minutes, silently.
+      const outcome = await world.auth
+        .refresh(pairs[0]?.refreshToken ?? '')
+        .then(() => 'accepted — that is a bug')
+        .catch((error: unknown) => describe(error).code);
+      refreshRejected = outcome;
+    });
+
+    res.json({
+      summary: 'Changing a password ends every session, on every device.',
+      note:
+        'The reason recorded is credential_changed rather than a generic sign-out, because an ' +
+        'incident review looks for exactly that: whoever forced the reset may already be holding ' +
+        'a session, and a password change that left those alive accomplished nothing at all.',
+      secondNote:
+        'The line below is the half that is easy to forget. Ending the access tokens is not ' +
+        'enough — if the refresh families survived, every device would quietly sign itself back ' +
+        'in within minutes, and the user would be told they were signed out while they were not.',
+      claim: authzVerdict(checks),
+      refreshAfterRevocation: refreshRejected,
+      checks,
+      trace,
+    });
   }),
 );
 
@@ -804,52 +1560,94 @@ app.post(
 // Each of these runs the real middleware against synthesised requests, so what
 // the page reports is the limiter's own verdict rather than this file's.
 
-/** Drives one request through a middleware and reports what it decided. */
+/** What a middleware chain decided about one request. */
+interface ChainOutcome {
+  readonly allowed: boolean;
+  readonly status: number;
+  readonly code?: string;
+  /** The message the client is given — deliberately less than the server knows. */
+  readonly message?: string;
+}
+
+/**
+ * Drives one request through a chain of real middleware, as a route would.
+ *
+ * The chain matters rather than the individual middleware: an authorization
+ * guard reads `req.auth`, which only exists because `verify()` ran first and
+ * put it there. Running the guard alone would mean synthesising an identity —
+ * and a demonstration that invents the very thing being checked proves
+ * nothing. So the same request object is threaded through every middleware in
+ * order, exactly as Express threads it, and the first one that declines to
+ * call `next()` ends it.
+ */
+async function runChain(
+  chain: readonly Middleware[],
+  req: Record<string, unknown>,
+): Promise<ChainOutcome> {
+  let status = 200;
+  let code: string | undefined;
+  let message: string | undefined;
+
+  for (const middleware of chain) {
+    let advanced = false;
+
+    const res = {
+      status(value: number) {
+        status = value;
+        return res;
+      },
+      json(body: unknown) {
+        const error = (body as { error?: { code?: string; message?: string } })?.error;
+        code = error?.code;
+        message = error?.message;
+        return body;
+      },
+      setHeader() {
+        return res;
+      },
+    };
+
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = (): void => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
+      const originalJson = res.json.bind(res);
+      res.json = (body: unknown) => {
+        const out = originalJson(body);
+        finish();
+        return out;
+      };
+      void Promise.resolve(
+        middleware(req as never, res as never, () => {
+          advanced = true;
+          finish();
+        }),
+      ).catch(finish);
+    });
+
+    if (!advanced) {
+      return {
+        allowed: false,
+        status,
+        ...(code !== undefined && { code }),
+        ...(message !== undefined && { message }),
+      };
+    }
+  }
+
+  return { allowed: true, status: 200 };
+}
+
+/** Drives one request through a single middleware and reports what it decided. */
 async function callMiddleware(
   middleware: Middleware,
   req: Record<string, unknown>,
-): Promise<{ allowed: boolean; status: number; code?: string }> {
-  let status = 200;
-  let code: string | undefined;
-  let allowed = false;
-
-  const res = {
-    status(value: number) {
-      status = value;
-      return res;
-    },
-    json(body: unknown) {
-      code = (body as { error?: { code?: string } })?.error?.code;
-      return body;
-    },
-    setHeader() {
-      return res;
-    },
-  };
-
-  await new Promise<void>((resolve) => {
-    let settled = false;
-    const finish = (): void => {
-      if (!settled) {
-        settled = true;
-        resolve();
-      }
-    };
-    const originalJson = res.json.bind(res);
-    res.json = (body: unknown) => {
-      const out = originalJson(body);
-      finish();
-      return out;
-    };
-    void Promise.resolve(
-      middleware(req as never, res as never, () => {
-        allowed = true;
-        finish();
-      }),
-    ).catch(finish);
-  });
-
-  return { allowed, status, ...(code !== undefined && { code }) };
+): Promise<ChainOutcome> {
+  return runChain([middleware], req);
 }
 
 /** A login attempt from one address for one account. */
