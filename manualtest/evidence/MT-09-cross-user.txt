@@ -1,0 +1,23 @@
+=== MT-09 EVIDENCE: CROSS-USER RESOURCE ACCESS (BOLA/IDOR) ===
+Timestamp: 2026-09-07T16:50:32.741Z
+Target Endpoint: GET http://localhost:3000/users/:id/orders
+Alice ID: usr_76981e36-9446-440e-b0fa-11b1d1bab043
+Bob ID: usr_dbfc1ef8-a28e-4e89-aec8-d1de84ce9433
+
+1. Alice accessing own orders: Status 200, Body: {"orders":[]}
+2. Alice accessing Bobs orders:
+   Status: 403
+   Headers: {
+  "connection": "keep-alive",
+  "content-length": "67",
+  "content-type": "application/json; charset=utf-8",
+  "date": "Mon, 07 Sep 2026 16:50:32 GMT",
+  "etag": "W/\"43-Rs2EkGW+WCd0o8rtDxnW0CvxJOA\"",
+  "keep-alive": "timeout=5"
+}
+   Body: {"error":{"code":"FORBIDDEN","message":"Insufficient permissions"}}
+
+--- Evaluation ---
+Requirement: Own orders 200 OK, cross-user access 403 Forbidden
+Observed: own=200, crossUser=403
+Result: PASS

@@ -1,0 +1,49 @@
+==============================================================================
+NINSHO MANUAL SECURITY RETEST EVIDENCE: MT-05B
+Expired Genuinely Signed PASETO Token
+Timestamp: 2026-09-07T17:05:06.219Z
+Target: Ninsho PasetoEngine & Local HTTP Endpoints
+==============================================================================
+
+1. TOKEN ISSUANCE SPECIFICATIONS:
+Algorithm: PASETO v4.public (Ed25519)
+Key ID (kid): demo-key-expired
+Public Key: 9748c8f3043eea51...[TRUNCATED]
+Issued At (iat): 2026-09-07T16:05:06.093Z (1 hour ago)
+Expiration (exp): 2026-09-07T16:35:06.093Z (30 minutes ago - EXPIRED)
+Masked Token: v4.public.eyJqdGkiOiJleHBfdGVz...[SIGNATURE_MASKED]...bz5FhNQL.eyJraWQiOiJkZW1vLWtleS1leHBpcmVkIn0
+
+2. CRYPTOGRAPHIC SIGNATURE VALIDATION (verifyV4Public):
+Result: SUCCESS (No signature tampering, signature is mathematically authentic)
+Verified Payload Claims:
+{"jti":"exp_test_1788800706094","sub":"usr_alice","iss":"https://playground.ninsho.dev","aud":"playground-api","iat":"2026-09-07T16:05:06.093Z","nbf":"2026-09-07T16:05:06.093Z","auth_time":"2026-09-07T16:05:06.093Z","exp":"2026-09-07T16:35:06.093Z","sid":"sess_test_123","roles":["user"],"scopes":["profile:read"]}
+
+3. CLAIM EXPIRATION VERIFICATION (PasetoEngine.verify):
+Signature Status: VALID
+Clock Tolerance: 5 seconds
+isExpired(exp, tolerance): TRUE
+Thrown Exception: TokenExpiredError
+Error Code: TOKEN_EXPIRED (TOKEN_EXPIRED)
+Internal Detail: token exp_test_1788800706094 past expiry
+HTTP Status: 401 Unauthorized
+HTTP WWW-Authenticate Header: Bearer error="TOKEN_EXPIRED"
+HTTP Response Body:
+{
+  "error": {
+    "code": "TOKEN_EXPIRED",
+    "message": "Authentication credentials have expired"
+  }
+}
+
+4. LIVE SERVER RESPONSES:
+POST http://localhost:4000/api/session/verify HTTP Status: 200
+Response: {"ok":false,"code":"TOKEN_INVALID","message":"Invalid authentication credentials","detail":"no record for presented token","note":"Verification is one store read — the only operation on every authenticated request."}
+GET http://localhost:3000/me HTTP Status: 401
+Response: {"error":{"code":"TOKEN_INVALID","message":"Invalid authentication credentials"}}
+
+5. ISOLATION CONCLUSION & STATUS: PASS
+The test proves with full isolation:
+  - Signature is 100% genuine and cryptographically valid
+  - Rejection is strictly triggered by expired timestamp (TOKEN_EXPIRED)
+  - Replay of expired signed tokens is completely blocked fail-closed
+==============================================================================

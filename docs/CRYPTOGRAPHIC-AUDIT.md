@@ -206,12 +206,20 @@ Tested against official PASETO specification vectors (`paseto-standard/test-vect
 
 ## Findings
 
-### Finding 1: `le64` MSB Masking vs Strict Rejection
+### Finding 1: `le64` MSB Masking vs Strict Rejection (Remediated)
 - **Severity**: Informational
+- **Status**: Remediated
 - **Affected Component**: `packages/server/src/paseto/v4.ts` (`le64`)
-- **Evidence**: `buf.writeBigUInt64LE(BigInt(value) & 0x7fffffffffffffffn)` clears the MSB with bitwise AND rather than throwing if the MSB is set.
+- **Evidence**: `buf.writeBigUInt64LE(BigInt(value) & 0x7fffffffffffffffn)` previously cleared the MSB with bitwise AND rather than throwing if the MSB was set.
 - **Impact**: In JavaScript/Node.js, buffer lengths and piece counts are bounded by `buffer.constants.MAX_LENGTH` (<= 4 GB), which never sets bit 63. No exploit is possible in Node.js. However, the PASETO specification states that an implementation encountering an integer with MSB set MUST reject the input.
-- **Recommendation**: In a future hardening release, add an explicit check: `if (BigInt(value) > 0x7fffffffffffffffn || value < 0) throw new PasetoFormatError('integer overflow in LE64');`
+- **Remediation**: Implemented strict validation in `le64`:
+  ```ts
+  const b = BigInt(value);
+  if (b < 0n || b > 0x7fffffffffffffffn || (b & 0x8000000000000000n) !== 0n) {
+    throw new PasetoFormatError('integer MSB is set or out of range');
+  }
+  ```
+  Boundary and regression tests covering `0`, `1`, `0x7fffffffffffffff` (accepted), `0x8000000000000000` (rejected), and `0xffffffffffffffff` (rejected) were added in `packages/server/src/__tests__/paseto-v4.test.ts`.
 
 ---
 

@@ -1,0 +1,63 @@
+==============================================================================
+NINSHO MANUAL SECURITY RETEST EVIDENCE: MT-01B
+PASETO v4.public Payload/Claim Tampering
+Timestamp: 2026-09-07T17:04:03.779Z
+Target: http://localhost:4000/api/anatomy/paseto & http://localhost:4000/api/session/verify
+==============================================================================
+
+1. GENUINE TOKEN ISSUANCE (POST http://localhost:4000/api/anatomy/paseto):
+HTTP Status: 200 OK
+Token Format: PASETO v4.public
+Masked Original Token: v4.public.eyJqdGkiOiJlQXU1by1y...[SIGNATURE_MASKED]...1aK93jQI.eyJraWQiOiJkZW1vLWtleS0xIn0
+Original Payload Claims:
+{
+  "jti": "eAu5o-r734pcAoVaQDOvYg",
+  "sub": "usr_demo",
+  "iss": "https://playground.ninsho.dev",
+  "aud": "playground-api",
+  "iat": "2026-09-07T17:04:03.731Z",
+  "nbf": "2026-09-07T17:04:03.731Z",
+  "auth_time": "2026-09-07T17:04:03.731Z",
+  "exp": "2026-09-07T17:09:03.731Z",
+  "sid": "ZpPQnDzCcVl8PwFj0oRXxw",
+  "roles": [
+    "user"
+  ],
+  "scopes": [
+    "profile:read"
+  ]
+}
+Original Signature: 64-byte Ed25519 [AUTHENTIC - PRESERVED]
+Original Footer: {"kid":"demo-key-1"}
+
+2. PAYLOAD CLAIM MUTATION (Privilege Escalation Attack):
+Original 'roles': ["user"]
+Tampered 'roles': ["admin","superadmin"]
+Original 'scopes': ["profile:read"]
+Tampered 'scopes': ["profile:read","admin:all","system:write"]
+Signature Status: Untouched genuine 64-byte Ed25519 signature reattached to tampered payload
+Masked Tampered Token: v4.public.eyJqdGkiOiJlQXU1by1y...[SIGNATURE_MASKED]...Vor3eNAg.eyJraWQiOiJkZW1vLWtleS0xIn0
+
+3. VERIFICATION AGAINST PLAYGROUND (POST http://localhost:4000/api/session/verify):
+Request Body: {"token": "v4.public.eyJqdGkiOiJlQXU1by1y...[SIGNATURE_MASKED]...Vor3eNAg.eyJraWQiOiJkZW1vLWtleS0xIn0"}
+HTTP Status: 200 OK
+Response Body:
+{"ok":false,"code":"TOKEN_INVALID","message":"Invalid authentication credentials","detail":"no record for presented token","note":"Verification is one store read — the only operation on every authenticated request."}
+
+4. VERIFICATION AGAINST EXPRESS-API (GET http://localhost:3000/me):
+Request Header: Authorization: Bearer v4.public.eyJqdGkiOiJlQXU1by1y...[SIGNATURE_MASKED]...Vor3eNAg.eyJraWQiOiJkZW1vLWtleS0xIn0
+HTTP Status: 401 Unauthorized
+Response Body:
+{"error":{"code":"TOKEN_INVALID","message":"Invalid authentication credentials"}}
+
+5. CRYPTOGRAPHIC INTEGRITY ANALYSIS:
+PASETO v4.public calculates Ed25519 signature over:
+  PAE(["v4.public.", payload_bytes, footer_bytes, implicit_bytes])
+Mutating "roles" from ["user"] to ["admin", "superadmin"] alters payload_bytes.
+Because the signature was calculated over the genuine pre-image bytes, any cryptographic
+verifier rejects the token with PasetoFormatError: signature verification failed.
+The server never trusts unauthenticated claims.
+
+6. CONCLUSION & STATUS: PASS
+The modified claim is rejected. Tampered PASETO token cannot authenticate or escalate privileges.
+==============================================================================

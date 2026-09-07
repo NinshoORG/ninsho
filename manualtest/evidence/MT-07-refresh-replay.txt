@@ -1,0 +1,22 @@
+=== MT-07 EVIDENCE: REFRESH-TOKEN REPLAY (POST-GRACE) ===
+Timestamp: 2026-09-07T16:50:13.786Z
+Target Endpoint: POST http://localhost:3000/auth/refresh
+Configured Grace Window: 30 seconds (DEFAULTS.refreshGraceSeconds)
+Wait Duration: 31,000 ms
+
+1. Initial Refresh Token A: -h8f1MEPkE3CmXf...
+2. Rotated to Token B: t81q-QOyeC9KdXa...
+
+3. Replay Token A Post-Grace:
+   Status: 401
+   Set-Cookie: ninsho_rt=; Path=/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict
+   Body: {"error":{"code":"REFRESH_REUSE_DETECTED","message":"Session could not be renewed"}}
+
+4. Token B Presentation Post-Breach Alarm:
+   Status: 401
+   Body: {"error":{"code":"REFRESH_INVALID","message":"Session could not be renewed"}}
+
+--- Evaluation ---
+Requirement: Replay after grace window returns 401 REFRESH_REUSE_DETECTED and revokes family (Token B returns 401)
+Observed: replay=401, tokenBAfterRevocation=401
+Result: PASS

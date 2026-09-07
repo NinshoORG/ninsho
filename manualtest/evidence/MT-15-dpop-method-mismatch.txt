@@ -1,0 +1,16 @@
+=== MT-15 EVIDENCE: DPOP HTTP-METHOD MISMATCH ===
+Timestamp: 2026-09-07T16:53:06.281Z
+Target Endpoint: POST http://localhost:4000/api/dpop/call
+Proof Method: GET (Request Method: POST)
+Response: {
+  "accepted": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "DPoP proof rejected: htm mismatch: proof is for GET, request is POST",
+  "note": "The signature was produced in your browser by a key this server has never seen and cannot obtain. Send the same proof again and the replay guard refuses it.",
+  "trace": {
+    "storeOps": [],
+    "events": []
+  }
+}
+Evaluation: PASS

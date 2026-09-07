@@ -1,0 +1,16 @@
+=== MT-16 EVIDENCE: DPOP URL MISMATCH ===
+Timestamp: 2026-09-07T16:53:06.288Z
+Target Endpoint: POST http://localhost:4000/api/dpop/call
+Proof URL: http://localhost:4000/api/other-resource (Request URL: /api/dpop/call)
+Response: {
+  "accepted": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "DPoP proof rejected: htu does not match the request URI",
+  "note": "The signature was produced in your browser by a key this server has never seen and cannot obtain. Send the same proof again and the replay guard refuses it.",
+  "trace": {
+    "storeOps": [],
+    "events": []
+  }
+}
+Evaluation: PASS

@@ -1,0 +1,37 @@
+=== MT-03 EVIDENCE: FOOTER TAMPERING ===
+Timestamp: 2026-09-07T16:45:46.767Z
+Original Footer: {"kid":"demo-key-1"}
+
+--- Case 1: Forged Key ID in Footer ---
+Tampered Footer: {"kid":"forged-attacker-key-999"}
+Response: {
+  "ok": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "no record for presented token",
+  "note": "Verification is one store read — the only operation on every authenticated request."
+}
+
+--- Case 2: Stripped Footer ---
+Token parts: 3 (footer omitted)
+Response: {
+  "ok": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "no record for presented token",
+  "note": "Verification is one store read — the only operation on every authenticated request."
+}
+
+--- Case 3: Corrupted / Non-JSON Footer ---
+Response: {
+  "ok": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "no record for presented token",
+  "note": "Verification is one store read — the only operation on every authenticated request."
+}
+
+--- Evaluation ---
+Secure Requirement: All footer mutations rejected as invalid credentials
+Observed: Case 1 ok=false, Case 2 ok=false, Case 3 ok=false
+Result: PASS

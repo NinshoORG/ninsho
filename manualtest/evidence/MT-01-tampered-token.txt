@@ -1,0 +1,27 @@
+=== MT-01 EVIDENCE: TOKEN PAYLOAD TAMPERING ===
+Timestamp: 2026-09-07T16:45:30.485Z
+Target Endpoint: GET http://localhost:3000/me
+
+--- 1. Legitimate Request ---
+Authorization: Bearer yCV8DjuDQLktL_6... (len: 43)
+Status: 200
+Body: {"id":"usr_d58827d2-f07f-4219-a80c-0cbbe8191d0d","email":"mt01_1788799529073@example.com","roles":["user"],"sessionId":"xkJyvKAIcofkjtflFpG5iw"}
+
+--- 2. Tampered Request ---
+Authorization: Bearer yCV8DjuDQLktL_6... (len: 43)
+Status: 401
+Headers: {
+  "connection": "keep-alive",
+  "content-length": "81",
+  "content-type": "application/json; charset=utf-8",
+  "date": "Mon, 07 Sep 2026 16:45:30 GMT",
+  "etag": "W/\"51-CQRTDGw0/M0UQOtxm0UbFOQ1AJk\"",
+  "keep-alive": "timeout=5",
+  "www-authenticate": "Bearer error=\"TOKEN_INVALID\""
+}
+Body: {"error":{"code":"TOKEN_INVALID","message":"Invalid authentication credentials"}}
+
+--- 3. Evaluation ---
+Secure Requirement: 401 Unauthorized on tampered token without store leak
+Observed Status: 401
+Result: PASS

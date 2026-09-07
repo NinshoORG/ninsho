@@ -1,0 +1,23 @@
+=== MT-04 EVIDENCE: ACCESS-TOKEN REPLAY AFTER LOGOUT ===
+Timestamp: 2026-09-07T16:46:02.387Z
+Target Endpoint: GET http://localhost:3000/me
+
+1. Pre-logout valid access: 200 {"id":"usr_37a5efbe-f8de-4712-9f33-d314c0d65068","email":"mt04_1788799561216@example.com","roles":["user"],"sessionId":"qenjyGdWeOK_uTo1M3WTfg"}
+2. Logout execution: 204 No Content
+3. Replay of revoked access token:
+   Status: 401
+   Headers: {
+  "connection": "keep-alive",
+  "content-length": "81",
+  "content-type": "application/json; charset=utf-8",
+  "date": "Mon, 07 Sep 2026 16:46:02 GMT",
+  "etag": "W/\"51-CQRTDGw0/M0UQOtxm0UbFOQ1AJk\"",
+  "keep-alive": "timeout=5",
+  "www-authenticate": "Bearer error=\"TOKEN_INVALID\""
+}
+   Body: {"error":{"code":"TOKEN_INVALID","message":"Invalid authentication credentials"}}
+
+--- Evaluation ---
+Secure Requirement: 401 Unauthorized upon replaying revoked token
+Observed Status: 401
+Result: PASS

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  le64,
   pae,
   readFooterUnverified,
   signV4Public,
@@ -89,6 +90,20 @@ describe('PAE', () => {
     const encoded = pae([Buffer.alloc(0)]);
     expect(encoded[7]! & 0x80).toBe(0);
     expect(encoded[15]! & 0x80).toBe(0);
+  });
+});
+
+describe('le64 MSB rejection', () => {
+  it('accepts boundary values with MSB cleared (0, 1, 0x7fffffffffffffff)', () => {
+    expect(le64(0).toString('hex')).toBe('0000000000000000');
+    expect(le64(1).toString('hex')).toBe('0100000000000000');
+    expect(le64(0x7fffffffffffffffn).toString('hex')).toBe('ffffffffffffff7f');
+  });
+
+  it('rejects values with bit 63 (MSB) set (0x8000000000000000, 0xffffffffffffffff)', () => {
+    // REGRESSION: previously le64 masked the MSB with 0x7fffffffffffffffn rather than rejecting it.
+    expect(() => le64(0x8000000000000000n)).toThrow(PasetoFormatError);
+    expect(() => le64(0xffffffffffffffffn)).toThrow(PasetoFormatError);
   });
 });
 

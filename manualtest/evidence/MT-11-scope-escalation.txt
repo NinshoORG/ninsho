@@ -1,0 +1,15 @@
+=== MT-11 EVIDENCE: SCOPE ESCALATION ===
+Timestamp: 2026-09-07T16:51:23.346Z
+Target Endpoint: POST http://localhost:4000/api/authz/scopes
+Summary: Fine-grained scopes, on an axis of their own.
+Overall Verdict: {"text":"All 4 decisions landed the way the route asked","holds":true}
+
+--- Evaluated Checks ---
+Guard: requireScope('orders:read') | Caller: usr_alice | Request: GET /orders | Expected: allowed | Allowed: true | Status: 200
+Guard: requireScope('orders:write') | Caller: usr_alice | Request: POST /orders | Expected: refused | Allowed: false | Status: 403 | Audit: requires one of scope: orders:write
+Guard: requireScope('orders:write') | Caller: usr_bob | Request: POST /orders | Expected: allowed | Allowed: true | Status: 200
+Guard: requireScope('orders:write') | Caller: usr_root | Request: POST /orders | Expected: refused | Allowed: false | Status: 403 | Audit: requires one of scope: orders:write
+
+--- Evaluation ---
+Requirement: Insufficient scope refused with HTTP 403 Forbidden
+Result: PASS

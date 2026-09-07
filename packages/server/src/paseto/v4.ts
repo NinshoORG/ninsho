@@ -76,13 +76,16 @@ function b64uDecode(value: string): Buffer {
 /**
  * 64-bit unsigned little-endian, most significant bit cleared.
  *
- * The spec mandates clearing the MSB so that implementations on platforms
- * without unsigned 64-bit integers cannot be tricked into reading a negative
- * length.
+ * The PASETO specification mandates that the MSB must be 0 and requires
+ * implementations to reject any integer with bit 63 set.
  */
-function le64(value: number): Buffer {
+export function le64(value: number | bigint): Buffer {
+  const b = BigInt(value);
+  if (b < 0n || b > 0x7fffffffffffffffn || (b & 0x8000000000000000n) !== 0n) {
+    throw new PasetoFormatError('integer MSB is set or out of range');
+  }
   const buf = Buffer.alloc(8);
-  buf.writeBigUInt64LE(BigInt(value) & 0x7fffffffffffffffn);
+  buf.writeBigUInt64LE(b);
   return buf;
 }
 

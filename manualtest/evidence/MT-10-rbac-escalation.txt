@@ -1,0 +1,22 @@
+=== MT-10 EVIDENCE: RBAC PRIVILEGE ESCALATION ===
+Timestamp: 2026-09-07T16:51:03.295Z
+Target Endpoint: GET http://localhost:3000/admin/reports
+Protected by: auth.verify(), auth.requireRole(admin)
+
+1. Anonymous Access Attempt: Status 401, Body: {"error":{"code":"TOKEN_MISSING","message":"Authentication required"}}
+2. Standard User Access Attempt:
+   Status: 403
+   Headers: {
+  "connection": "keep-alive",
+  "content-length": "67",
+  "content-type": "application/json; charset=utf-8",
+  "date": "Mon, 07 Sep 2026 16:51:03 GMT",
+  "etag": "W/\"43-Rs2EkGW+WCd0o8rtDxnW0CvxJOA\"",
+  "keep-alive": "timeout=5"
+}
+   Body: {"error":{"code":"FORBIDDEN","message":"Insufficient permissions"}}
+
+--- Evaluation ---
+Requirement: Anonymous 401 Unauthorized, standard user 403 Forbidden
+Observed: anon=401, standardUser=403
+Result: PASS

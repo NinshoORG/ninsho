@@ -1,0 +1,67 @@
+=== MT-17 EVIDENCE: DPOP PROOF REPLAY ===
+Timestamp: 2026-09-07T16:53:06.302Z
+Target Endpoint: POST http://localhost:4000/api/dpop/call
+Call 1 (Initial Presentation): {
+  "accepted": true,
+  "context": {
+    "userId": "usr_demo",
+    "roles": [
+      "user"
+    ],
+    "scopes": [
+      "profile:read"
+    ],
+    "tokenId": "GJ1kk5M3F12pCsNUP_dwMQ",
+    "sessionId": "dLvKz67LIPxbsFe5ROkzOQ",
+    "issuedAt": "2026-09-07T16:53:06.242Z",
+    "authenticatedAt": "2026-09-07T16:53:06.241Z",
+    "expiresAt": "2026-09-07T16:58:06.242Z",
+    "strategy": "opaque",
+    "confirmationKey": "bPOTtZ0qqjhGu_CRxJemaDjgje_cAxt1qCENxXH2-GE"
+  },
+  "note": "The signature was produced in your browser by a key this server has never seen and cannot obtain. Send the same proof again and the replay guard refuses it.",
+  "trace": {
+    "storeOps": [
+      {
+        "seq": 8,
+        "at": 1788799986295,
+        "op": "setIfAbsent",
+        "key": "ninsho:v1:dpop:bPOTtZ0qqjhGu_CRxJemaDjgje_cAxt1qCENxXH2-GE:325dedd8-80f0-45de-8840-c1c00edcaa28",
+        "value": "1",
+        "ttlSeconds": 66,
+        "outcome": "stored"
+      },
+      {
+        "seq": 9,
+        "at": 1788799986295,
+        "op": "get",
+        "key": "ninsho:v1:at:12bef4c5f8f2f0f4dc877ed223a1f6e4463f7e10e619f84dbdf0c25fabb0c6c8",
+        "value": "{\"tokenId\":\"GJ1kk5M3F12pCsNUP_dwMQ\",\"sessionId\":\"dLvKz67LIPxbsFe5ROkzOQ\",\"principal\":{\"userId\":\"usr_demo\",\"roles\":[\"user\"],\"scopes\":[\"profile:read\"]},\"issuedAt\":\"2026-09-07T16:53:06.242Z\",\"authenticatedAt\":\"2026-09-07T16:53:06.241Z\",\"expiresAt\":\"2026-09-07T16:58:06.242Z\",\"confirmationKey\":\"bPOTtZ0qqjhGu_CRxJemaDjgje_cAxt1qCENxXH2-GE\"}",
+        "outcome": "hit"
+      }
+    ],
+    "events": []
+  }
+}
+Call 2 (Replayed Proof Presentation): {
+  "accepted": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "DPoP proof 325dedd8-80f0-45de-8840-c1c00edcaa28 has already been used",
+  "note": "The signature was produced in your browser by a key this server has never seen and cannot obtain. Send the same proof again and the replay guard refuses it.",
+  "trace": {
+    "storeOps": [
+      {
+        "seq": 10,
+        "at": 1788799986301,
+        "op": "setIfAbsent",
+        "key": "ninsho:v1:dpop:bPOTtZ0qqjhGu_CRxJemaDjgje_cAxt1qCENxXH2-GE:325dedd8-80f0-45de-8840-c1c00edcaa28",
+        "value": "1",
+        "ttlSeconds": 66,
+        "outcome": "already existed"
+      }
+    ],
+    "events": []
+  }
+}
+Evaluation: PASS

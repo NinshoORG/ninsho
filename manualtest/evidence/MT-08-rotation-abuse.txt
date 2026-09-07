@@ -1,0 +1,13 @@
+=== MT-08 EVIDENCE: REFRESH-TOKEN ROTATION ABUSE / CONCURRENCY RACE ===
+Timestamp: 2026-09-07T16:50:22.309Z
+Target Endpoint: POST http://localhost:3000/auth/refresh
+Original Token: 3BHWOCpUoSEpXcD...
+
+Concurrent Request A: Status 200, New Token: K07Wo--NuBZWpg6...
+Concurrent Request B: Status 200, New Token: K07Wo--NuBZWpg6...
+Tokens Agree (No Branching): true
+
+--- Evaluation ---
+Secure Requirement: Atomic mutual exclusion stops rotation branching (single winner or convergent adoption)
+Observed: statusA=200, statusB=200, identicalReplacement=true
+Result: PASS

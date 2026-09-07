@@ -1,0 +1,40 @@
+==============================================================================
+NINSHO MANUAL SECURITY RETEST EVIDENCE: MT-12B
+Real Resource-Level Tenant Isolation Attack
+Timestamp: 2026-09-07T17:06:00.000Z
+Target: express-api (http://localhost:3000) & playground (http://localhost:4000)
+Status: NOT APPLICABLE (N/A)
+==============================================================================
+
+1. ROUTE AUDIT & INVESTIGATION:
+An exhaustive review of all route registrations across both runnable local applications was performed:
+  - examples/express-api/src/app.ts:
+    * No multi-tenant architecture or tenant-scoped routes are implemented in express-api.
+    * Resource isolation is demonstrated via user ownership (requireOwner on /users/:id/orders)
+      and role checking (requireRole on /admin/reports), but auth.requireTenant() is not mounted.
+  - examples/playground/src/server.ts:
+    * POST /api/authz/tenant       -> Internal interactive simulation harness that exercises
+                                     Ninsho's requireTenant() guard across Acme/Globex synthetic
+                                     contexts and returns structured JSON audit results.
+                                     (Previously tested in baseline test MT-12).
+
+2. FINDINGS:
+Neither application declares a standalone live HTTP resource endpoint (e.g., GET /:tenant/orders)
+protected directly by Ninsho's auth.requireTenant() middleware.
+
+3. ADHERENCE TO TESTING CONSTRAINTS:
+Per the user specification:
+"If no suitable real resource endpoint exists, do NOT invent one and do NOT modify production code.
+Mark MT-12B as NOT APPLICABLE and explain why."
+
+In accordance with this directive:
+  - No mock routes were injected into express-api or playground.
+  - No production or example code was modified.
+  - Tenant isolation functionality remains verified at the library level via the unit suite
+    (packages/server/src/__tests__/middleware.test.ts) and at the playground demonstration level
+    (POST /api/authz/tenant in MT-12).
+
+4. CONCLUSION:
+MT-12B is classified as NOT APPLICABLE (N/A) due to the absence of a dedicated tenant-protected
+HTTP resource route in the shipping example applications.
+==============================================================================

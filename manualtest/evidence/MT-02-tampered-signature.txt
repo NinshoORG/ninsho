@@ -1,0 +1,35 @@
+=== MT-02 EVIDENCE: SIGNATURE TAMPERING ===
+Timestamp: 2026-09-07T16:45:38.563Z
+Target Endpoints:
+  1. POST http://localhost:4000/api/session/verify
+  2. GET http://localhost:3000/me
+
+--- Test 1: Truncated Signature (<64 bytes) ---
+Token: v4.public.dGVzdA
+Playground verify response: {
+  "ok": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "no record for presented token",
+  "note": "Verification is one store read — the only operation on every authenticated request."
+}
+
+--- Test 2: Corrupted 64-byte Signature ---
+Token: v4.public.eyJzdWIiOiJhZG1pbiIs... (len: 140)
+Playground verify response: {
+  "ok": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "no record for presented token",
+  "note": "Verification is one store read — the only operation on every authenticated request."
+}
+
+--- Test 3: Presenting Tampered Signature Token to Express /me ---
+Status: 401
+Header: Bearer error="TOKEN_INVALID"
+Body: {"error":{"code":"TOKEN_INVALID","message":"Invalid authentication credentials"}}
+
+--- Evaluation ---
+Secure Requirement: Strict rejection without crash or privilege grant
+Observed: Truncated ok=false (TOKEN_INVALID), Corrupted ok=false (TOKEN_INVALID), Express status=401
+Result: PASS

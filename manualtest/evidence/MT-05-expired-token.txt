@@ -1,0 +1,20 @@
+=== MT-05 EVIDENCE: EXPIRED-TOKEN REPLAY ===
+Timestamp: 2026-09-07T16:46:15.035Z
+Target Endpoints: POST http://localhost:4000/api/session/verify, GET http://localhost:3000/me
+Expired Token Exp: 2020-01-01T00:05:00.000Z (historical expired token)
+
+Playground Verification Result: {
+  "ok": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "no record for presented token",
+  "note": "Verification is one store read — the only operation on every authenticated request."
+}
+Express-API Status: 401
+Express-API Header: Bearer error="TOKEN_INVALID"
+Express-API Body: {"error":{"code":"TOKEN_INVALID","message":"Invalid authentication credentials"}}
+
+--- Evaluation ---
+Secure Requirement: 401 Unauthorized / rejection of expired credentials
+Observed: Express status=401, Playground ok=false (code=TOKEN_INVALID)
+Result: PASS

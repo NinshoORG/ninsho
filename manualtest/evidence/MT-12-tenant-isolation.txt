@@ -1,0 +1,15 @@
+=== MT-12 EVIDENCE: OWNER / TENANT ISOLATION ===
+Timestamp: 2026-09-07T16:51:38.262Z
+Target Endpoint: POST http://localhost:4000/api/authz/tenant
+Summary: Tenant isolation — a role from the wrong organisation is still the wrong one.
+Overall Verdict: {"text":"All 4 decisions landed the way the route asked","holds":true}
+
+--- Evaluated Checks ---
+Guard: requireTenant(req => req.params.tenant) | Caller: usr_alice | Request: GET /t/acme/orders | Expected: allowed | Allowed: true | Status: 200
+Guard: requireTenant(req => req.params.tenant) | Caller: usr_alice | Request: GET /t/globex/orders | Expected: refused | Allowed: false | Status: 403 | Audit: caller does not belong to the requested tenant
+Guard: requireTenant(req => req.params.tenant) | Caller: usr_carol | Request: GET /t/globex/orders | Expected: allowed | Allowed: true | Status: 200
+Guard: requireTenant — token carries no tenant | Caller: usr_dave | Request: GET /t/acme/orders | Expected: refused | Allowed: false | Status: 403 | Audit: token carries no tenant
+
+--- Evaluation ---
+Requirement: Cross-tenant access strictly refused with HTTP 403 Forbidden
+Result: PASS

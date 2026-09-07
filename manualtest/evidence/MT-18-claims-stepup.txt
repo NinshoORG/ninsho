@@ -1,0 +1,20 @@
+=== MT-18 EVIDENCE: INVALID/MALFORMED CLAIMS (STEP-UP FRESHNESS) ===
+Timestamp: 2026-09-07T16:54:10.890Z
+Target Endpoint: POST http://localhost:4000/api/authz/step-up
+Summary: Step-up authentication freshness window verification
+Overall Verdict: {"text":"All 4 decisions landed the way the route asked","holds":true}
+
+--- Timeline ---
+  * signed in — authentication is 0s old
+  * waited past the 1s window — the session is still perfectly valid
+  * refreshed — a brand-new access token, minted this second
+
+--- Evaluated Checks ---
+Guard: requireFreshAuth(1) | Request: POST /account/email — immediately after signing in | Expected: allowed | Allowed: true | Status: 200
+Guard: requireFreshAuth(1) | Request: POST /account/email — after the window | Expected: refused | Allowed: false | Status: 403 | Audit: authentication is 1s old, needs to be under 1s
+Guard: verify() + requireScope('profile:write') | Request: POST /profile — an ordinary route, same moment | Expected: allowed | Allowed: true | Status: 200
+Guard: requireFreshAuth(1) — with the freshly minted token | Request: POST /account/email — after refreshing | Expected: refused | Allowed: false | Status: 403 | Audit: authentication is 1s old, needs to be under 1s
+
+--- Evaluation ---
+Requirement: Immediate auth allowed (200), stale auth refused (403), refreshed auth still refused (403)
+Result: PASS

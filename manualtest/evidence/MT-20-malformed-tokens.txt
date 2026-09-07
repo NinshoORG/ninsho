@@ -1,0 +1,24 @@
+=== MT-20 EVIDENCE: MALFORMED TOKEN STRUCTURES & RESILIENCE ===
+Timestamp: 2026-09-07T16:54:59.054Z
+Target Endpoints: POST /auth/login, POST /auth/refresh, GET /me, GET /health
+
+1. Oversized Request Body (32 KB vs 16 KB limit):
+   Status: 413 (Expected: 413 or 400)
+   Body: {"error":{"code":"BAD_REQUEST","message":"Request could not be processed"}}
+
+2. Malformed URI Escape in Cookie (ninsho_rt=%):
+   Status: 401 (Expected: 401, no 500 URIError)
+   Body: {"error":{"code":"REFRESH_INVALID","message":"Session could not be renewed"}}
+
+3. Corrupted / Non-Base64 Token in Authorization Header:
+   Status: 401 (Expected: 401)
+   Body: {"error":{"code":"TOKEN_INVALID","message":"Invalid authentication credentials"}}
+
+4. Process Liveness / Health Check Post-Attack:
+   Status: 200
+   Body: {"status":"ok"}
+
+--- Evaluation ---
+Requirement: All malformed inputs safely rejected with 4xx, no process crash, health check 200 OK
+Observed: bodyStatus=413, cookieStatus=401, nonB64Status=401, healthStatus=200
+Result: PASS

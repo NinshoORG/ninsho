@@ -1,0 +1,6 @@
+=== MT-06 EVIDENCE: BEFORE LOGOUT ===
+Timestamp: 2026-09-07T16:46:26.336Z
+User Email: mt06_1788799585333@example.com
+Session Token: 4JbbEICj8thPOXW...
+GET /me Status: 200
+GET /me Body: {"id":"usr_7003f9fc-ee09-4a41-83b2-f962af829e13","email":"mt06_1788799585333@example.com","roles":["user"],"sessionId":"zUhV0_qzzdnnSF34nLWIMg"}

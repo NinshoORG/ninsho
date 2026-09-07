@@ -1,0 +1,27 @@
+=== MT-13 EVIDENCE: RATE-LIMIT ABUSE ===
+Timestamp: 2026-09-07T16:52:01.759Z
+Target Endpoint: POST http://localhost:3000/auth/login
+Configured perAccount Limit: 5 requests / 15m window
+Target Email: ratelimit_target_1788799917081@example.com
+
+Attempt 1: HTTP 401 (Retry-After: none) -> {"error":{"code":"INVALID_CREDENTIALS","message":"Invalid email or password"}}
+Attempt 2: HTTP 401 (Retry-After: none) -> {"error":{"code":"INVALID_CREDENTIALS","message":"Invalid email or password"}}
+Attempt 3: HTTP 401 (Retry-After: none) -> {"error":{"code":"INVALID_CREDENTIALS","message":"Invalid email or password"}}
+Attempt 4: HTTP 401 (Retry-After: none) -> {"error":{"code":"INVALID_CREDENTIALS","message":"Invalid email or password"}}
+Attempt 5: HTTP 401 (Retry-After: none) -> {"error":{"code":"INVALID_CREDENTIALS","message":"Invalid email or password"}}
+Attempt 6: HTTP 429 (Retry-After: 479) -> {"error":{"code":"RATE_LIMIT_EXCEEDED","message":"Too many requests"}}
+
+429 Headers: {
+  "connection": "keep-alive",
+  "content-length": "70",
+  "content-type": "application/json; charset=utf-8",
+  "date": "Mon, 07 Sep 2026 16:52:01 GMT",
+  "etag": "W/\"46-c8YgHXHLGkEfciVbtejrj2B9DX0\"",
+  "keep-alive": "timeout=5",
+  "retry-after": "479"
+}
+429 Body: {"error":{"code":"RATE_LIMIT_EXCEEDED","message":"Too many requests"}}
+
+--- Evaluation ---
+Requirement: Request #6 triggers HTTP 429 RATE_LIMIT_EXCEEDED with Retry-After header
+Result: PASS

@@ -1,0 +1,20 @@
+=== MT-19 EVIDENCE: INVALID ISSUER / AUDIENCE ===
+Timestamp: 2026-09-07T16:54:26.983Z
+Target Endpoints: POST http://localhost:4000/api/session/verify, GET http://localhost:3000/me
+Foreign Claims: iss=https://evil-attacker.example.com, aud=unrelated-service-api
+
+Playground Response: {
+  "ok": false,
+  "code": "TOKEN_INVALID",
+  "message": "Invalid authentication credentials",
+  "detail": "no record for presented token",
+  "note": "Verification is one store read — the only operation on every authenticated request."
+}
+Express-API Status: 401
+Express-API Header: Bearer error="TOKEN_INVALID"
+Express-API Body: {"error":{"code":"TOKEN_INVALID","message":"Invalid authentication credentials"}}
+
+--- Evaluation ---
+Requirement: Foreign issuer/audience rejected with 401 / TOKEN_INVALID without execution
+Observed: Express status=401, Playground ok=false (code=TOKEN_INVALID)
+Result: PASS

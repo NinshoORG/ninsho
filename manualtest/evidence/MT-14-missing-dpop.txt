@@ -1,0 +1,17 @@
+=== MT-14 EVIDENCE: MISSING DPOP PROOF ===
+Timestamp: 2026-09-07T16:53:06.268Z
+Target Endpoint: POST http://localhost:4000/api/dpop/call
+Thumbprint: bPOTtZ0qqjhGu_CRxJemaDjgje_cAxt1qCENxXH2-GE
+Request Body: {"thumbprint":"...", "omitProof":true}
+Response: {
+  "accepted": false,
+  "code": "TOKEN_MISSING",
+  "message": "Authentication required",
+  "detail": "DPoP proof header is required",
+  "note": "This is exactly what an attacker who stole the token has: the token, and no key. The request is refused, which is the whole point of proof-of-possession.",
+  "trace": {
+    "storeOps": [],
+    "events": []
+  }
+}
+Evaluation: PASS
