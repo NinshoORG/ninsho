@@ -747,3 +747,302 @@ describe('a button that sends no body', () => {
     expect(res.status).toBe(200);
   });
 });
+
+/**
+ * The authorization panel.
+ *
+ * Every row it prints is a decision the shipped middleware made, and the panel
+ * states in advance what each row *should* have been. That makes it falsifiable
+ * in exactly the way the attestation panel is: a guard that stopped guarding
+ * would still render a tidy table, and the only thing separating "correct" from
+ * "convincing" is whether someone checked.
+ *
+ * So these assert the outcomes rather than the prose — including the two rows
+ * that are easiest to get wrong and hardest to notice: an administrator refused
+ * a scope they do not hold, and a freshly refreshed token still failing a
+ * step-up check.
+ */
+describe('the authorization panel demonstrates real guards', () => {
+  interface Check {
+    guard: string;
+    caller: string;
+    request: string;
+    expected: 'allowed' | 'refused';
+    allowed: boolean;
+    status: number;
+    code?: string;
+    clientSees?: string;
+    auditReason?: string;
+  }
+
+  const decisions = (body: Record<string, unknown>): Check[] => body['checks'] as Check[];
+  const claim = (body: Record<string, unknown>): { text: string; holds: boolean } =>
+    body['claim'] as { text: string; holds: boolean };
+
+  it.each([
+    ['/api/authz/roles'],
+    ['/api/authz/scopes'],
+    ['/api/authz/ownership'],
+    ['/api/authz/tenant'],
+    ['/api/authz/step-up'],
+  ])('%s lands every decision where the route asked', async (path) => {
+    const body = await call(path);
+    const checks = decisions(body);
+
+    expect(checks.length).toBeGreaterThan(0);
+    for (const check of checks) {
+      expect(
+        `${check.guard} — ${check.caller} — ${check.request}: ${check.allowed ? 'allowed' : 'refused'}`,
+      ).toBe(`${check.guard} — ${check.caller} — ${check.request}: ${check.expected}`);
+    }
+    // The panel prints this line as its own headline. If it and the rows ever
+    // disagreed, the headline is the half a visitor would read.
+    expect(claim(body).holds).toBe(true);
+  });
+
+  it('separates "I do not know you" from "the answer is still no"', async () => {
+    // 401 and 403 answer different questions, and a library that returned one
+    // for both would make an unauthenticated request indistinguishable from an
+    // unauthorized one — which is a debugging problem for the developer and an
+    // information problem for the attacker.
+    const checks = decisions(await call('/api/authz/roles'));
+
+    const anonymous = checks.find((c) => c.caller === 'anonymous');
+    const knownButRefused = checks.find((c) => c.caller === 'usr_alice' && !c.allowed);
+
+    expect(anonymous?.status).toBe(401);
+    expect(knownButRefused?.status).toBe(403);
+  });
+
+  it('does not let a role stand in for a scope', async () => {
+    // The row the panel exists for. Roles and scopes are independent, and a
+    // check that quietly admitted admins would turn every narrowly delegated
+    // token into a full one.
+    const checks = decisions(await call('/api/authz/scopes'));
+    const admin = checks.find((c) => c.caller === 'usr_root');
+
+    expect(admin).toBeDefined();
+    expect(admin?.allowed).toBe(false);
+    expect(admin?.status).toBe(403);
+  });
+
+  it('refuses an unowned resource without confirming it exists', async () => {
+    const body = await call('/api/authz/ownership');
+    const checks = decisions(body);
+    const idor = checks.find((c) => c.request.includes('usr_bob'));
+
+    expect(idor?.allowed).toBe(false);
+    expect(idor?.status).toBe(403);
+
+    // The claim the panel makes in prose, asserted: the caller is told nothing
+    // that distinguishes "not yours" from "does not exist", because the two
+    // together are an enumeration oracle. The server's own reason is richer,
+    // and stays in the audit trail.
+    expect(idor?.clientSees ?? '').not.toMatch(/usr_bob|usr_alice/);
+    expect(idor?.auditReason ?? '').toMatch(/own/i);
+  });
+
+  it.each([
+    ['nothing at all', 'selector finds nothing'],
+    ['several matched segments', 'repeatable route parameter'],
+    ['a selector that throws', 'selector throws'],
+  ])('treats %s as a refusal rather than a pass', async (_label, marker) => {
+    // Every one of these is "I could not determine the owner", and the only
+    // safe reading of that is no. Treating any of them as a pass would disable
+    // the check across every route sharing the selector, silently, while its
+    // happy-path test kept passing.
+    const checks = decisions(await call('/api/authz/ownership'));
+    const check = checks.find((c) => c.guard.includes(marker));
+
+    expect(check).toBeDefined();
+    expect(check?.allowed).toBe(false);
+  });
+
+  it('keeps an admin of one tenant out of another', async () => {
+    const checks = decisions(await call('/api/authz/tenant'));
+
+    const crossTenant = checks.find(
+      (c) => c.caller === 'usr_alice' && c.request.includes('globex'),
+    );
+    const untenanted = checks.find((c) => c.caller === 'usr_dave');
+
+    expect(crossTenant?.allowed).toBe(false);
+    expect(untenanted?.allowed).toBe(false);
+    expect(untenanted?.auditReason ?? '').toMatch(/tenant/i);
+  });
+
+  it('does not let a refresh pass for re-authentication', async () => {
+    // The panel's least obvious claim, and the one worth the wait it costs.
+    const body = await call('/api/authz/step-up');
+    const checks = decisions(body);
+
+    const before = String(body['issuedAtBeforeRefresh']);
+    const after = String(body['issuedAtAfterRefresh']);
+    const authenticated = String(body['authenticatedAt']);
+
+    // First: the refresh really did mint a newer token. Without this the last
+    // row would pass for an uninteresting reason — the same token failing
+    // twice — and the demonstration would be vacuous.
+    expect(Date.parse(after)).toBeGreaterThan(Date.parse(before));
+    expect(Date.parse(after)).toBeGreaterThan(Date.parse(authenticated));
+
+    // Then: that newer token still fails the freshness check, because the
+    // check reads the authentication time and rotation does not move it.
+    const afterRefresh = checks.find((c) => c.guard.includes('freshly minted'));
+    expect(afterRefresh?.allowed).toBe(false);
+    expect(afterRefresh?.auditReason ?? '').toMatch(/authentication is \d+s old/);
+  });
+
+  it('leaves ordinary routes working while the step-up window is closed', async () => {
+    // A step-up refusal that ended the session would be a denial of service
+    // wearing a security feature's clothes.
+    const checks = decisions(await call('/api/authz/step-up'));
+    const ordinary = checks.find((c) => c.request.includes('an ordinary route'));
+
+    expect(ordinary?.allowed).toBe(true);
+  });
+
+  it('writes an authz.denied event for every refusal, and none for a pass', async () => {
+    await call('/api/reset');
+    const body = await call('/api/authz/roles');
+    const checks = decisions(body);
+    const trace = body['trace'] as { events: { type: string }[] };
+
+    const refusals = checks.filter((c) => !c.allowed && c.status === 403).length;
+    const denied = trace.events.filter((e) => e.type === 'authz.denied').length;
+
+    expect(refusals).toBeGreaterThan(0);
+    expect(denied).toBe(refusals);
+  });
+});
+
+/**
+ * The devices panel.
+ *
+ * Its claim is the one a stateless token cannot make: a session ends when the
+ * server is told to end it, not when the token happens to expire. That is only
+ * true if the refusal really is revocation and not expiry, so these assert the
+ * revoked token is still inside its own lifetime — otherwise the panel would
+ * demonstrate the clock.
+ */
+describe('the devices panel demonstrates real revocation', () => {
+  interface Check {
+    caller: string;
+    carries: string;
+    request: string;
+    expected: 'allowed' | 'refused';
+    allowed: boolean;
+    status: number;
+    code?: string;
+  }
+
+  const decisions = (body: Record<string, unknown>): Check[] => body['checks'] as Check[];
+
+  it('lists one session per device, marking the current one', async () => {
+    const body = await call('/api/sessions/list');
+    const sessions = body['sessions'] as { sessionId: string; current: boolean }[];
+
+    expect(sessions).toHaveLength(3);
+    expect(sessions.filter((s) => s.current)).toHaveLength(1);
+    expect(new Set(sessions.map((s) => s.sessionId)).size).toBe(3);
+  });
+
+  it('puts nothing in a session summary that could identify or authenticate', async () => {
+    // A session list is a page users visit when they are worried. It should not
+    // be the place a stolen response teaches an attacker where someone lives,
+    // and it must not carry anything that could be replayed.
+    const body = await call('/api/sessions/list');
+    const serialised = JSON.stringify(body['sessions']);
+
+    expect(serialised).not.toMatch(/203\.0\.113\.10|198\.51\.100\.22|192\.0\.2\.44/);
+    expect(serialised).not.toMatch(/laptop|phone|tablet/);
+    expect(serialised).not.toMatch(/accessToken|refreshToken/);
+  });
+
+  it('ends exactly the session it was asked to end', async () => {
+    const body = await call('/api/sessions/revoke-one');
+    const checks = decisions(body);
+
+    // Three devices, presented before and after: six decisions, one refusal.
+    expect(checks).toHaveLength(6);
+    for (const check of checks) {
+      expect(`${check.request}: ${check.allowed ? 'allowed' : 'refused'}`).toBe(
+        `${check.request}: ${check.expected}`,
+      );
+    }
+    expect(checks.filter((c) => !c.allowed)).toHaveLength(1);
+  });
+
+  it('refuses a revoked token that has not expired', async () => {
+    // The claim that separates revocation from waiting. If the token were
+    // already past its expiry the panel would be demonstrating the clock, and
+    // a reader would have no way to tell the difference.
+    const body = await call('/api/sessions/revoke-one');
+
+    const expiresAt = Date.parse(String(body['revokedTokenExpiresAt']));
+    const checkedAt = Date.parse(String(body['checkedAt']));
+
+    expect(Number.isNaN(expiresAt)).toBe(false);
+    expect(expiresAt).toBeGreaterThan(checkedAt);
+  });
+
+  it('ends every session when the credential changes', async () => {
+    const body = await call('/api/sessions/revoke-all');
+    const checks = decisions(body);
+
+    const after = checks.filter((c) => c.request.includes('after'));
+    expect(after).toHaveLength(3);
+    expect(after.every((c) => !c.allowed)).toBe(true);
+  });
+
+  it('takes the refresh families with it', async () => {
+    // The half that is easy to miss. Ending the access tokens alone would let
+    // every device sign itself straight back in within minutes, while the user
+    // was being told they had been signed out.
+    const body = await call('/api/sessions/revoke-all');
+
+    expect(String(body['refreshAfterRevocation'])).not.toMatch(/accepted/);
+    expect(String(body['refreshAfterRevocation'])).toMatch(/^[A-Z_]+$/);
+  });
+
+  it('records credential_changed rather than a generic sign-out', async () => {
+    // The reason an incident review greps for.
+    await call('/api/reset');
+    const body = await call('/api/sessions/revoke-all');
+    const trace = body['trace'] as { events: { type: string; reason?: string }[] };
+
+    const revocations = trace.events.filter((e) => e.type === 'session.revoked');
+    expect(revocations.length).toBeGreaterThan(0);
+    expect(revocations.every((e) => e.reason === 'credential_changed')).toBe(true);
+  });
+});
+
+/**
+ * Every button on the page reaches something.
+ *
+ * The panels are wired declaratively — a `data-post` attribute names the route
+ * — so a renamed or removed route breaks a button with no compile-time and no
+ * test-time signal. It fails when a visitor clicks it, which is the worst
+ * possible time and the least likely place to be noticed.
+ *
+ * OPTIONS rather than the real method: Express answers 200 with an `Allow`
+ * header for a path some route matches and 404 for one nothing does, so this
+ * asks whether the route exists without paying for what it does. Two of them
+ * deliberately sleep for seconds.
+ */
+describe('the page and the server agree on what exists', () => {
+  it('resolves every route a button names', async () => {
+    const html = await (await fetch(`${baseUrl}/`)).text();
+    const paths = [...html.matchAll(/data-(?:post|get)="([^"]+)"/g)].map((m) => m[1] as string);
+
+    expect(paths.length).toBeGreaterThan(10);
+
+    const missing: string[] = [];
+    for (const path of new Set(paths)) {
+      const response = await fetch(`${baseUrl}${path}`, { method: 'OPTIONS' });
+      if (response.status === 404) missing.push(path);
+    }
+
+    expect(missing).toEqual([]);
+  });
+});

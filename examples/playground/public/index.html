@@ -40,8 +40,55 @@
       </section>
 
       <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel">
+        <h2>2 · Devices, and signing them out</h2>
+        <p class="explain">
+          The feature every account settings page has — <em>you are signed in on three devices,
+          sign the others out</em> — and the one a self-contained token cannot actually provide,
+          because nothing is consulted when it is presented. Ninsho consults the store on every
+          request. This is what that one read buys.
+        </p>
+        <div class="row">
+          <button data-post="/api/sessions/list" data-target="out-sessions">
+            List this user’s devices
+          </button>
+          <button data-post="/api/sessions/revoke-one" data-target="out-sessions">
+            Sign out one device
+          </button>
+          <button data-post="/api/sessions/revoke-all" data-target="out-sessions">
+            Change the password — sign out everywhere
+          </button>
+        </div>
+        <div id="out-sessions" class="out"></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+      <section class="panel">
+        <h2>3 · Authorization — who may do what</h2>
+        <p class="explain">
+          Signing in answers <em>who is this</em>. Every button below answers the harder question:
+          <em>may they do this particular thing</em>. Each row runs a shipped guard behind the
+          shipped <code>verify()</code>, against a request carrying a token this server really
+          minted — nothing here hands the guard a made-up identity, because a demonstration that
+          invents the thing under test proves nothing.
+        </p>
+        <div class="row">
+          <button data-post="/api/authz/roles" data-target="out-authz">Roles</button>
+          <button data-post="/api/authz/scopes" data-target="out-authz">Scopes</button>
+          <button data-post="/api/authz/ownership" data-target="out-authz">
+            Ownership — OWASP API #1
+          </button>
+          <button data-post="/api/authz/tenant" data-target="out-authz">Tenant isolation</button>
+          <button data-post="/api/authz/step-up" data-target="out-authz">
+            Step-up (waits ~1.3s)
+          </button>
+        </div>
+        <div id="out-authz" class="out"></div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel danger">
-        <h2>2 · Attacks, and what stops them</h2>
+        <h2>4 · Attacks, and what stops them</h2>
         <p class="explain">
           The interesting part of an auth library is not that the happy path works. It is what
           happens when someone attacks it. Each of these is a real attempt against the running
@@ -95,7 +142,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel danger">
-        <h2>3 · Rate limiting, in two dimensions</h2>
+        <h2>5 · Rate limiting, in two dimensions</h2>
         <p class="explain">
           A per-address limit alone does not stop credential stuffing: an attacker with a botnet
           spreads attempts so no single address approaches it. A per-account limit alone punishes
@@ -129,7 +176,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel live">
-        <h2>4 · Your browser holds the key</h2>
+        <h2>6 · Your browser holds the key</h2>
         <p class="explain">
           Everything above ran on the server. This section does not: the private key is generated
           <em>in this page</em>, marked non-extractable, and never leaves it. What reaches the
@@ -149,7 +196,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>5 · Anatomy — the actual bytes</h2>
+        <h2>7 · Anatomy — the actual bytes</h2>
         <p class="explain">
           Each of these generates a genuine artefact with the shipped code, then annotates it byte
           by byte: where each field sits, how wide it is, and why it is there. Nothing below is a
@@ -168,7 +215,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>6 · Attestation — what the hardware proves</h2>
+        <h2>8 · Attestation — what the hardware proves</h2>
         <p class="explain">
           A passkey ceremony proves someone holds a private key. Attestation proves something
           else: that the key was generated inside a particular piece of hardware, vouched for by
@@ -204,7 +251,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>7 · What is actually in the store</h2>
+        <h2>9 · What is actually in the store</h2>
         <p class="explain">
           The live keyspace. Paste any token this page has shown you into the box and search for
           it — the claim is that you will not find it, because only
@@ -221,7 +268,7 @@
 
       <!-- ─────────────────────────────────────────────────────────────── -->
       <section class="panel">
-        <h2>8 · The audit trail</h2>
+        <h2>10 · The audit trail</h2>
         <p class="explain">
           Structured security events. The shape is deliberately narrow — there is no free-form
           payload that could accidentally carry a token, a password, or a request body.

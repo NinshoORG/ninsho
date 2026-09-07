@@ -170,7 +170,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-1,986 tests passing (`npm run test`) · typecheck clean · verified from a fresh clone
+2,009 tests passing (`npm run test`) · typecheck clean · verified from a fresh clone
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```
@@ -184,7 +184,12 @@ webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — the rule this project runs on, and
   the design constraints that are settled
 - **[examples/playground](./examples/playground)** — an interactive protocol
-  explorer: run the attacks, watch them fail, and read the store underneath.
+  explorer, and the fastest way to see the whole library work. Ten panels: a
+  session end to end, three devices and signing them out, every authorization
+  guard against real tokens, the attacks failing, rate limiting in both
+  dimensions, a DPoP key generated in your own browser, byte-level anatomy of
+  the artefacts, and all seven attestation formats — with the store operations
+  and audit events underneath each one.
   `docker build -f examples/playground/Dockerfile -t ninsho-playground .` and it
   will run anywhere that takes a container
 - **[packages/webauthn](./packages/webauthn)** — passkeys: what is verified,
