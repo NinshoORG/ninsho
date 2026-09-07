@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose something the library should do and does not
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing: a few things are **settled** rather than missing, and
+        proposals to change them need an argument rather than a preference.
+        They are listed under *Design constraints* in
+        [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md) — chiefly that Ninsho
+        does not verify credentials, implements no cryptographic primitives,
+        depends on no framework, and lets no environment variable weaken a
+        security check.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What you were trying to build, and where the library stopped being
+        useful. Describe the situation rather than the API you have in mind —
+        the shape of the answer usually changes once the problem is clear.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do today
+      description: The workaround, if there is one, and what it costs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: Optional. A sketch of the API is welcome, not required.
+      render: typescript
+
+  - type: textarea
+    id: security
+    attributes:
+      label: What this changes about the security properties
+      description: >
+        Every feature in an auth library is a security decision. Say what an
+        attacker gains or loses, and what would have to be demonstrable before
+        it could ship — this project cannot state a property it cannot test.
+    validations:
+      required: true

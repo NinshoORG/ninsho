@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "description": "Ninsho — authentication engine for Node.js. Monorepo root.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Djain912/ninsho.git"
+  },
+  "homepage": "https://github.com/Djain912/ninsho#readme",
+  "bugs": {
+    "url": "https://github.com/Djain912/ninsho/issues"
+  },
   "type": "module",
   "workspaces": [
     "packages/*",

@@ -1,5 +1,18 @@
 # Contributing
 
+Thank you for wanting to. A few pointers before the rules:
+
+- **[AGENTS.md](./AGENTS.md)** is the orientation document — the repository map,
+  the commands that actually work, the invariants CI enforces, and the traps
+  that have already cost people hours. It is written for an AI agent and is
+  equally the fastest way for a human to get productive. Read it first.
+- **[docs/](./docs/)** is the reference material.
+- **[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)** applies to every interaction
+  here, and has a section specific to this project: reviews are blunt about
+  evidence and never about people.
+- **Security vulnerabilities do not go in issues.** See
+  [SECURITY.md](./SECURITY.md).
+
 ## The rule
 
 > **A security property stated in the documentation must name the test that
@@ -85,6 +98,16 @@ Authentication failures share a deliberately uninformative message set. A client
 learns its credential was not accepted, not why. Do not widen one to be helpful:
 distinguishing "expired" from "revoked" from "never existed" hands an attacker
 an oracle.
+
+## Pull requests
+
+Open one against `main`. The template asks for the evidence — which test, and
+what it asserts — because that is the rule applied to the review process.
+
+CI runs on every pull request: Node 20 and 22 against real Redis, plus bundle
+purity, a dependency audit, and a lockfile drift check. All five must be green.
+Two of those gates exist because a local run cannot see what they see, so a
+green machine is not a substitute — see [AGENTS.md §8](./AGENTS.md#8-traps).
 
 ## Commits
 
