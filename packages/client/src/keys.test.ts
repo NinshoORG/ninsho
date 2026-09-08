@@ -143,23 +143,34 @@ describe('signProof', () => {
     //
     // A test that fails one run in a couple of hundred is worse than no test:
     // it teaches whoever sees it red to press re-run, and that habit is what
-    // lets a real failure through. The check below is therefore *total* rather
-    // than likely — it cannot fail by chance at all. The loop is for coverage
-    // of the encoding across many keys, not a fix for the flake.
+    // lets a real failure through.
+    //
+    // ─── SECOND REGRESSION: the "total" replacement was not total either ───
+    // The fix above added `expect(bytes[0] === 0x30 && bytes[1] === 62).toBe(false)`,
+    // reasoning that a genuine DER SEQUENCE declares its own length in byte 1
+    // and a raw byte pair matching that exact pattern by coincidence was
+    // negligible. It is not zero: p(byte0=0x30) * p(byte1=62) ≈ 1/65536, times
+    // 64 samples per run, times every run on every push on both Node versions
+    // — and CI hit it. "Cannot fire by chance" was wrong; "very rarely" was
+    // the honest claim, which is the same mistake in miniature.
+    //
+    // The length check below is not a repeat of that mistake, and the reason
+    // is measured rather than asserted. DER wraps r and s in a SEQUENCE with
+    // six bytes of tag-and-length framing on top of their raw content, and
+    // over 20,000 signatures sampled from real P-256 signing the DER length
+    // never went below 69 bytes — reaching 64 would need r and s to jointly
+    // lose five bytes to leading zeros, a coincidence on top of a coincidence,
+    // each already a 1-in-256-per-byte event. That is not "cannot happen" —
+    // nothing about hash-and-sign output is impossible — but it is a
+    // different scale of rare than the bug two paragraphs up, which fired
+    // inside a single week of ordinary CI traffic. P1363 for P-256 is,
+    // unconditionally, always exactly 64 bytes. The loop is for coverage
+    // across many keys, not a hedge against a flake this check might have.
     // ──────────────────────────────────────────────────────────────────────
     for (let i = 0; i < 64; i += 1) {
       const key = await generateDpopKey();
       const bytes = fromBase64Url(await signProof(key.privateKey, 'header.payload'));
-
-      // Length alone already separates the two encodings: P1363 for P-256 is
-      // exactly 64 bytes, while DER wraps the same pair in a SEQUENCE and
-      // lands at 70-72.
       expect(bytes).toHaveLength(64);
-
-      // And a structural check that cannot fire by chance. DER declares its
-      // own length in byte 1, so a real SEQUENCE here would read 0x30 62.
-      // Raw bytes that merely happen to start 0x30 will not also carry 62.
-      expect(bytes[0] === 0x30 && bytes[1] === bytes.length - 2).toBe(false);
     }
   });
 
