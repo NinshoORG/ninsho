@@ -1,0 +1,32 @@
+[
+  {
+    "name": "GET /health (unauthed)",
+    "opsPerSecond": 768,
+    "meanMs": 1.302,
+    "p50Ms": 1.004,
+    "p95Ms": 2.580,
+    "p99Ms": 5.111,
+    "minMs": 0.738,
+    "maxMs": 12.932
+  },
+  {
+    "name": "GET /me (authed, opaque)",
+    "opsPerSecond": 527,
+    "meanMs": 1.896,
+    "p50Ms": 1.586,
+    "p95Ms": 3.921,
+    "p99Ms": 8.150,
+    "minMs": 0.840,
+    "maxMs": 9.223
+  },
+  {
+    "name": "POST /auth/login (full)",
+    "opsPerSecond": 299,
+    "meanMs": 3.348,
+    "p50Ms": 2.495,
+    "p95Ms": 6.900,
+    "p99Ms": 25.743,
+    "minMs": 1.604,
+    "maxMs": 27.246
+  }
+]

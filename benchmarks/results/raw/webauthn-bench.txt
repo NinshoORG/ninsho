@@ -1,0 +1,22 @@
+Ninsho WebAuthn Benchmark — Raw Output
+=======================================
+Date: 2026-09-08
+Node: v22.13.1
+Environment: Intel Core i5-4300U @ 1.90GHz, 2C/4T, 16GB RAM, Windows 10
+Git commit: 45f8235
+Iterations: 500
+
+WebAuthn — 500 iterations, Node v22.13.1
+──────────────────────────────────────────────────────────────────────────────
+operation                              ops/sec       mean        p95       p99
+──────────────────────────────────────────────────────────────────────────────
+authenticate: verify (ES256)               429    2.332ms    5.802ms  16.575ms
+authenticate: verify (EdDSA)               572    1.747ms    6.269ms  15.200ms
+authenticate: verify (RS256)             1,249    0.801ms    1.781ms   3.268ms
+register: verify (none)                    925    1.081ms    2.588ms   4.796ms
+register: verify (packed + chain)          286    3.494ms    6.330ms  19.841ms
+cose: importCoseKey                      2,473    0.404ms    0.798ms   1.069ms
+cbor: decode (COSE key)               266,923    0.004ms    0.006ms   0.009ms
+
+Ceremonies happen once per sign-in, not per request. Compare with
+`opaque: verify` in PERFORMANCE.md, which runs on every authenticated call.

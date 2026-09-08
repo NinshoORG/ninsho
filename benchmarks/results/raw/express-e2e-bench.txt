@@ -1,0 +1,29 @@
+Ninsho Express E2E Benchmark — Raw Output
+==========================================
+Date: 2026-09-08
+Node: v22.13.1
+Iterations: 500
+Framework: Express 5.2.1
+Store: MemoryStore
+
+Express E2E — MemoryStore, 500 iterations
+──────────────────────────────────────────────────────────────────────────────────────────
+operation                          ops/sec       mean        p50        p95        p99
+──────────────────────────────────────────────────────────────────────────────────────────
+GET /health (unauthed)                 768    1.302ms    1.004ms    2.580ms    5.111ms
+GET /me (authed, opaque)               527    1.896ms    1.586ms    3.921ms    8.150ms
+POST /auth/login (full)                299    3.348ms    2.495ms    6.900ms   25.743ms
+
+Statistical details:
+  GET /health:
+    min=0.738ms  max=12.932ms  mean=1.302ms  p50=1.004ms  p95=2.580ms  p99=5.111ms
+  GET /me:
+    min=0.840ms  max=9.223ms   mean=1.896ms  p50=1.586ms  p95=3.921ms  p99=8.150ms
+  POST /auth/login:
+    min=1.604ms  max=27.246ms  mean=3.348ms  p50=2.495ms  p95=6.900ms  p99=25.743ms
+
+Analysis:
+  - Baseline Express 5 HTTP request round trip (`/health`): 1.302ms mean
+  - Authenticated request (`/me` with `auth.verify()`): 1.896ms mean
+  - Ninsho middleware + MemoryStore lookup delta: ~0.594ms
+  - Full login (credential verification + session creation + rate limiting): 3.348ms mean

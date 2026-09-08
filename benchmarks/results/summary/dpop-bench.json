@@ -1,0 +1,90 @@
+[
+  {
+    "name": "generateDpopKeyPair (ES256)",
+    "opsPerSecond": 2580,
+    "meanMs": 0.3876,
+    "p50Ms": 0.2835,
+    "p95Ms": 0.8093,
+    "p99Ms": 2.1190,
+    "minMs": 0.1903,
+    "maxMs": 10.7971,
+    "stddevMs": 0.4423
+  },
+  {
+    "name": "generateDpopKeyPair (EdDSA)",
+    "opsPerSecond": 4106,
+    "meanMs": 0.2436,
+    "p50Ms": 0.1955,
+    "p95Ms": 0.5153,
+    "p99Ms": 1.8170,
+    "minMs": 0.1005,
+    "maxMs": 4.0210,
+    "stddevMs": 0.3093
+  },
+  {
+    "name": "createDpopProof (ES256)",
+    "opsPerSecond": 4793,
+    "meanMs": 0.2086,
+    "p50Ms": 0.1830,
+    "p95Ms": 0.3526,
+    "p99Ms": 0.8215,
+    "minMs": 0.0957,
+    "maxMs": 17.5325,
+    "stddevMs": 0.5673
+  },
+  {
+    "name": "createDpopProof (EdDSA)",
+    "opsPerSecond": 8226,
+    "meanMs": 0.1216,
+    "p50Ms": 0.1037,
+    "p95Ms": 0.2181,
+    "p99Ms": 0.4203,
+    "minMs": 0.0979,
+    "maxMs": 1.3657,
+    "stddevMs": 0.0752
+  },
+  {
+    "name": "verifyDpopProof (ES256)",
+    "opsPerSecond": 1368,
+    "meanMs": 0.7308,
+    "p50Ms": 0.6053,
+    "p95Ms": 1.4749,
+    "p99Ms": 2.0247,
+    "minMs": 0.5141,
+    "maxMs": 8.1061,
+    "stddevMs": 0.4216
+  },
+  {
+    "name": "verifyDpopProof (EdDSA)",
+    "opsPerSecond": 1947,
+    "meanMs": 0.5137,
+    "p50Ms": 0.4276,
+    "p95Ms": 1.0024,
+    "p99Ms": 1.6441,
+    "minMs": 0.3665,
+    "maxMs": 10.8391,
+    "stddevMs": 0.4063
+  },
+  {
+    "name": "jwkThumbprint (ES256)",
+    "opsPerSecond": 302389,
+    "meanMs": 0.0033,
+    "p50Ms": 0.0029,
+    "p95Ms": 0.0035,
+    "p99Ms": 0.0196,
+    "minMs": 0.0026,
+    "maxMs": 0.0373,
+    "stddevMs": 0.0025
+  },
+  {
+    "name": "accessTokenHash",
+    "opsPerSecond": 210058,
+    "meanMs": 0.0048,
+    "p50Ms": 0.0028,
+    "p95Ms": 0.0055,
+    "p99Ms": 0.0370,
+    "minMs": 0.0025,
+    "maxMs": 1.1898,
+    "stddevMs": 0.0381
+  }
+]

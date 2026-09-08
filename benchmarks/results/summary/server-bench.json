@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-09-08T05:21:35Z",
+  "nodeVersion": "v22.13.1",
+  "gitCommit": "45f8235",
+  "cpu": "Intel(R) Core(TM) i5-4300U CPU @ 1.90GHz (2 cores, 4 threads)",
+  "ramMb": 16289,
+  "os": "Microsoft Windows 10 Home 10.0.19045",
+  "redisVersion": "redis:7-alpine",
+  "suites": {
+    "memoryStore": [
+      { "operation": "opaque: issue", "opsPerSecond": 8688, "meanMs": 0.115, "p95Ms": 0.176, "p99Ms": 0.576 },
+      { "operation": "opaque: verify (hot path)", "opsPerSecond": 17267, "meanMs": 0.058, "p95Ms": 0.073, "p99Ms": 0.164 },
+      { "operation": "paseto: issue (Ed25519 sign)", "opsPerSecond": 5198, "meanMs": 0.192, "p95Ms": 0.347, "p99Ms": 0.746 },
+      { "operation": "paseto: verify (Ed25519)", "opsPerSecond": 2922, "meanMs": 0.342, "p95Ms": 0.630, "p99Ms": 1.183 },
+      { "operation": "paseto: verify (no store check)", "opsPerSecond": 3895, "meanMs": 0.257, "p95Ms": 0.465, "p99Ms": 0.981 },
+      { "operation": "session: create", "opsPerSecond": 12404, "meanMs": 0.081, "p95Ms": 0.136, "p99Ms": 0.331 },
+      { "operation": "session: refresh (rotation)", "opsPerSecond": 7551, "meanMs": 0.132, "p95Ms": 0.256, "p99Ms": 0.587 },
+      { "operation": "ratelimit: consume (2 buckets)", "opsPerSecond": 55213, "meanMs": 0.018, "p95Ms": 0.023, "p99Ms": 0.066 }
+    ],
+    "redisStore": [
+      { "operation": "opaque: issue", "opsPerSecond": 205, "meanMs": 4.873, "p95Ms": 6.869, "p99Ms": 8.304 },
+      { "operation": "opaque: verify (hot path)", "opsPerSecond": 507, "meanMs": 1.971, "p95Ms": 3.096, "p99Ms": 6.644 },
+      { "operation": "paseto: issue (Ed25519 sign)", "opsPerSecond": 526, "meanMs": 1.901, "p95Ms": 2.816, "p99Ms": 3.178 },
+      { "operation": "paseto: verify (Ed25519)", "opsPerSecond": 418, "meanMs": 2.391, "p95Ms": 3.032, "p99Ms": 3.589 },
+      { "operation": "paseto: verify (no store check)", "opsPerSecond": 3499, "meanMs": 0.286, "p95Ms": 0.564, "p99Ms": 0.954 },
+      { "operation": "session: create", "opsPerSecond": 96, "meanMs": 10.422, "p95Ms": 13.939, "p99Ms": 19.337 },
+      { "operation": "session: refresh (rotation)", "opsPerSecond": 43, "meanMs": 23.023, "p95Ms": 39.094, "p99Ms": 55.498 },
+      { "operation": "ratelimit: consume (2 buckets)", "opsPerSecond": 202, "meanMs": 4.942, "p95Ms": 8.890, "p99Ms": 13.524 }
+    ]
+  }
+}

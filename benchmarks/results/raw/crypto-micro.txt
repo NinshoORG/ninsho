@@ -1,0 +1,24 @@
+Ninsho Crypto Microbenchmark — Raw Output
+==========================================
+Date: 2026-09-08
+Node: v22.13.1
+Iterations: 2000
+
+Cryptographic primitives — 2000 iterations
+──────────────────────────────────────────────────────────────────────────────
+operation                              ops/sec       mean        p95       p99
+──────────────────────────────────────────────────────────────────────────────
+generateToken (CSPRNG 256-bit)          60,479    0.017ms    0.027ms   0.068ms
+hashToken (SHA-256)                     74,493    0.013ms    0.022ms   0.094ms
+generateId (random ID)                  66,946    0.015ms    0.023ms   0.075ms
+signV4Public (Ed25519 sign)              5,717    0.175ms    0.304ms   0.660ms
+verifyV4Public (Ed25519 verify)          2,331    0.429ms    0.627ms   1.863ms
+signV4Public + verifyV4Public (RT)       2,343    0.427ms    0.708ms   1.206ms
+
+Statistical details (from JSON):
+  generateToken:  min=0.005ms  max=3.232ms  stddev=0.074ms  p50=0.014ms
+  hashToken:      min=0.004ms  max=2.978ms  stddev=0.071ms  p50=0.009ms
+  generateId:     min=0.005ms  max=3.616ms  stddev=0.087ms  p50=0.011ms
+  signV4Public:   min=0.081ms  max=5.736ms  stddev=0.234ms  p50=0.166ms
+  verifyV4Public: min=0.194ms  max=36.504ms stddev=1.335ms  p50=0.368ms
+  sign+verify RT: min=0.265ms  max=16.390ms stddev=0.422ms  p50=0.305ms

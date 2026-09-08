@@ -1,0 +1,28 @@
+Ninsho DPoP Benchmark — Raw Output
+====================================
+Date: 2026-09-08
+Node: v22.13.1
+Iterations: 1000
+
+DPoP operations — 1000 iterations
+──────────────────────────────────────────────────────────────────────────────────────────
+operation                              ops/sec       mean        p50        p95       p99
+──────────────────────────────────────────────────────────────────────────────────────────
+generateDpopKeyPair (ES256)              2,580    0.388ms    0.284ms    0.809ms   2.119ms
+generateDpopKeyPair (EdDSA)              4,106    0.244ms    0.196ms    0.515ms   1.817ms
+createDpopProof (ES256)                  4,793    0.209ms    0.183ms    0.353ms   0.822ms
+createDpopProof (EdDSA)                  8,226    0.122ms    0.104ms    0.218ms   0.420ms
+verifyDpopProof (ES256)                  1,368    0.731ms    0.605ms    1.475ms   2.025ms
+verifyDpopProof (EdDSA)                  1,947    0.514ms    0.428ms    1.002ms   1.644ms
+jwkThumbprint (ES256)                  302,389    0.003ms    0.003ms    0.004ms   0.020ms
+accessTokenHash                        210,058    0.005ms    0.003ms    0.006ms   0.037ms
+
+Statistical details:
+  genKeyPair ES256: min=0.190ms  max=10.797ms  stddev=0.442ms
+  genKeyPair EdDSA: min=0.101ms  max=4.021ms   stddev=0.309ms
+  createProof ES256: min=0.096ms  max=17.533ms  stddev=0.567ms
+  createProof EdDSA: min=0.098ms  max=1.366ms   stddev=0.075ms
+  verifyProof ES256: min=0.514ms  max=8.106ms   stddev=0.422ms
+  verifyProof EdDSA: min=0.366ms  max=10.839ms  stddev=0.406ms
+  jwkThumbprint:     min=0.003ms  max=0.037ms   stddev=0.003ms
+  accessTokenHash:   min=0.003ms  max=1.190ms   stddev=0.038ms

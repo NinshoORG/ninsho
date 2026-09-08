@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-09-08T05:24:17Z",
+  "nodeVersion": "v22.13.1",
+  "gitCommit": "45f8235",
+  "iterations": 500,
+  "operations": [
+    { "name": "authenticate: verify (ES256)", "opsPerSecond": 429, "meanMs": 2.332, "p95Ms": 5.802, "p99Ms": 16.575 },
+    { "name": "authenticate: verify (EdDSA)", "opsPerSecond": 572, "meanMs": 1.747, "p95Ms": 6.269, "p99Ms": 15.200 },
+    { "name": "authenticate: verify (RS256)", "opsPerSecond": 1249, "meanMs": 0.801, "p95Ms": 1.781, "p99Ms": 3.268 },
+    { "name": "register: verify (none)", "opsPerSecond": 925, "meanMs": 1.081, "p95Ms": 2.588, "p99Ms": 4.796 },
+    { "name": "register: verify (packed + chain)", "opsPerSecond": 286, "meanMs": 3.494, "p95Ms": 6.330, "p99Ms": 19.841 },
+    { "name": "cose: importCoseKey", "opsPerSecond": 2473, "meanMs": 0.404, "p95Ms": 0.798, "p99Ms": 1.069 },
+    { "name": "cbor: decode (COSE key)", "opsPerSecond": 266923, "meanMs": 0.004, "p95Ms": 0.006, "p99Ms": 0.009 }
+  ]
+}

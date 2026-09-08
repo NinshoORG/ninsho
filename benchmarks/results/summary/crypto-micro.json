@@ -1,0 +1,68 @@
+[
+  {
+    "name": "generateToken (CSPRNG 256-bit)",
+    "opsPerSecond": 60479,
+    "meanMs": 0.0165,
+    "p50Ms": 0.0140,
+    "p95Ms": 0.0268,
+    "p99Ms": 0.0684,
+    "minMs": 0.0051,
+    "maxMs": 3.2322,
+    "stddevMs": 0.0739
+  },
+  {
+    "name": "hashToken (SHA-256)",
+    "opsPerSecond": 74493,
+    "meanMs": 0.0134,
+    "p50Ms": 0.0091,
+    "p95Ms": 0.0222,
+    "p99Ms": 0.0944,
+    "minMs": 0.0040,
+    "maxMs": 2.9784,
+    "stddevMs": 0.0711
+  },
+  {
+    "name": "generateId (random ID)",
+    "opsPerSecond": 66946,
+    "meanMs": 0.0149,
+    "p50Ms": 0.0106,
+    "p95Ms": 0.0229,
+    "p99Ms": 0.0751,
+    "minMs": 0.0052,
+    "maxMs": 3.6157,
+    "stddevMs": 0.0871
+  },
+  {
+    "name": "signV4Public (Ed25519 sign)",
+    "opsPerSecond": 5717,
+    "meanMs": 0.1749,
+    "p50Ms": 0.1662,
+    "p95Ms": 0.3042,
+    "p99Ms": 0.6602,
+    "minMs": 0.0811,
+    "maxMs": 5.7360,
+    "stddevMs": 0.2344
+  },
+  {
+    "name": "verifyV4Public (Ed25519 verify)",
+    "opsPerSecond": 2331,
+    "meanMs": 0.4290,
+    "p50Ms": 0.3676,
+    "p95Ms": 0.6275,
+    "p99Ms": 1.8627,
+    "minMs": 0.1942,
+    "maxMs": 36.5036,
+    "stddevMs": 1.3349
+  },
+  {
+    "name": "signV4Public + verifyV4Public (round trip)",
+    "opsPerSecond": 2343,
+    "meanMs": 0.4268,
+    "p50Ms": 0.3052,
+    "p95Ms": 0.7083,
+    "p99Ms": 1.2057,
+    "minMs": 0.2654,
+    "maxMs": 16.3904,
+    "stddevMs": 0.4224
+  }
+]

@@ -1,0 +1,35 @@
+Ninsho Concurrency Benchmark — Raw Output
+==========================================
+Date: 2026-09-08
+Node: v22.13.1
+500 ops per concurrency level
+
+Concurrency — MemoryStore
+────────────────────────────────────────────────────────────────────────────────────────────────────
+operation                     conc     ops  total ms   ops/sec      mean       p50       p95       p99
+────────────────────────────────────────────────────────────────────────────────────────────────────
+opaque: verify                   1     500        23    21,308   0.045ms   0.023ms   0.079ms   0.322ms
+opaque: verify                  10     500        28    17,583   0.563ms   0.418ms   1.157ms   4.451ms
+opaque: verify                  25     500        17    29,952   0.820ms   0.789ms   1.495ms   1.750ms
+opaque: verify                  50     500         9    54,561   0.746ms   0.694ms   1.115ms   1.250ms
+opaque: verify                 100     500        13    37,171   2.594ms   2.939ms   3.477ms   3.484ms
+paseto: verify                   1     500       256     1,953   0.511ms   0.445ms   0.950ms   1.703ms
+paseto: verify                  10     500       176     2,837   3.475ms   2.631ms   6.278ms   9.818ms
+paseto: verify                  25     500       163     3,061   7.880ms   7.387ms  14.361ms  16.076ms
+paseto: verify                  50     500       129     3,889  12.172ms  12.495ms  16.009ms  16.288ms
+paseto: verify                 100     500       129     3,886  23.359ms  25.321ms  27.294ms  27.484ms
+
+Concurrency — RedisStore
+────────────────────────────────────────────────────────────────────────────────────────────────────
+operation                     conc     ops  total ms   ops/sec      mean       p50       p95       p99
+────────────────────────────────────────────────────────────────────────────────────────────────────
+opaque: verify                   1     500       769       650   1.537ms   1.457ms   2.301ms   2.658ms
+opaque: verify                  10     500       153     3,264   3.046ms   2.681ms   5.341ms   6.515ms
+opaque: verify                  25     500        99     5,048   4.843ms   4.343ms   8.286ms   9.344ms
+opaque: verify                  50     500        99     5,046   9.642ms   9.266ms  19.132ms  19.161ms
+opaque: verify                 100     500       112     4,463  18.583ms  17.873ms  29.655ms  32.829ms
+paseto: verify                   1     500       950       526   1.899ms   1.623ms   2.853ms   3.535ms
+paseto: verify                  10     500       450     1,111   8.955ms   8.170ms  13.872ms  29.288ms
+paseto: verify                  25     500       332     1,506  16.207ms  15.584ms  24.495ms  26.747ms
+paseto: verify                  50     500       234     2,132  22.631ms  21.935ms  34.026ms  37.541ms
+paseto: verify                 100     500       248     2,013  45.785ms  46.001ms  67.349ms  68.768ms
