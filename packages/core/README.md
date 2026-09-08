@@ -1,7 +1,7 @@
 # @ninsho/core
 
 Shared types, error taxonomy, and cryptographic primitives for
-[Ninsho](https://github.com/Djain912/ninsho).
+[Ninsho](https://github.com/NinshoORG/ninsho).
 
 **Zero runtime dependencies.** Everything here is built on `node:crypto`, which
 is enforced in CI: the build fails if this package's bundle requires anything
@@ -34,6 +34,6 @@ ISO-8601 time predicates that fail closed on unparseable input.
 ## Status
 
 Pre-release (0.1.0). Not independently audited. See the
-[security policy](https://github.com/Djain912/ninsho/blob/main/SECURITY.md).
+[security policy](https://github.com/NinshoORG/ninsho/blob/main/SECURITY.md).
 
 MIT

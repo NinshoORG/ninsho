@@ -141,7 +141,7 @@ Before a first public release:
 - [ ] Fill in the reporting section of `SECURITY.md`; test the channel end to end
 - [ ] Add `.well-known/security.txt` per RFC 9116
 - [x] **Replace the placeholder repository URLs** in `packages/*/README.md`.
-      Done — they point at `github.com/Djain912/ninsho`. These are the package
+      Done — they point at `github.com/NinshoORG/ninsho`. These are the package
       pages npm renders; a dead link there is the same failure the predecessor
       shipped in its security policy. Re-check them if the repository is ever
       renamed or transferred to an organisation

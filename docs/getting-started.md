@@ -10,7 +10,7 @@ inconvenience and it is stated plainly rather than papered over — see
 first.
 
 ```bash
-git clone https://github.com/Djain912/ninsho.git
+git clone https://github.com/NinshoORG/ninsho.git
 cd ninsho
 
 npm ci

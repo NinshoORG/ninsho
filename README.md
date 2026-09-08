@@ -7,7 +7,7 @@
 
 <p align="center"><strong>認証</strong> — an authentication engine for Node.js.</p>
 
-[![CI](https://github.com/Djain912/ninsho/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Djain912/ninsho/actions/workflows/ci.yml)
+[![CI](https://github.com/NinshoORG/ninsho/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/NinshoORG/ninsho/actions/workflows/ci.yml)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-informational)](./package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-informational)](./tsconfig.base.json)
 [![License](https://img.shields.io/badge/license-MIT-informational)](./LICENSE)
