@@ -7,6 +7,101 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **The playground demonstrates authorization, and ending a session.** The
+  explorer covered authentication, attacks, rate limiting, hardware attestation
+  and the bytes underneath — and nothing at all about authorization, which is
+  half of what the library does and the half applications get wrong. Six
+  guards shipped with tests behind them and no way for a visitor to watch one
+  work.
+
+  Two panels, both running the shipped middleware against tokens the process
+  really minted. Nothing synthesises a `req.auth`: the identity under test
+  arrives inside a signed token that has to survive `verify()` first, because a
+  demonstration that invents the thing being checked proves nothing.
+
+  *Authorization* covers roles as any-of against all-of, scopes on an axis of
+  their own, ownership, tenants and step-up. The rows worth the panel are the
+  ones that look wrong until you think about them: an administrator refused an
+  order write because they hold no `orders:write` scope; a genuine admin of one
+  tenant refused at another; and a refresh token rotated *this second* still
+  failing `requireFreshAuth`, because rotating a credential is not re-proving
+  identity. Ownership shows all four refusals — the IDOR attempt, plus absent,
+  repeated and thrown selectors — since the only safe reading of "I could not
+  determine the owner" is no.
+
+  Each row prints what the caller was told beside what the audit trail
+  recorded. They differ on purpose, and seeing the two side by side is the
+  clearest way to make that separation concrete.
+
+  *Devices* signs in from three, signs one out, then changes the password. The
+  revoked token's expiry is printed next to the time of the check and is in the
+  future, so what a visitor watches is revocation rather than the clock — which
+  is the entire reason for the one store read per request. The password change
+  records `credential_changed` and takes the refresh families with it.
+
+  Both panels state in advance what each decision should have been and print a
+  verdict over the table. A guard that stopped guarding would otherwise render
+  as a tidy table of the wrong answers.
+
+  Also: every route a button names is now checked to exist. The panels are
+  wired by `data-post` attributes, so a renamed route broke a button with no
+  compile-time and no test-time signal — it failed when a visitor clicked it,
+  which is the worst possible moment and the least likely place for anyone to
+  notice.
+
+- **An independent cryptographic audit of PASETO v4.public.** Contributed by
+  Yash Jadhav. `docs/CRYPTOGRAPHIC-AUDIT.md` records it and
+  `packages/server/src/__tests__/paseto-independent-audit.test.ts` is the
+  suite — 44 cases that do not share code with the implementation they check.
+
+  The method is the part worth keeping: an independent PAE implementation built
+  on `DataView` rather than reusing `le64` and `pae`, Ed25519 verification
+  through `node:crypto` directly rather than through `verifyV4Public`, every
+  one of the 64 signature bytes individually flipped, 10,000 adversarial inputs
+  across ten mutation strategies, non-canonical base64url spare-bit corruption,
+  and the full ten-step key-rotation lifecycle driven through the public API.
+
+  Reference vectors `4-S-1`, `4-S-2` and `4-S-3` verify and regenerate
+  byte-for-byte. The 10,000 malformed inputs produced 0 crashes, 0 unhandled
+  exceptions and 0 false acceptances.
+
+  It found one thing, rated Informational and unreachable — see *Fixed*.
+
+- **A manual security test framework.** Contributed by Yash Jadhav.
+  `manualtest/` holds 20 attack procedures run by hand over real HTTP against a
+  locally running example, with captured evidence for each.
+
+  It exists because the vitest suites drive the library from inside its own
+  process, and there are things only an external client can see: actual wire
+  representations, header and cookie handling, what a proxy would resolve
+  differently, and whether a refusal leaks anything in the response body. The
+  results matrix marks two cases N/A rather than forcing a PASS, which is the
+  right instinct — the shipping examples have no standalone scope-protected or
+  tenant-protected resource endpoint to attack.
+
+- **The repository is set up for people who did not write it.** `AGENTS.md` is
+  the orientation document — what the project is, the rule it runs on, where
+  things actually live, the commands that work, every invariant paired with the
+  CI job that enforces it, the conventions, recipes for the changes people
+  actually make, and eleven traps that have already cost someone hours.
+
+  It is written for an AI agent and is equally the fastest way for a human to
+  start. `CLAUDE.md` points at it rather than restating it, so guidance cannot
+  drift between one agent's file and another's.
+
+  `docs/` is the reference material the README had been carrying alone: getting
+  started, configuration, authorization, framework adapters, architecture and
+  deployment. Every option, default and API in them was read from the source
+  rather than remembered — which caught that the Hono and Koa adapters export
+  their *own* `getAuth`, so examples drafted from memory would not have worked.
+
+  Alongside those: a code of conduct, issue templates that ask for the
+  reproduction a fix needs anyway and route security reports away from public
+  issues, a pull request template built around naming the evidence, CODEOWNERS,
+  and grouped Dependabot updates — with `ioredis` deliberately outside the
+  groups, since it is the one runtime dependency a consumer installs and a bump
+  changes behaviour the store contract depends on.
+
 - **The examples run on Express 5.** The last audit advisory was `qs`, pinned
   by Express 4 at `~6.15.1` where no override could reach it. Express 5 clears
   it: the whole workspace now reports **zero vulnerabilities**, not just the
@@ -783,7 +878,142 @@ This project uses [Semantic Versioning](https://semver.org/).
 
   Opt-in, because enabling it is a breaking change for clients.
 
+### Changed
+
+- **ioredis 6.** The one runtime dependency a consumer installs, so it moved on
+  its own rather than inside a Dependabot group, and behaviour was checked
+  before anything else.
+
+  ioredis 6 is where RESP3 reply mapping arrives, which is the change most
+  likely to disturb a store. So the contract suites were run against a real
+  Redis on ioredis 6 with the build still broken — `store.contract.test.ts` and
+  `store-invariants.test.ts`, 125 tests, all passing, every atomicity guarantee
+  included. Only then was the type error worth fixing.
+
+  Nothing moved for two reasons. `replyMapping` defaults to `"legacy"`, so
+  replies are identical across both protocols unless a caller opts in. And none
+  of the commands this store issues — `GET`, `SET`, `DEL`, `EXISTS`, `INCR`,
+  `EXPIRE`, `GETDEL`, `SADD`, `SREM`, `SMEMBERS`, `PING` — returns a map reply,
+  which is the shape RESP3 changes.
+
+  The build failure was upstream and is described under *Fixed*.
+
+- **Koa 3, `@koa/router` 15, Vitest 5, `actions/checkout` 7,
+  `actions/setup-node` 7.** Each verified on CI before merging, and each
+  checked for the failure mode that matters more than a green tick: that the
+  run still executed the same number of tests. A major version bump that
+  quietly stops collecting a suite looks exactly like one that works.
+
+- **TypeScript 7 deferred, with the reason recorded.** Every workspace
+  typechecks cleanly under 7.0.2 — `server`, `client`, `webauthn`, both
+  examples and `manualtest`. The blocker is `tsup`'s declaration build:
+  `rollup-plugin-dts@6.1.1` is pinned against `typescript@5.7.3` inside tsup
+  and crashes on TypeScript 7's rewritten compiler API with
+  `Cannot read properties of undefined (reading 'useCaseSensitiveFileNames')`.
+
+  Nothing here can fix that. One note for whoever retries: `packages/core` does
+  fail under 7 and passes under 5.9.3, because TypeScript 7 resolves hoisted
+  `@types/node` differently for a workspace package whose tsconfig sets no
+  `types` field. It will want `"types": ["node"]`.
+
 ### Fixed
+
+- **A test that failed roughly one run in 178.** `keys.test.ts` asserted that
+  byte 0 of a P1363 signature is never `0x30`, reasoning that a DER signature
+  starts with a SEQUENCE tag. But byte 0 of a raw signature is the high byte of
+  `r`, which is uniformly distributed.
+
+  Measured rather than assumed: over 4,096 freshly generated P-256 signatures,
+  byte 0 was `0x30` in 23 of them. CI duly went red on `main` with
+  `expected 48 not to be 48`.
+
+  That is worse than having no test there. A suite that goes red by chance
+  teaches whoever sees it to press re-run, and that habit is what lets a real
+  failure through — which matters more here than in most repositories, because
+  the whole argument of this project is that the tests are worth believing.
+
+  The replacement cannot fail by chance. Length is already a total
+  discriminator — P1363 for P-256 is exactly 64 bytes while DER wraps the same
+  pair and lands at 70–72 — and the structural check now reads both bytes, so
+  it fires only on a real SEQUENCE header rather than on any signature whose
+  first byte happens to be `0x30`.
+
+- **`le64` was made stricter for a reason that was not true.** The audit's one
+  finding: `le64` cleared the most significant bit with a mask rather than
+  refusing. Rated Informational and unreachable, correctly — buffer lengths and
+  piece counts are bounded by `buffer.constants.MAX_LENGTH` and are the only
+  values `le64` receives, so bit 63 is never set and no exploit exists.
+
+  The remediation stands: refusing is better than masking, because masking maps
+  `n` and `n | 2^63` onto one encoding, and producing distinct preimages for
+  distinct inputs is the entire job of PAE.
+
+  What did not stand was the justification. Both the audit and the doc comment
+  said the specification "requires implementations to reject any integer with
+  bit 63 set". It does not. It requires the *encoded* MSB to be zero — "for
+  interoperability with programming languages that do not have unsigned integer
+  support" — and its reference implementation gets there by masking, `n &= 127`
+  on the final byte. Verified against `paseto-spec` `Common.md`.
+
+  So the behaviour is *stricter than the reference by choice*, not conformance,
+  and both places now say that. A document titled "Cryptographic Audit" citing
+  a specification for something it does not say is the failure this project was
+  built around, whatever the code underneath is doing.
+
+  One guard went with it. `(b & 0x8000000000000000n) !== 0n` could never fire,
+  because the range check beside it already rejects everything with bit 63 set.
+  In a signing path an unreachable check is worse than no check: it reads as
+  protection and tells the next reviewer they can stop reading.
+
+- **About 4,500 lines that nothing compiled.** `manualtest/` sits outside the
+  `packages/*` and `examples/*` workspace globs, so `npm run typecheck
+  --workspaces` never reached it and neither did CI. One file already failed to
+  compile.
+
+  Nothing ships from there, so this was never a product risk. It was an
+  *evidence* risk, which is the one that matters here: those scripts are cited
+  in `TEST-RESULTS.md` and in the audit, and the predecessor's README
+  advertised 110 tests while 8 of 9 test files failed to import. Evidence that
+  silently stops compiling is exactly the shape of that failure.
+
+  `manualtest/tsconfig.json` extends the shared strict base and is chained into
+  the root `typecheck`, so CI compiles it on every push. The gate was verified
+  by breaking a file on purpose and watching it fail.
+
+  Five errors surfaced. Two are worth naming: `verifyV4Public` results assigned
+  and discarded in the issuer/audience retest, so the script logged "Signature
+  is authentic" while asserting nothing about the payload. They compare it now,
+  which is what makes "a genuinely signed token is still refused" mean anything.
+
+- **`@types/koa__router` is a stub, and TypeScript auto-included it.** The
+  build failed with `TS2688: Cannot find type definition file for
+  'koa__router'`. npm's own metadata explains it — "This is a stub types
+  definition. @koa/router provides its own type definitions, so you do not need
+  this installed." The package ships a `package.json` and no `index.d.ts`.
+
+  Nothing here named it in a `types` field; TypeScript auto-includes every
+  `@types/*` in `node_modules`, found the empty package, and stopped. The fix
+  was to remove it rather than bump it, and let `@koa/router` supply the types
+  it now ships.
+
+- **ioredis 6's options type could not be passed to ioredis 6's constructor.**
+  `RedisOptions` declares `replyMapping?: ReplyMappingMode | undefined`, while
+  every constructor overload intersects it with `{ replyMapping?: ReplyMapping }`
+  — a different type, and one that forbids an explicit `undefined`. Under
+  `exactOptionalPropertyTypes` no value satisfies both.
+
+  An upstream inconsistency rather than anything about the options assembled
+  here, so it is handled with a cast narrowed to `Omit<RedisOptions,
+  'replyMapping'>` rather than `any` or `never`: it drops exactly the member
+  that cannot be satisfied — one nothing here sets — and leaves every other
+  option checked. The comment says when to delete it.
+
+- **The playground could not resolve its own files on some paths.** Static
+  assets were located by taking a `file:` URL's `pathname` and stripping a
+  leading slash before a drive letter with a regular expression. A `pathname`
+  is percent-encoded, so any checkout path containing a space or a non-ASCII
+  character resolved to a directory that does not exist. Now `fileURLToPath`,
+  which is the function for this. Contributed by Yash Jadhav.
 
 - **The playground's own content policy blocked the playground.** The strict
   CSP added with the deployment work forbids inline styles, and the byte-map

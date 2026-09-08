@@ -182,7 +182,7 @@ loudly rather than returning `undefined` — a middleware-ordering mistake becom
 a failure on the first request instead of `req.auth?.userId` quietly evaluating
 to nothing and a check comparing against it.
 
-See **[Authorization](./authorization.md)** for all seven guards and how each
+See **[Authorization](./authorization.md)** for all six guards and how each
 one fails.
 
 ## Rate limiting
