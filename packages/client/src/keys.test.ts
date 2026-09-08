@@ -133,12 +133,34 @@ describe('signProof', () => {
   it('returns a raw r‖s signature, which is what JOSE wants', async () => {
     // WebCrypto gives P1363 directly. Node's default is DER, and a client that
     // shipped DER here would produce proofs no JOSE verifier accepts.
-    const key = await generateDpopKey();
-    const signature = await signProof(key.privateKey, 'header.payload');
+    //
+    // ─── REGRESSION: this assertion used to be probabilistic ──────────────
+    // It ran once and asserted `bytes[0] !== 0x30`, reasoning that DER starts
+    // with a SEQUENCE tag. But byte 0 of a raw signature is the high byte of
+    // `r`, which is uniformly distributed. Measured over 4,096 signatures:
+    // byte 0 was 0x30 in 23 of them, about one in 178 — and CI duly hit it on
+    // main.
+    //
+    // A test that fails one run in a couple of hundred is worse than no test:
+    // it teaches whoever sees it red to press re-run, and that habit is what
+    // lets a real failure through. The check below is therefore *total* rather
+    // than likely — it cannot fail by chance at all. The loop is for coverage
+    // of the encoding across many keys, not a fix for the flake.
+    // ──────────────────────────────────────────────────────────────────────
+    for (let i = 0; i < 64; i += 1) {
+      const key = await generateDpopKey();
+      const bytes = fromBase64Url(await signProof(key.privateKey, 'header.payload'));
 
-    expect(fromBase64Url(signature)).toHaveLength(64);
-    // DER would start with a SEQUENCE tag.
-    expect(fromBase64Url(signature)[0]).not.toBe(0x30);
+      // Length alone already separates the two encodings: P1363 for P-256 is
+      // exactly 64 bytes, while DER wraps the same pair in a SEQUENCE and
+      // lands at 70-72.
+      expect(bytes).toHaveLength(64);
+
+      // And a structural check that cannot fire by chance. DER declares its
+      // own length in byte 1, so a real SEQUENCE here would read 0x30 62.
+      // Raw bytes that merely happen to start 0x30 will not also carry 62.
+      expect(bytes[0] === 0x30 && bytes[1] === bytes.length - 2).toBe(false);
+    }
   });
 
   it('produces a signature the public key verifies', async () => {
