@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     await measure('generateDpopKeyPair (ES256)', async () => generateDpopKeyPair('ES256'), iterations)
   );
   results.push(
-    await measure('generateDpopKeyPair (Ed25519)', async () => generateDpopKeyPair('EdDSA'), iterations)
+    await measure('generateDpopKeyPair (EdDSA)', async () => generateDpopKeyPair('EdDSA'), iterations)
   );
 
   // 2. Proof creation
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
   );
   results.push(
     await measure(
-      'createDpopProof (Ed25519)',
+      'createDpopProof (EdDSA)',
       async () => createDpopProof(ed25519Key, { method: 'POST', url: 'https://example.com/api/data' }),
       iterations,
     )
@@ -143,6 +143,16 @@ async function main(): Promise<void> {
         return verifyDpopProof(proof, {
           method: 'POST',
           url: 'https://example.com/api/data',
+          // Both are REQUIRED by `VerifyProofOptions`, and omitting them does
+          // not merely default — `undefined * 1000` is NaN, every comparison
+          // against NaN is false, and the "issued in the future" and "proof is
+          // too old" checks silently never fire. The benchmark was measuring a
+          // verification with two of its checks disabled.
+          //
+          // These are the library's own defaults, so the figures below are the
+          // cost of the path a deployment actually runs.
+          maxAgeSeconds: 60,
+          clockToleranceSeconds: 5,
         });
       },
       iterations,
@@ -152,12 +162,22 @@ async function main(): Promise<void> {
   let ed25519Idx = 0;
   results.push(
     await measure(
-      'verifyDpopProof (Ed25519)',
+      'verifyDpopProof (EdDSA)',
       async () => {
         const proof = ed25519Proofs[ed25519Idx++ % ed25519Proofs.length]!;
         return verifyDpopProof(proof, {
           method: 'POST',
           url: 'https://example.com/api/data',
+          // Both are REQUIRED by `VerifyProofOptions`, and omitting them does
+          // not merely default — `undefined * 1000` is NaN, every comparison
+          // against NaN is false, and the "issued in the future" and "proof is
+          // too old" checks silently never fire. The benchmark was measuring a
+          // verification with two of its checks disabled.
+          //
+          // These are the library's own defaults, so the figures below are the
+          // cost of the path a deployment actually runs.
+          maxAgeSeconds: 60,
+          clockToleranceSeconds: 5,
         });
       },
       iterations,

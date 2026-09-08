@@ -2,6 +2,12 @@
 
 **認証** — an authentication engine for Node.js.
 
+[![CI](https://github.com/Djain912/ninsho/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Djain912/ninsho/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-informational)](./package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-informational)](./tsconfig.base.json)
+[![License](https://img.shields.io/badge/license-MIT-informational)](./LICENSE)
+[![Tests](https://img.shields.io/badge/tests-2%2C056%20passing-success)](./README.md#what-works-today)
+
 > **Status: v0.1.0, pre-release. Not published to npm. Not ready to depend on.**
 >
 > Sessions, both token strategies, authorization, rate limiting, and
@@ -192,6 +198,10 @@ cost people hours.
   limitations stated plainly
 - **[PERFORMANCE.md](./PERFORMANCE.md)** — benchmarks, and what they say about
   the architecture
+- **[BENCHMARK-REPORT.md](./BENCHMARK-REPORT.md)** — a wider evaluation on
+  different hardware: cryptographic primitives, DPoP, concurrency scaling to
+  100 workers, and end-to-end HTTP. Read it alongside `PERFORMANCE.md`, which
+  explains why the two report different multiples for the same comparison
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — the rule this project runs on, and
   the design constraints that are settled
 - **[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)** — how review works here, and
