@@ -74,27 +74,52 @@ function b64uDecode(value: string): Buffer {
 }
 
 /**
- * 64-bit unsigned little-endian, most significant bit cleared.
+ * 64-bit unsigned little-endian, with bit 63 required to be clear.
  *
- * The PASETO specification mandates that the MSB must be 0 and requires
- * implementations to reject any integer with bit 63 set.
+ * ─── Stricter than the reference implementation, deliberately ─────────────
+ * The specification requires the *encoded* most significant bit to be zero,
+ * "for interoperability with programming languages that do not have unsigned
+ * integer support", and its reference implementation achieves that by masking:
+ * `n &= 127` on the final byte. It does not ask implementations to reject.
+ *
+ * Ninsho refuses instead of masking. Masking maps two distinct inputs — `n`
+ * and `n | 2^63` — onto one encoding, and producing distinct preimages for
+ * distinct inputs is the entire job of PAE. Refusing keeps that property total
+ * rather than almost-total.
+ *
+ * Neither behaviour is reachable from inside this library: every caller passes
+ * a piece count or a `Buffer` length, both bounded far below 2^63 by
+ * `buffer.constants.MAX_LENGTH`. So this is a guard against a future caller,
+ * not a fix for a live defect, and `docs/CRYPTOGRAPHIC-AUDIT.md` records it as
+ * exactly that.
+ * ──────────────────────────────────────────────────────────────────────────
  */
 export function le64(value: number | bigint): Buffer {
-  let b: bigint;
+  let n: bigint;
   try {
+    // NaN, ±Infinity and fractions would reach `BigInt()` and throw a
+    // RangeError that says nothing about PASETO.
     if (typeof value === 'number' && !Number.isInteger(value)) {
-      throw new PasetoFormatError('integer must be an integer');
+      throw new PasetoFormatError('length must be a whole number');
     }
-    b = BigInt(value);
+    // Reachable only from JavaScript callers, who are not bound by the
+    // signature above: `BigInt('abc')` and `BigInt(null)` both throw.
+    n = BigInt(value);
   } catch (error) {
     if (error instanceof PasetoFormatError) throw error;
-    throw new PasetoFormatError('invalid integer value for le64');
+    throw new PasetoFormatError('length is not a valid integer');
   }
-  if (b < 0n || b > 0x7fffffffffffffffn || (b & 0x8000000000000000n) !== 0n) {
-    throw new PasetoFormatError('integer MSB is set or out of range');
+
+  // One comparison covers both halves. Every value above this bound has bit 63
+  // set, so a separate `n & (1n << 63n)` test would read as a third check and
+  // could never fire — misleading in a signing path, where an unreachable
+  // guard is worse than no guard.
+  if (n < 0n || n > 0x7fff_ffff_ffff_ffffn) {
+    throw new PasetoFormatError('length is negative or has bit 63 set');
   }
+
   const buf = Buffer.alloc(8);
-  buf.writeBigUInt64LE(b);
+  buf.writeBigUInt64LE(n);
   return buf;
 }
 

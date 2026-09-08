@@ -170,7 +170,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-2,009 tests passing (`npm run test`) · typecheck clean · verified from a fresh clone
+2,056 tests passing (`npm run test`) · typecheck clean · verified from a fresh clone
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```

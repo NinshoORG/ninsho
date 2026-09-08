@@ -5,7 +5,9 @@ function getCookie(headers: Headers): string | null {
   const sc = headers.get('set-cookie');
   if (!sc) return null;
   const match = sc.match(/ninsho_playground=([^;]+)/);
-  return match ? match[1] : null;
+  // A matched group is `string | undefined` under noUncheckedIndexedAccess:
+  // the regex guarantees group 1 exists, the type system does not.
+  return match?.[1] ?? null;
 }
 
 async function run() {

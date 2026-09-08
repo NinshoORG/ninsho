@@ -1,0 +1,28 @@
+{
+  // ─── Why these scripts are type-checked ──────────────────────────────────
+  // `manualtest/` is not a workspace, so nothing here is built, packaged or
+  // shipped — and before this file existed, nothing compiled it either. Its
+  // scripts are cited as evidence in TEST-RESULTS.md and in the audit, which
+  // makes them exactly the code that must not be allowed to rot silently: a
+  // script that stopped compiling would still be named as proof.
+  //
+  // That is the failure this project was built to avoid. The predecessor's
+  // README advertised 110 tests while 8 of 9 test files failed to import.
+  // Adding this config found one file already broken.
+  //
+  // `noEmit` because these run under `node --experimental-strip-types`; the
+  // compiler is here to check, not to build.
+  // ─────────────────────────────────────────────────────────────────────────
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    // The scripts import each other and the workspace packages by their `.ts`
+    // paths, which is what `--experimental-strip-types` resolves at runtime.
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

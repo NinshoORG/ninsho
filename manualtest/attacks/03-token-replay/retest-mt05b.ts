@@ -10,7 +10,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { generateKeyPair, KeyRing, loadPrivateKey, loadPublicKey, signV4Public, verifyV4Public, MemoryStore, Ninsho, toErrorResponse } from '@ninsho/server';
+import { generateKeyPair, loadPrivateKey, loadPublicKey, signV4Public, verifyV4Public, MemoryStore, Ninsho, toErrorResponse } from '@ninsho/server';
 
 function maskToken(token: string): string {
   const parts = token.split('.');
@@ -68,7 +68,7 @@ async function run(): Promise<void> {
   let engineErrorCode = '';
   let engineErrorDetail = '';
   let engineHttpStatus = 0;
-  let engineHttpBody: Record<string, unknown> = {};
+  let engineHttpBody: unknown = {};
 
   try {
     await pasetoAuth.engine.verify(expiredToken);
