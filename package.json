@@ -19,7 +19,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p manualtest/tsconfig.json",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p manualtest/tsconfig.json && tsc --noEmit -p benchmarks/tsconfig.json",
     "lint:lockfile": "npm install --package-lock-only && git diff --exit-code package-lock.json",
     "clean": "rimraf --glob \"packages/*/dist\" \"packages/*/*.tsbuildinfo\""
   },

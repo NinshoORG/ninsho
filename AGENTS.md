@@ -69,15 +69,22 @@ examples/
   playground/   The interactive demonstration. Ten panels, real library.
 docs/           Reference documentation.
 manualtest/     Attacker's-eye HTTP tests, run by hand against a local server.
+benchmarks/     Supplementary performance suites, plus their recorded results.
 .github/        CI, issue and PR templates.
 ```
 
-`manualtest/` is not a workspace and ships nothing, but it **is** type-checked —
-`npm run typecheck` compiles it via `manualtest/tsconfig.json`. It was added
-because the scripts there are cited as evidence in `manualtest/TEST-RESULTS.md`
-and in the cryptographic audit, and evidence that silently stops compiling is
-the failure this project exists to avoid. Adding the check found one file
-already broken.
+Neither `manualtest/` nor `benchmarks/` is a workspace and neither ships
+anything, but both **are** type-checked — `npm run typecheck` compiles them via
+their own `tsconfig.json`. That is because the scripts in both are cited as
+evidence: `manualtest/TEST-RESULTS.md` and the cryptographic audit for the
+first, `BENCHMARK-REPORT.md` for the second. Evidence that silently stops
+compiling is the failure this project exists to avoid.
+
+Adding those checks found a broken file in each. The benchmark one is the
+better illustration: `dpop-bench.ts` called `verifyDpopProof` without the
+required `maxAgeSeconds` and `clockToleranceSeconds`, which at runtime made
+both freshness checks compare against `NaN` and never fire — so a published
+figure was measuring a verification with two of its checks disabled.
 
 ### Where things actually live in `packages/server`
 
@@ -384,9 +391,10 @@ because that is what the root manifest declares. A directory outside those
 globs is compiled by nothing, and nothing warns you — `manualtest/` accumulated
 ~4,500 lines of TypeScript that way, one file of which no longer compiled.
 
-The root `typecheck` script now names `manualtest/tsconfig.json` explicitly
-after the workspace pass. **If you add another top-level directory of
-TypeScript, it needs the same treatment or it is unchecked.**
+The root `typecheck` script now names `manualtest/tsconfig.json` and
+`benchmarks/tsconfig.json` explicitly after the workspace pass. **If you add
+another top-level directory of TypeScript, it needs the same treatment or it is
+unchecked.** This has now happened twice, with a real defect found both times.
 
 ### 8.11 DER integers must be minimal
 

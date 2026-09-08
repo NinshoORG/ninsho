@@ -1,7 +1,7 @@
 # Ninsho v0.1.0 — Performance Benchmark Report
 
 **Date:** September 8, 2026  
-**Evaluator:** Antigravity AI Engineering Assistant  
+**Measured by:** Yash Jadhav  
 **Repository:** `ninsho` (version `0.1.0`)  
 **Git Commit:** `45f8235` (`fix(paseto): strictly reject invalid inputs and MSB-set values in le64`)  
 **Status:** Evaluation Complete — Zero Production/Cryptographic Code Modified for Benchmarking
@@ -38,9 +38,9 @@ Before creating any new benchmarking tooling, the repository was audited in acco
 ### Findings
 
 - **Existing Benchmark Suites:**
-  - [`packages/server/bench/bench.ts`](file:///c:/Degree%20Yash/NInsho/ninsho/packages/server/bench/bench.ts): A 261-line suite benchmarking `OpaqueEngine`, `PasetoEngine`, `SessionManager`, and `RateLimiter` against both `MemoryStore` and `RedisStore`.
-  - [`packages/webauthn/bench/bench.ts`](file:///c:/Degree%20Yash/NInsho/ninsho/packages/webauthn/bench/bench.ts): A 239-line suite benchmarking WebAuthn assertion verification (ES256, EdDSA, RS256), registration ceremonies (with and without packed attestation chains), COSE key importing, and CBOR decoding.
-  - [`PERFORMANCE.md`](file:///c:/Degree%20Yash/NInsho/ninsho/PERFORMANCE.md): Reference document recording prior measurements under Node v24.11.1.
+  - [`packages/server/bench/bench.ts`](./packages/server/bench/bench.ts): A 261-line suite benchmarking `OpaqueEngine`, `PasetoEngine`, `SessionManager`, and `RateLimiter` against both `MemoryStore` and `RedisStore`.
+  - [`packages/webauthn/bench/bench.ts`](./packages/webauthn/bench/bench.ts): A 239-line suite benchmarking WebAuthn assertion verification (ES256, EdDSA, RS256), registration ceremonies (with and without packed attestation chains), COSE key importing, and CBOR decoding.
+  - [`PERFORMANCE.md`](./PERFORMANCE.md): Reference document recording prior measurements under Node v24.11.1.
   - **CI Workflow Gate:** `.github/workflows/ci.yml` contains a dedicated `"Benchmarks still run"` step executing `npm run bench` on Node 22 matrices to prevent performance regressions and interface drift.
 - **Architectural Decision:** Rather than replacing existing benchmarks, this evaluation executed the established test suites on the current platform, and supplemented them with four targeted suites:
   1. `benchmarks/supplementary/crypto-micro.ts`: Isolated cryptographic primitives.
@@ -176,8 +176,34 @@ Measured via `benchmarks/supplementary/dpop-bench.ts` (1,000 iterations):
 | `createDpopProof` | EdDSA | 8,226 | 0.122 ms | 0.104 ms | 0.218 ms | 0.420 ms |
 | `verifyDpopProof` | ES256 | 1,368 | 0.731 ms | 0.605 ms | 1.475 ms | 2.025 ms |
 | `verifyDpopProof` | EdDSA | 1,947 | 0.514 ms | 0.428 ms | 1.002 ms | 1.644 ms |
-| `jwkThumbprint` | ES256 | 302,389 | 0.003 ms | 0.003 ms | 0.004 ms | 0.020 ms |
-| `accessTokenHash` | SHA-256 | 210,058 | 0.005 ms | 0.003 ms | 0.006 ms | 0.037 ms |
+| `jwkThumbprint` | ES256 | ~300,000 † | 0.003 ms | 0.003 ms | 0.004 ms | 0.020 ms |
+| `accessTokenHash` | SHA-256 | ~210,000 † | 0.005 ms | 0.003 ms | 0.006 ms | 0.037 ms |
+
+† **Order of magnitude only.** These two operations take about 3 µs, which is
+close enough to timer and scheduler noise that repeat runs disagree wildly. Two
+consecutive runs on one machine, with nothing changed that could affect either,
+produced a −38% swing on `jwkThumbprint` and a +76% swing on `accessTokenHash`.
+The figures are quoted to two significant figures for that reason; the only
+claim they support is *negligible next to a signature verification*, which the
+rows above establish comfortably.
+
+> **Correction applied after review.** As first written, `dpop-bench.ts` called
+> `verifyDpopProof` without `maxAgeSeconds` or `clockToleranceSeconds`, which
+> `VerifyProofOptions` marks required. At runtime that made `undefined * 1000`
+> evaluate to `NaN`, and every comparison against `NaN` is false — so the
+> "issued in the future" and "proof is too old" checks silently never fired.
+> The benchmark was timing a verification with two of its checks disabled.
+>
+> The script now passes the library's own defaults (60 s / 5 s). Running both
+> versions back to back on one machine isolates the effect:
+> `verifyDpopProof (ES256)` moved **+0.1%** and `(EdDSA)` **−1.5%** — within
+> run-to-run noise, because two integer comparisons cost nothing beside a
+> signature verification. **The figures above stand.**
+>
+> The reason it is recorded anyway is that nothing caught it. `benchmarks/` sat
+> outside every type check, exactly as `manualtest/` had. Both are now compiled
+> by `npm run typecheck`, and the gate was verified by breaking a file on
+> purpose and watching it fail.
 
 ### DPoP Impact Analysis:
 - Binding an access token with DPoP shifts the verification cost on the server from `0.058 ms` (standard bearer verification) to approximately `0.572 ms` (bearer check + `verifyDpopProof` with EdDSA), or `0.789 ms` with ES256.

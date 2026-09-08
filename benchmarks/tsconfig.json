@@ -1,0 +1,30 @@
+{
+  // ─── Why these scripts are type-checked ──────────────────────────────────
+  // `benchmarks/` is not a workspace, so nothing here is built or shipped —
+  // and before this file existed, nothing compiled it either. The same gap
+  // `manualtest/` had, with the same consequence: the numbers these scripts
+  // produce are published in BENCHMARK-REPORT.md, so a script that drifts from
+  // the API silently produces figures for something other than the code.
+  //
+  // That is not hypothetical. Adding this config caught `dpop-bench.ts`
+  // calling `verifyDpopProof` without the required `maxAgeSeconds` and
+  // `clockToleranceSeconds`. At runtime that made both freshness checks
+  // compare against NaN and never fire, so the benchmark was timing a
+  // verification with two of its checks disabled.
+  //
+  // `noEmit` because these run under `node --experimental-strip-types`; the
+  // compiler is here to check, not to build.
+  // ─────────────────────────────────────────────────────────────────────────
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    // The end-to-end suite imports the example app by its `.ts` path, which is
+    // what `--experimental-strip-types` resolves at runtime.
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

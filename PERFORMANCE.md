@@ -6,11 +6,25 @@ npm run bench --workspace @ninsho/server
 REDIS_URL=redis://localhost:6379 npm run bench --workspace @ninsho/server
 ```
 
+> **Two documents measure this project, and they disagree by design.** This
+> one records figures from an Intel i7-8665U on Node v24.11.1;
+> [`BENCHMARK-REPORT.md`](./BENCHMARK-REPORT.md) records a much broader
+> evaluation — cryptographic primitives, DPoP, concurrency scaling, end-to-end
+> HTTP — from an Intel i5-4300U on Node v22.13.1. Roughly a 3× slower machine,
+> so its absolute numbers are roughly 3× lower. Neither is wrong. See
+> [*The ratio is hardware-dependent*](#the-ratio-is-hardware-dependent) below,
+> which is the one place the difference changes a conclusion rather than a
+> number.
+
 ## Reference figures
 
-Node v24.11.1, 2000 iterations, `MemoryStore`. These measure **library overhead
-only** — serialization, hashing, signing, claim validation — with store latency
-near zero. They are not throughput figures for a deployed system.
+**Intel Core i7-8665U @ 1.90GHz (4 cores / 8 threads), 16 GB, Windows,
+Node v24.11.1.** 2000 iterations, `MemoryStore`. These measure **library
+overhead only** — serialization, hashing, signing, claim validation — with
+store latency near zero. They are not throughput figures for a deployed system.
+
+Reproduce with `npm run bench --workspace @ninsho/server`. Absolute figures will
+track your hardware; the *relationships* between rows are the durable part.
 
 | Operation | ops/sec | mean | p95 | p99 |
 | :--- | ---: | ---: | ---: | ---: |
@@ -57,13 +71,44 @@ and the section below is about why it still usually is not worth taking.
 
 ### Opaque verification is ~15× faster than PASETO verification
 
-122,934 vs 8,116 ops/sec. Ed25519 verification is genuinely expensive — around
-0.12ms of pure CPU — while an opaque lookup is a hash and a store read.
+110,355 vs 8,001 ops/sec, from the table above. Ed25519 verification is
+genuinely expensive — around 0.12ms of pure CPU — while an opaque lookup is a
+hash and a store read.
+
+*(An earlier revision of this section quoted 122,934 vs 8,116, figures that
+appear in no table here. They were left behind by a superseded run. Corrected
+to the measurements this document actually publishes — a number in the prose
+that its own evidence does not support is the failure this project exists
+around, even when the conclusion it supports is unchanged.)*
 
 This is the strongest evidence for making `opaque` the default. The decision was
 made on security grounds (no signing keys to leak or rotate, native revocation,
 no claims to disclose), and the measurement says it is also the faster path by a
 wide margin for the deployment most people have.
+
+### The ratio is hardware-dependent
+
+The 15× above is not a property of the library alone, and saying so matters more
+than the number does.
+
+| Machine | `opaque: verify` | `paseto: verify` | Ratio |
+| :--- | ---: | ---: | ---: |
+| i7-8665U, Node 24.11.1 — this document | 110,355 | 8,001 | **13.8×** |
+| i7-8665U, Node 24.11.1 — independent re-run | 105,748 | 6,840 | **15.5×** |
+| i5-4300U, Node 22.13.1 — [`BENCHMARK-REPORT.md`](./BENCHMARK-REPORT.md) | 17,267 | 2,922 | **5.9×** |
+
+Both machines slow down on the weaker CPU, but not equally: the opaque path
+loses about 6×, Ed25519 verification only about 2.7×. That asymmetry is the
+interesting part. Ed25519 is a tight, cache-friendly OpenSSL routine whose cost
+tracks clock speed; the opaque path is comparatively more V8 — allocation, map
+lookups, object shapes — which suffers far more on an older dual-core with a
+smaller cache.
+
+So the honest claim is **"between roughly 6× and 15× faster, depending on the
+machine"**, not a single figure. It does not change the conclusion — opaque is
+faster than PASETO on every machine measured, and that is the row the default
+rests on — but a reader comparing the two documents deserves to know why they
+report different multiples rather than being left to assume one is wrong.
 
 ### Statelessness buys almost nothing on a single application
 
