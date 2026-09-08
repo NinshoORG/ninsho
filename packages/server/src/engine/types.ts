@@ -1,4 +1,4 @@
-import type { AuthContext, Principal, TokenStrategy } from '@ninsho/core';
+import type { AuthContext, Principal, TokenStrategy } from '@ninshorg/core';
 
 /** What the caller supplies to mint an access token. */
 export interface IssueAccessTokenInput {
@@ -58,7 +58,7 @@ export interface IssuedAccessToken {
  * the caller's job, governed by the configured failure mode, and an engine
  * that swallows the error takes that decision away.
  *
- * Errors must come from the `@ninsho/core` taxonomy so the transport layer can
+ * Errors must come from the `@ninshorg/core` taxonomy so the transport layer can
  * map them to a status without inspecting messages.
  * ──────────────────────────────────────────────────────────────────────────
  */

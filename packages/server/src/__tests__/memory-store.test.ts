@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { ConfigurationError } from '@ninsho/core';
+import { ConfigurationError } from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 
 const ORIGINAL_NODE_ENV = process.env['NODE_ENV'];

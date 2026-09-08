@@ -1,5 +1,5 @@
 /**
- * @ninsho/server — the Ninsho authentication engine.
+ * @ninshorg/server — the Ninsho authentication engine.
  *
  * ─── Status: v0.1.0, Phase 8 ──────────────────────────────────────────────
  * What exists: the storage seam, the opaque token engine, sessions with
@@ -13,7 +13,7 @@
  *
  * @example The whole setup
  * ```ts
- * import { Ninsho, RedisStore } from '@ninsho/server';
+ * import { Ninsho, RedisStore } from '@ninshorg/server';
  *
  * const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
  *
@@ -162,7 +162,7 @@ export {
 // code should not construct keys directly.
 export { KEYS } from './keys.js';
 
-// ── Re-exported from @ninsho/core ───────────────────────────────────────────
+// ── Re-exported from @ninshorg/core ───────────────────────────────────────────
 // So consumers need only one dependency.
 export type {
   TokenStrategy,
@@ -181,7 +181,7 @@ export type {
   SecurityEventType,
   AuditSink,
   ErrorResponse,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 
 export {
   NinshoError,
@@ -198,7 +198,7 @@ export {
   KeyError,
   isNinshoError,
   toErrorResponse,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 
 // ── Single-use tokens ───────────────────────────────────────────────────────
 // Password reset, email verification, magic links. Reachable as

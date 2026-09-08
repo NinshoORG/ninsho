@@ -1,4 +1,4 @@
-import { TokenInvalidError, TokenMissingError, type AuditSink } from '@ninsho/core';
+import { TokenInvalidError, TokenMissingError, type AuditSink } from '@ninshorg/core';
 import { verifyDpopProof } from '../dpop/proof.js';
 import type { DpopReplayGuard } from '../dpop/replay.js';
 import type { HttpRequest } from './types.js';

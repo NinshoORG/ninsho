@@ -90,8 +90,8 @@ Figures on `performance.html` are measured, not estimated, and every one of them
 is reproducible:
 
 ```bash
-npm run bench --workspace @ninsho/server
-npm run bench --workspace @ninsho/webauthn
+npm run bench --workspace @ninshorg/server
+npm run bench --workspace @ninshorg/webauthn
 ```
 
 They were taken on an **Intel i7-8665U, Node v24.11.1**, which the page states

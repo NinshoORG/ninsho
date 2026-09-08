@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import type { Principal } from '@ninsho/core';
+import type { Principal } from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { OpaqueEngine } from '../engine/opaque.js';
 import { SessionManager } from '../session/manager.js';

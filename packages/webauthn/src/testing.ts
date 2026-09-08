@@ -1,7 +1,7 @@
 /**
  * Test support — a CBOR encoder and a virtual authenticator.
  *
- * Published separately as `@ninsho/webauthn/testing`, so it is never pulled
+ * Published separately as `@ninshorg/webauthn/testing`, so it is never pulled
  * into an application bundle that only imports the verifier.
  *
  * ─── Why this ships at all ────────────────────────────────────────────────

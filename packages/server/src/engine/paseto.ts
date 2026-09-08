@@ -11,7 +11,7 @@ import {
   type AuthContext,
   type PasetoClaims,
   type Principal,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import type { NinshoStore } from '../store/types.js';
 import { KEYS } from '../keys.js';
 import { KeyRing } from '../keys/keyring.js';

@@ -72,7 +72,7 @@ signature. **A stolen token is then useless on its own** — which is the point,
 because an XSS that can read a token cannot read a non-extractable key.
 
 It is opt-in because it is a breaking change for clients: they have to generate
-a key and send a `DPoP` header on every request. `@ninsho/client` does that in
+a key and send a `DPoP` header on every request. `@ninshorg/client` does that in
 about ten lines.
 
 *Evidence: `dpop-integration.test.ts` › *a stolen token is useless without the

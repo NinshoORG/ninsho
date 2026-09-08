@@ -1,6 +1,6 @@
 # Framework adapters
 
-Express, Fastify, Hono and Koa — none of which `@ninsho/server` imports.
+Express, Fastify, Hono and Koa — none of which `@ninshorg/server` imports.
 
 ## How this works
 
@@ -17,7 +17,7 @@ matrix to maintain — and CI enforces that:
 > dependency*
 
 Each adapter is tested against the real framework over real HTTP, with the
-framework as a devDependency of `@ninsho/server` only.
+framework as a devDependency of `@ninshorg/server` only.
 
 ---
 
@@ -27,7 +27,7 @@ No adapter. Ninsho middleware **is** Express middleware.
 
 ```ts
 import express from 'express';
-import { Ninsho, RedisStore, getAuth } from '@ninsho/server';
+import { Ninsho, RedisStore, getAuth } from '@ninshorg/server';
 
 const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
 const app = express();
@@ -62,8 +62,8 @@ Express 4 and 5 both work. Two notes on 5:
 
 ```ts
 import Fastify from 'fastify';
-import { Ninsho, RedisStore, getAuth, type HttpRequest } from '@ninsho/server';
-import { toFastify, toFastifyChain } from '@ninsho/server/fastify';
+import { Ninsho, RedisStore, getAuth, type HttpRequest } from '@ninshorg/server';
+import { toFastify, toFastifyChain } from '@ninshorg/server/fastify';
 
 const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
 const app = Fastify();
@@ -78,7 +78,7 @@ app.get('/admin/users', {
 
 Fastify is the one adapter with no `getAuth` of its own. The identity is set on
 the Fastify request object itself, so the ordinary `getAuth` from
-`@ninsho/server` reads it straight back.
+`@ninshorg/server` reads it straight back.
 
 An array of separate `toFastify()` preHandlers works as well as one
 `toFastifyChain()`:
@@ -102,8 +102,8 @@ passed straight through and a copy would not survive to the next `preHandler`.
 
 ```ts
 import { Hono } from 'hono';
-import { Ninsho, RedisStore } from '@ninsho/server';
-import { toHono, getAuth, type HonoLikeContext } from '@ninsho/server/hono';
+import { Ninsho, RedisStore } from '@ninshorg/server';
+import { toHono, getAuth, type HonoLikeContext } from '@ninshorg/server/hono';
 
 const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
 const app = new Hono();
@@ -117,7 +117,7 @@ app.get('/admin/users', handler);
 ```
 
 `toHono` takes one middleware or an array. Import `getAuth` **from
-`@ninsho/server/hono`**, not from the package root — the Hono adapter stores the
+`@ninshorg/server/hono`**, not from the package root — the Hono adapter stores the
 identity in the Hono context (under `ninshoAuth`), so it needs its own accessor.
 
 Separate `toHono()` calls over the same route compose:
@@ -176,8 +176,8 @@ rather than left to be discovered.
 ```ts
 import Koa from 'koa';
 import Router from '@koa/router';
-import { Ninsho, RedisStore } from '@ninsho/server';
-import { toKoa, getAuth, type KoaLikeContext } from '@ninsho/server/koa';
+import { Ninsho, RedisStore } from '@ninshorg/server';
+import { toKoa, getAuth, type KoaLikeContext } from '@ninshorg/server/koa';
 
 const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
 const app = new Koa();
@@ -195,7 +195,7 @@ app.use(router.routes());
 ```
 
 `toKoa` takes one middleware or an array, and — as with Hono — `getAuth` comes
-**from `@ninsho/server/koa`**, because the identity lives on the Koa context
+**from `@ninshorg/server/koa`**, because the identity lives on the Koa context
 (under `ninshoAuth`). Two separate `toKoa()` calls over one route compose, which
 is how a real application usually mounts them.
 
@@ -227,6 +227,6 @@ whatever the host framework expects. It must import nothing from that framework;
 type the host's objects structurally, the way `HttpRequest` is typed.
 
 Then test it against the real framework as a devDependency of
-`@ninsho/server`, and assert the case that actually matters: **that a denied
+`@ninshorg/server`, and assert the case that actually matters: **that a denied
 request does not reach the handler.** Every other assertion is about status
 codes; that one is about whether the guard guards.

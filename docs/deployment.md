@@ -100,7 +100,7 @@ provides that. What to watch:
 Verify your setup against the contract suite rather than trusting it:
 
 ```bash
-REDIS_URL=redis://your-host:6379 npm run test --workspace @ninsho/server
+REDIS_URL=redis://your-host:6379 npm run test --workspace @ninshorg/server
 ```
 
 ---

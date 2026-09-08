@@ -4,9 +4,9 @@ A complete, working API built on Ninsho. Everything here is meant to be copied.
 
 ```bash
 npm install
-npm run dev --workspace @ninsho/example-express-api
+npm run dev --workspace @ninshorg/example-express-api
 # with Redis:
-REDIS_URL=redis://localhost:6379 npm run dev --workspace @ninsho/example-express-api
+REDIS_URL=redis://localhost:6379 npm run dev --workspace @ninshorg/example-express-api
 ```
 
 Runs on `MemoryStore` by default, which refuses to start under
@@ -110,7 +110,7 @@ established. Owning credential verification would mean owning your user model.
 ## Tests
 
 ```bash
-npm run test --workspace @ninsho/example-express-api
+npm run test --workspace @ninshorg/example-express-api
 ```
 
 100 end-to-end tests over real HTTP, on Express 5. They exist to catch what unit tests
@@ -126,7 +126,7 @@ would time out instead of seeing the 400 or 503 that actually happened. Both
 are fixed; the second is why every async handler here is wrapped in `route()`.
 
 The passkey tests drive a `VirtualAuthenticator` from
-`@ninsho/webauthn/testing`, which holds a real key pair and produces real
+`@ninshorg/webauthn/testing`, which holds a real key pair and produces real
 signatures. That means the ceremony is verified by the real verifier rather
 than by a stub agreeing with itself, and it is how a passkey integration can be
 tested at all without a physical authenticator and a human finger.

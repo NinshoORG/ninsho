@@ -344,10 +344,10 @@ npm run build
 
 # 2. Run existing server benchmarks (MemoryStore and Redis)
 docker run -d --rm -p 6379:6379 --name ninsho-redis redis:7-alpine
-REDIS_URL=redis://localhost:6379 npm run bench --workspace @ninsho/server
+REDIS_URL=redis://localhost:6379 npm run bench --workspace @ninshorg/server
 
 # 3. Run existing WebAuthn benchmarks
-npm run bench --workspace @ninsho/webauthn
+npm run bench --workspace @ninshorg/webauthn
 
 # 4. Run supplementary microbenchmarks
 node --experimental-strip-types benchmarks/supplementary/crypto-micro.ts

@@ -16,5 +16,5 @@ Two things worth having in mind before you start, both expanded in `AGENTS.md`:
    exists. It applies to comments and commit messages as much as to READMEs.
 
 2. **`npm run build` before `npm run typecheck` or `npm run test`.** A fresh
-   checkout produces 227 typecheck errors otherwise, because `@ninsho/server`
-   resolves `@ninsho/core` through its built output.
+   checkout produces 227 typecheck errors otherwise, because `@ninshorg/server`
+   resolves `@ninshorg/core` through its built output.

@@ -114,7 +114,7 @@ figure was measuring a verification with two of its checks disabled.
 | `src/tpm.ts`, `src/android-key.ts`, `src/safetynet.ts` | The hard formats, each with its own parser |
 | `src/asn1.ts`, `src/cbor.ts`, `src/der.ts`, `src/cose.ts` | Bounds-checked parsers. Every one of them takes attacker-controlled bytes |
 | `src/mds.ts` | FIDO Metadata Service BLOB verification |
-| `src/testing.ts` | `VirtualAuthenticator` and certificate fixtures. **Published as `@ninsho/webauthn/testing` and kept out of the main bundle by a CI gate** |
+| `src/testing.ts` | `VirtualAuthenticator` and certificate fixtures. **Published as `@ninshorg/webauthn/testing` and kept out of the main bundle by a CI gate** |
 
 ---
 
@@ -146,14 +146,14 @@ Test counts differ depending on whether Redis is present. Both are correct:
 Run one package, or one test:
 
 ```bash
-npm run test --workspace @ninsho/server
+npm run test --workspace @ninshorg/server
 cd packages/server && npx vitest run -t "requireOwner"
 ```
 
 Start the demonstration:
 
 ```bash
-npm run dev --workspace @ninsho/playground   # → http://localhost:4000
+npm run dev --workspace @ninshorg/playground   # → http://localhost:4000
 ```
 
 ---
@@ -165,9 +165,9 @@ matter of taste; it will fail the build, and the build is right.
 
 | Invariant | Enforced by |
 | --- | --- |
-| `@ninsho/core` has zero third-party runtime dependencies | **Bundle purity** › *Assert core has no third-party runtime dependencies* |
-| `@ninsho/client` has no dependencies at all | **Bundle purity** › *Assert the client has no dependencies at all* |
-| `@ninsho/webauthn` has no third-party dependencies | **Bundle purity** › *Assert webauthn has no third-party dependencies* |
+| `@ninshorg/core` has zero third-party runtime dependencies | **Bundle purity** › *Assert core has no third-party runtime dependencies* |
+| `@ninshorg/client` has no dependencies at all | **Bundle purity** › *Assert the client has no dependencies at all* |
+| `@ninshorg/webauthn` has no third-party dependencies | **Bundle purity** › *Assert webauthn has no third-party dependencies* |
 | No test double or env kill-switch reaches `dist/` | **Bundle purity** › *Assert no test doubles or env kill-switches in dist* |
 | The `VirtualAuthenticator` is not in the verifier bundle | **Bundle purity** › *Assert the virtual authenticator is not in the verifier bundle* |
 | The framework adapters import no framework | **Bundle purity** › *Assert the framework adapters carry no framework dependency* |
@@ -311,7 +311,7 @@ you are most likely to hit them.
 ### 8.1 Typecheck before build fails with hundreds of errors
 
 `npm run typecheck` on a fresh checkout produces 227 errors, because
-`@ninsho/server` resolves `@ninsho/core` through its built `dist/`. **Build
+`@ninshorg/server` resolves `@ninshorg/core` through its built `dist/`. **Build
 first.** CI orders the steps this way for the same reason. This was found only
 when CI first ran on a clean machine; every local run had a stale `dist/` lying
 around and passed.
@@ -408,7 +408,7 @@ them; see `x509-fixtures.ts`.
 ## 9. Do not
 
 - **Do not publish to npm.** Nothing in this repository publishes, and release
-  is the maintainer's decision. The `@ninsho` scope is not claimed.
+  is the maintainer's decision. The `@ninshorg` scope is not claimed.
 - **Do not weaken a default** without updating `config.test.ts` › *secure
   defaults* and saying why in the PR body. Defaults are security decisions.
 - **Do not add a mock Redis.** The absence is deliberate.

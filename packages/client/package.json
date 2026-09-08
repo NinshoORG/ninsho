@@ -1,5 +1,5 @@
 {
-  "name": "@ninsho/client",
+  "name": "@ninshorg/client",
   "version": "0.1.0",
   "description": "Browser client for Ninsho — DPoP proof-of-possession with a non-extractable key, automatic refresh. Zero dependencies.",
   "type": "module",
@@ -50,6 +50,6 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@ninsho/server": "0.1.0"
+    "@ninshorg/server": "0.1.0"
   }
 }

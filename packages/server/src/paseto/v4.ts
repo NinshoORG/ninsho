@@ -23,7 +23,7 @@ import { sign as edSign, verify as edVerify, type KeyObject } from 'node:crypto'
  *      branch skip signature validation. Owning the failure modes removes
  *      that class of bug rather than documenting around it.
  *
- *   3. `@ninsho/core` is dependency-free and this keeps the signing path
+ *   3. `@ninshorg/core` is dependency-free and this keeps the signing path
  *      equally auditable.
  *
  * The decision is contained: `TokenEngine` is the seam, so swapping this for a

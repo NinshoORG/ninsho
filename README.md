@@ -142,7 +142,7 @@ Every claim below links to executable proof.
 | Client and server agree on the wire format | tested against each other, not assumptions | `interop.test.ts` — thumbprints and proofs both directions |
 | A refresh stampede cannot look like theft | single-flight refresh | `client.test.ts` › *collapses concurrent refreshes into one* |
 | Concurrent first requests share one key | single-flight key init | `client.test.ts` › *generates a key only once* |
-| **Passkeys: registration and authentication** | `@ninsho/webauthn` — WebAuthn L3 §7.1 / §7.2 | `ceremony.test.ts`, `server.test.ts` |
+| **Passkeys: registration and authentication** | `@ninshorg/webauthn` — WebAuthn L3 §7.1 / §7.2 | `ceremony.test.ts`, `server.test.ts` |
 | A WebAuthn challenge is single-use | atomic `take()`, never read-then-delete | `challenge.test.ts` › *lets exactly one of many concurrent attempts win* |
 | A registration challenge cannot authenticate | ceremony type is part of the key, not a comparison | `challenge.test.ts` › *ceremony scoping* |
 | A failed ceremony still burns its challenge | consume before verify | `server.test.ts` › *burns the challenge even when verification then fails* |
@@ -229,7 +229,7 @@ cost people hours.
 ### What does not exist yet
 
 **A shipped root store, and the network fetch that fills it.**
-`@ninsho/webauthn` verifies every attestation format WebAuthn L3 defines —
+`@ninshorg/webauthn` verifies every attestation format WebAuthn L3 defines —
 `none`, `packed`, `apple`, `tpm`, `fido-u2f`, `android-key` and
 `android-safetynet` — but each against roots *you* supply.
 
@@ -242,11 +242,11 @@ at exactly the moment you least want a surprise. Fetch it yourself, on your
 schedule, and hand it over.
 
 **Nothing, for frameworks.** The middleware is Express-shaped, and
-`@ninsho/server/fastify`, `@ninsho/server/hono` and `@ninsho/server/koa` adapt
+`@ninshorg/server/fastify`, `@ninshorg/server/hono` and `@ninshorg/server/koa` adapt
 it — each a couple of kilobytes, none depending on the framework it adapts, all
 three tested against the real thing rather than a stub.
 
-The Hono adapter targets **Hono on Node** (`@hono/node-server`). `@ninsho/server`
+The Hono adapter targets **Hono on Node** (`@hono/node-server`). `@ninshorg/server`
 depends on `ioredis` and Node's crypto, so Workers and Deno are out of reach —
 better said here than discovered at deploy time.
 
@@ -258,7 +258,7 @@ discarded by Node before Ninsho can see it. Express, Fastify and Koa all reach
 ## Quick look
 
 ```ts
-import { Ninsho, RedisStore, getAuth } from '@ninsho/server';
+import { Ninsho, RedisStore, getAuth } from '@ninshorg/server';
 
 const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
 ```
@@ -365,10 +365,10 @@ same ergonomics with neither cost.
 To be precise about what that does and does not mean: the shapes are
 **Express-shaped**, not universal. Anything matching them works — Connect,
 Restify, most Express-compatible routers. Fastify's reply uses `send()` rather
-than `json()`, so it needs a translation; `@ninsho/server/fastify` is that
+than `json()`, so it needs a translation; `@ninshorg/server/fastify` is that
 translation. Hono's model differs more — one context object, headers and params
 behind functions, and halting by returning a `Response` — so
-`@ninsho/server/hono` does more work. Both are tested against the real
+`@ninshorg/server/hono` does more work. Both are tested against the real
 framework rather than a stub.
 
 ---
@@ -377,9 +377,9 @@ framework rather than a stub.
 
 ```
 packages/
-  client/        @ninsho/client — browser DPoP client. Zero dependencies.
-  core/          @ninsho/core — types, errors, primitives. Zero dependencies.
-  webauthn/      @ninsho/webauthn — passkeys. Zero third-party dependencies.
+  client/        @ninshorg/client — browser DPoP client. Zero dependencies.
+  core/          @ninshorg/core — types, errors, primitives. Zero dependencies.
+  webauthn/      @ninshorg/webauthn — passkeys. Zero third-party dependencies.
     cbor.ts      RFC 8949 decoder, definite lengths only
     der.ts       strict DER → P1363 for ECDSA signatures
     asn1.ts      X.509 extension lookup (AAGUID)
@@ -388,10 +388,10 @@ packages/
     authdata.ts  WebAuthn §6.1 authenticator data
     challenge.ts single-use challenges, scoped by ceremony
     ceremony.ts  §7.1 / §7.2 verification
-  server/        @ninsho/server — store, engines, config, audit.
-    fastify.ts   @ninsho/server/fastify — adapter, no Fastify dependency
-    hono.ts      @ninsho/server/hono — adapter, no Hono dependency
-    koa.ts       @ninsho/server/koa — adapter, no Koa dependency
+  server/        @ninshorg/server — store, engines, config, audit.
+    fastify.ts   @ninshorg/server/fastify — adapter, no Fastify dependency
+    hono.ts      @ninshorg/server/hono — adapter, no Hono dependency
+    koa.ts       @ninshorg/server/koa — adapter, no Koa dependency
     store/       NinshoStore interface · RedisStore · MemoryStore
     engine/      TokenEngine interface · OpaqueEngine · PasetoEngine
     session/     SessionManager — rotation, families, reuse detection
@@ -444,7 +444,7 @@ which is precisely how the predecessor's audit gate stopped running.
 - **lockfile** — regenerates the lockfile and fails on any drift
 - **audit** — `npm audit --audit-level=moderate`
 - **bundle** — fails if a test double or env kill-switch reaches `dist/`, or if
-  `@ninsho/core` acquires any dependency beyond `node:crypto`
+  `@ninshorg/core` acquires any dependency beyond `node:crypto`
 
 **Known accepted advisory:** `GHSA-g7r4-m6w7-qqqr` (esbuild, **low**). Reachable
 only via `esbuild serve`, which nothing here invokes — tsup uses esbuild as a

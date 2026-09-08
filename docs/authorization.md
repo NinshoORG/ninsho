@@ -10,7 +10,7 @@ Ninsho ships six guards. Every one of them is middleware, every one runs after
 
 > **Watch them run.** The playground's *Authorization* panel drives all six
 > against real tokens and prints what the caller was told beside what the audit
-> trail recorded. `npm run dev --workspace @ninsho/playground`, panel 3.
+> trail recorded. `npm run dev --workspace @ninshorg/playground`, panel 3.
 
 ---
 
@@ -31,7 +31,7 @@ authorization check comparing against it.
 Read the identity in your handler with `getAuth(req)`:
 
 ```ts
-import { getAuth } from '@ninsho/server';
+import { getAuth } from '@ninshorg/server';
 
 app.get('/me', auth.verify(), (req, res) => {
   const { userId, roles, scopes, tenant, sessionId, tokenId,

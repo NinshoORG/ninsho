@@ -1,11 +1,11 @@
 /**
- * @ninsho/core — shared types, errors, and primitives.
+ * @ninshorg/core — shared types, errors, and primitives.
  *
- * Consumed by `@ninsho/server` and, in future, by the browser client package.
+ * Consumed by `@ninshorg/server` and, in future, by the browser client package.
  * Contains no server- or browser-specific imports and has no runtime
  * dependencies.
  *
- * Application code should normally import from `@ninsho/server`, which
+ * Application code should normally import from `@ninshorg/server`, which
  * re-exports everything here. This package is a direct dependency only for
  * projects sharing types across a boundary.
  */

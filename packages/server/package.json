@@ -1,5 +1,5 @@
 {
-  "name": "@ninsho/server",
+  "name": "@ninshorg/server",
   "version": "0.1.0",
   "description": "Ninsho authentication engine for Node.js — opaque or PASETO tokens, injected session store, secure by default.",
   "type": "module",
@@ -60,7 +60,7 @@
     "bench": "node --experimental-strip-types bench/bench.ts"
   },
   "dependencies": {
-    "@ninsho/core": "0.1.0",
+    "@ninshorg/core": "0.1.0",
     "ioredis": "^6.0.0"
   },
   "keywords": [

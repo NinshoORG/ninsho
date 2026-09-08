@@ -1,4 +1,4 @@
-import type { ClientSignals, Principal, SecuritySignals } from '@ninsho/core';
+import type { ClientSignals, Principal, SecuritySignals } from '@ninshorg/core';
 
 /**
  * Tombstone left behind when a refresh token is rotated.

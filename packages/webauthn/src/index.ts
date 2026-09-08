@@ -1,10 +1,10 @@
 /**
- * @ninsho/webauthn — passkey registration and authentication verification.
+ * @ninshorg/webauthn — passkey registration and authentication verification.
  *
  * ─── Where this sits ──────────────────────────────────────────────────────
  * WebAuthn is credential *verification*: it establishes who someone is, and
  * stops there. Sessions, tokens, revocation and authorization are
- * `@ninsho/server`'s job. So this package produces a `Principal`, and you hand
+ * `@ninshorg/server`'s job. So this package produces a `Principal`, and you hand
  * that to `createSession()`:
  *
  *     const result = await webauthn.finishAuthentication(response, credential);
@@ -14,7 +14,7 @@
  * login all end at the same place, with one session implementation behind
  * them rather than three.
  *
- * The package has no third-party dependencies. It depends on `@ninsho/core`,
+ * The package has no third-party dependencies. It depends on `@ninshorg/core`,
  * which has none either.
  * ──────────────────────────────────────────────────────────────────────────
  */

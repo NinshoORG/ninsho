@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import type { Principal } from '@ninsho/core';
+import type { Principal } from '@ninshorg/core';
 import { Ninsho } from '../ninsho.js';
 import { MemoryStore } from '../store/memory.js';
 import { toHono, getAuth, AUTH_CONTEXT_KEY, type HonoLikeContext } from '../hono.js';

@@ -7,7 +7,7 @@
  * they are indexed — is application concern.
  *
  * Credential storage belongs in your own database, next to the user it
- * identifies. `@ninsho/webauthn` deliberately does not own it: owning
+ * identifies. `@ninshorg/webauthn` deliberately does not own it: owning
  * credential storage would mean owning your user model.
  * ──────────────────────────────────────────────────────────────────────────
  */

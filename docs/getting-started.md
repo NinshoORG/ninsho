@@ -19,20 +19,20 @@ npm run test
 ```
 
 **`npm run build` comes before `npm run typecheck` and before the tests.**
-`@ninsho/server` resolves `@ninsho/core` through its built output, so a fresh
+`@ninshorg/server` resolves `@ninshorg/core` through its built output, so a fresh
 checkout that typechecks first reports several hundred errors that mean nothing.
 
 To see the whole library working before you write any code:
 
 ```bash
-npm run dev --workspace @ninsho/playground   # → http://localhost:4000
+npm run dev --workspace @ninshorg/playground   # → http://localhost:4000
 ```
 
 ## The smallest thing that works
 
 ```ts
 import express from 'express';
-import { Ninsho, MemoryStore, getAuth } from '@ninsho/server';
+import { Ninsho, MemoryStore, getAuth } from '@ninshorg/server';
 
 const auth = new Ninsho({ store: new MemoryStore() });
 
@@ -56,7 +56,7 @@ session state that vanishes on restart would silently break revocation and rate
 limiting. Use `RedisStore` for anything real:
 
 ```ts
-import { Ninsho, RedisStore } from '@ninsho/server';
+import { Ninsho, RedisStore } from '@ninshorg/server';
 
 const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
 ```
@@ -159,7 +159,7 @@ on macOS". Keep your own record if you want to show that.
 Authentication says who someone is. It says nothing about what they may reach.
 
 ```ts
-import { getAuth } from '@ninsho/server';
+import { getAuth } from '@ninshorg/server';
 
 app.get('/admin/users',
   auth.verify(),
@@ -227,7 +227,7 @@ attacker an oracle.
 If you catch errors yourself:
 
 ```ts
-import { isNinshoError, toErrorResponse } from '@ninsho/server';
+import { isNinshoError, toErrorResponse } from '@ninshorg/server';
 
 if (isNinshoError(error)) {
   const { status, body } = toErrorResponse(error);

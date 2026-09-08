@@ -30,10 +30,10 @@ it was read from the source rather than remembered.
 
 | Package | |
 | --- | --- |
-| [`@ninsho/core`](../packages/core) | Types, errors, crypto helpers. Zero runtime dependencies |
-| [`@ninsho/server`](../packages/server) | The engine. `ioredis` only — no framework dependency |
-| [`@ninsho/webauthn`](../packages/webauthn) | Passkeys: what is verified, and what deliberately is not |
-| [`@ninsho/client`](../packages/client) | Browser DPoP client. Zero dependencies |
+| [`@ninshorg/core`](../packages/core) | Types, errors, crypto helpers. Zero runtime dependencies |
+| [`@ninshorg/server`](../packages/server) | The engine. `ioredis` only — no framework dependency |
+| [`@ninshorg/webauthn`](../packages/webauthn) | Passkeys: what is verified, and what deliberately is not |
+| [`@ninshorg/client`](../packages/client) | Browser DPoP client. Zero dependencies |
 
 ## Examples
 

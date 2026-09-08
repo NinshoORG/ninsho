@@ -10,7 +10,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { generateKeyPair, loadPrivateKey, loadPublicKey, signV4Public, verifyV4Public, MemoryStore, Ninsho, toErrorResponse } from '@ninsho/server';
+import { generateKeyPair, loadPrivateKey, loadPublicKey, signV4Public, verifyV4Public, MemoryStore, Ninsho, toErrorResponse } from '@ninshorg/server';
 
 function maskToken(token: string): string {
   const parts = token.split('.');

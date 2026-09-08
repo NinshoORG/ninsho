@@ -10,7 +10,7 @@
  * Only the reply differs: Fastify uses `code()` and `send()` where Express uses
  * `status()` and `json()`. So that is all this file translates.
  *
- * It lives at `@ninsho/server/fastify` rather than in the main entry so that an
+ * It lives at `@ninshorg/server/fastify` rather than in the main entry so that an
  * Express application never carries it, and it imports nothing from Fastify —
  * the types below are declared structurally, exactly as the Express ones are.
  * Ninsho gains no dependency, and neither does your bundle.
@@ -28,7 +28,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import type { AuthContext } from '@ninsho/core';
+import type { AuthContext } from '@ninshorg/core';
 import type { HttpRequest, HttpResponse, Middleware } from './http/types.js';
 
 /**
@@ -77,7 +77,7 @@ export type FastifyPreHandler = (
  *
  * @example
  * ```ts
- * import { toFastify } from '@ninsho/server/fastify';
+ * import { toFastify } from '@ninshorg/server/fastify';
  *
  * app.get('/me', { preHandler: toFastify(auth.verify()) }, async (req) => {
  *   return { userId: getAuth(req).userId };

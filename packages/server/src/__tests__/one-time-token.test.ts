@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { hashToken } from '@ninsho/core';
+import { hashToken } from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { MemoryAuditSink } from '../audit.js';
 import {

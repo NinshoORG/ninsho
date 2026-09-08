@@ -2,8 +2,8 @@
 
 ```bash
 npm run build
-npm run bench --workspace @ninsho/server
-REDIS_URL=redis://localhost:6379 npm run bench --workspace @ninsho/server
+npm run bench --workspace @ninshorg/server
+REDIS_URL=redis://localhost:6379 npm run bench --workspace @ninshorg/server
 ```
 
 > **Two documents measure this project, and they disagree by design.** This
@@ -23,7 +23,7 @@ Node v24.11.1.** 2000 iterations, `MemoryStore`. These measure **library
 overhead only** — serialization, hashing, signing, claim validation — with
 store latency near zero. They are not throughput figures for a deployed system.
 
-Reproduce with `npm run bench --workspace @ninsho/server`. Absolute figures will
+Reproduce with `npm run bench --workspace @ninshorg/server`. Absolute figures will
 track your hardware; the *relationships* between rows are the durable part.
 
 | Operation | ops/sec | mean | p95 | p99 |
@@ -158,7 +158,7 @@ these measure verification rather than the authenticator.
 | `register: verify` (packed + chain) | 1,845 | 0.542ms | 0.658ms | 0.925ms |
 
 ```bash
-npm run bench --workspace @ninsho/webauthn
+npm run bench --workspace @ninshorg/webauthn
 ```
 
 ### These are per sign-in, not per request

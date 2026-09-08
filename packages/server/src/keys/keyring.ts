@@ -6,7 +6,7 @@ import {
   verify,
   type KeyObject,
 } from 'node:crypto';
-import { KeyError, type KeySet, type SigningKey } from '@ninsho/core';
+import { KeyError, type KeySet, type SigningKey } from '@ninshorg/core';
 
 /**
  * Ed25519 key material for the `paseto` strategy.

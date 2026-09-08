@@ -1,4 +1,4 @@
-import { ConfigurationError } from '@ninsho/core';
+import { ConfigurationError } from '@ninshorg/core';
 import type { HttpRequest } from '../http/types.js';
 
 /**

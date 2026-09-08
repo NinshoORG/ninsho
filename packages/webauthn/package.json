@@ -1,5 +1,5 @@
 {
-  "name": "@ninsho/webauthn",
+  "name": "@ninshorg/webauthn",
   "version": "0.1.0",
   "description": "WebAuthn / passkey registration and authentication verification for Ninsho. Zero dependencies.",
   "type": "module",
@@ -61,9 +61,9 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "@ninsho/core": "0.1.0"
+    "@ninshorg/core": "0.1.0"
   },
   "devDependencies": {
-    "@ninsho/server": "0.1.0"
+    "@ninshorg/server": "0.1.0"
   }
 }

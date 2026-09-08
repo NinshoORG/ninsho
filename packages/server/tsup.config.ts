@@ -13,5 +13,5 @@ export default defineConfig({
   // Everything with a runtime cost stays external. The predecessor bundled a
   // dev-only Redis mock into its published artifact because it was absent from
   // this list; CI now also greps dist/ to make that impossible to repeat.
-  external: ['ioredis', '@ninsho/core'],
+  external: ['ioredis', '@ninshorg/core'],
 });

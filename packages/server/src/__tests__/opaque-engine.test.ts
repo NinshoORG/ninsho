@@ -5,7 +5,7 @@ import {
   generateToken,
   hashToken,
   type Principal,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { OpaqueEngine } from '../engine/opaque.js';
 import { KEYS } from '../keys.js';

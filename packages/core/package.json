@@ -1,5 +1,5 @@
 {
-  "name": "@ninsho/core",
+  "name": "@ninshorg/core",
   "version": "0.1.0",
   "description": "Shared types, errors, and cryptographic primitives for Ninsho. Zero runtime dependencies.",
   "type": "module",

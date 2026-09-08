@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { MemoryStore } from '@ninsho/server';
-import { VirtualAuthenticator, FLAG_UP, FLAG_UV, FLAG_AT } from '@ninsho/webauthn/testing';
+import { MemoryStore } from '@ninshorg/server';
+import { VirtualAuthenticator, FLAG_UP, FLAG_UV, FLAG_AT } from '@ninshorg/webauthn/testing';
 import { createApp } from './app.js';
 import { resetUsers } from './users.js';
 import { resetCredentials } from './credentials.js';

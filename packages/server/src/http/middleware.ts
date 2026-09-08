@@ -8,7 +8,7 @@ import {
   type AuditSink,
   type AuthContext,
   type FailureMode,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import type { TokenEngine } from '../engine/types.js';
 import { establishProofOfPossession, type DpopContext } from './dpop-middleware.js';
 import type {

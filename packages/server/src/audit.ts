@@ -1,4 +1,4 @@
-import type { AuditSink, SecurityEvent } from '@ninsho/core';
+import type { AuditSink, SecurityEvent } from '@ninshorg/core';
 
 /**
  * Default sink: one JSON object per line on stdout, for collection by whatever

@@ -1,9 +1,9 @@
-# @ninsho/webauthn
+# @ninshorg/webauthn
 
 Passkey registration and authentication verification for Node.js. No third-party dependencies.
 
 WebAuthn establishes **who someone is**, and stops there. Sessions, tokens, revocation and
-authorization are [`@ninsho/server`](../server)'s job. So this package produces a `Principal`, and
+authorization are [`@ninshorg/server`](../server)'s job. So this package produces a `Principal`, and
 you hand that to `createSession()`:
 
 ```ts
@@ -17,14 +17,14 @@ place, with one session implementation behind them rather than three.
 ## Install
 
 ```bash
-npm install @ninsho/webauthn
+npm install @ninshorg/webauthn
 ```
 
 ## Usage
 
 ```ts
-import { WebAuthnServer } from '@ninsho/webauthn';
-import { MemoryStore } from '@ninsho/server';
+import { WebAuthnServer } from '@ninshorg/webauthn';
+import { MemoryStore } from '@ninshorg/server';
 
 const webauthn = new WebAuthnServer({
   rpId: 'example.com',
@@ -214,7 +214,7 @@ FIDO's Metadata Service is where most relying parties draw roots from, and verif
 means:
 
 ```ts
-import { parseMetadataBlob, toAttestationPolicy } from '@ninsho/webauthn';
+import { parseMetadataBlob, toAttestationPolicy } from '@ninshorg/webauthn';
 
 const blob = parseMetadataBlob(await yourFetch(), { trustAnchors: [fidoRootDer] });
 const attestation = toAttestationPolicy(blob);   // { formats, trustAnchors, allowedAaguids }
@@ -279,11 +279,11 @@ does not require reimplementing them.
 ## Testing your integration
 
 Testing a passkey flow otherwise means a physical authenticator and a human finger — which is to say
-it does not get tested. `@ninsho/webauthn/testing` ships a software authenticator that holds a real
+it does not get tested. `@ninshorg/webauthn/testing` ships a software authenticator that holds a real
 key pair and produces genuinely signed responses, so your tests exercise the real verifier:
 
 ```ts
-import { VirtualAuthenticator, createChain } from '@ninsho/webauthn/testing';
+import { VirtualAuthenticator, createChain } from '@ninshorg/webauthn/testing';
 
 const device = await VirtualAuthenticator.create();
 

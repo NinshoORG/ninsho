@@ -1,4 +1,4 @@
-import { RateLimitError, toErrorResponse, type AuditSink } from '@ninsho/core';
+import { RateLimitError, toErrorResponse, type AuditSink } from '@ninshorg/core';
 import type { HttpRequest, HttpResponse, Middleware, NextFunction, ValueSelector } from '../http/types.js';
 import { assertTrustProxy, clientIp, type TrustProxy } from './client-ip.js';
 import type { RateLimiter } from './limiter.js';

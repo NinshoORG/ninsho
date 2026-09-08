@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ConfigurationError } from '@ninsho/core';
+import { ConfigurationError } from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { MemoryAuditSink } from '../audit.js';
 import { generateKeyPair } from '../keys/keyring.js';

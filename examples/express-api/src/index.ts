@@ -1,7 +1,7 @@
 /**
  * Runnable entry point.
  *
- *   npm run dev --workspace @ninsho/example-express-api
+ *   npm run dev --workspace @ninshorg/example-express-api
  *
  * Set REDIS_URL to use Redis; without it the example runs on MemoryStore,
  * which refuses to start under NODE_ENV=production.

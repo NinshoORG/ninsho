@@ -1,5 +1,5 @@
 /**
- * @ninsho/client — browser client for Ninsho.
+ * @ninshorg/client — browser client for Ninsho.
  *
  * Manages a DPoP session: a non-extractable key that no script can read, a
  * fresh proof on every request, an access token held only in memory, and
@@ -10,7 +10,7 @@
  *
  * @example
  * ```ts
- * import { NinshoClient, IndexedDbKeyStore } from '@ninsho/client';
+ * import { NinshoClient, IndexedDbKeyStore } from '@ninshorg/client';
  *
  * const auth = new NinshoClient({
  *   baseUrl: 'https://api.example.com',

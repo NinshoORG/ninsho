@@ -7,7 +7,7 @@ import {
   generateId,
   type Principal,
   type TokenPair,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { RedisStore } from '../store/redis.js';
 import { OpaqueEngine } from '../engine/opaque.js';

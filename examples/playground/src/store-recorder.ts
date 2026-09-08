@@ -1,4 +1,4 @@
-import type { NinshoStore } from '@ninsho/server';
+import type { NinshoStore } from '@ninshorg/server';
 
 /**
  * A store that records every operation performed through it.

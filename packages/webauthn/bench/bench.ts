@@ -1,8 +1,8 @@
 /**
  * Performance benchmarks for the WebAuthn hot paths.
  *
- *   npm run build --workspace @ninsho/webauthn
- *   npm run bench --workspace @ninsho/webauthn
+ *   npm run build --workspace @ninshorg/webauthn
+ *   npm run bench --workspace @ninshorg/webauthn
  *
  * Measures the built output rather than the source, so the numbers describe
  * what actually ships.

@@ -1,4 +1,4 @@
-import type { AuthContext } from '@ninsho/core';
+import type { AuthContext } from '@ninshorg/core';
 
 /**
  * Minimal HTTP shapes.
@@ -12,7 +12,7 @@ import type { AuthContext } from '@ninsho/core';
  * matching them works. Fastify's reply uses `send()` rather than `json()`, and
  * Hono differs more still — one context object, headers behind functions, and
  * halting by returning a `Response`. Both have adapters here
- * (`@ninsho/server/fastify`, `@ninsho/server/hono`), each tested against the
+ * (`@ninshorg/server/fastify`, `@ninshorg/server/hono`), each tested against the
  * real framework. Koa has none, so none is claimed.
  *
  * The predecessor took Express as a peer dependency and augmented

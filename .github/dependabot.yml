@@ -30,7 +30,7 @@ updates:
           - minor
           - patch
       # The framework packages the adapters are tested against. They are
-      # devDependencies of @ninsho/server only — an adapter that started
+      # devDependencies of @ninshorg/server only — an adapter that started
       # importing one would fail the bundle-purity gate.
       adapter-frameworks:
         patterns:

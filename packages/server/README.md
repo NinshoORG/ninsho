@@ -1,4 +1,4 @@
-# @ninsho/server
+# @ninshorg/server
 
 **認証** — an authentication engine for Node.js.
 
@@ -7,13 +7,13 @@ limiting. Secure by default, with one dependency (`ioredis`) and no framework
 coupling.
 
 ```bash
-npm install @ninsho/server
+npm install @ninshorg/server
 ```
 
 ## Setup
 
 ```ts
-import { Ninsho, RedisStore } from '@ninsho/server';
+import { Ninsho, RedisStore } from '@ninshorg/server';
 
 const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
 ```
@@ -23,7 +23,7 @@ It yields opaque tokens, fail-closed behaviour on a store outage, five-minute
 access tokens, and refresh rotation with reuse detection.
 
 ```ts
-import { getAuth } from '@ninsho/server';
+import { getAuth } from '@ninshorg/server';
 
 // After verifying credentials yourself — Ninsho does not own your user model.
 const pair = await auth.createSession({ userId, roles: ['user'], scopes: [] });

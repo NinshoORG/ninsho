@@ -1,4 +1,4 @@
-# @ninsho/core
+# @ninshorg/core
 
 Shared types, error taxonomy, and cryptographic primitives for
 [Ninsho](https://github.com/NinshoORG/ninsho).
@@ -7,14 +7,14 @@ Shared types, error taxonomy, and cryptographic primitives for
 is enforced in CI: the build fails if this package's bundle requires anything
 else.
 
-## You probably want `@ninsho/server`
+## You probably want `@ninshorg/server`
 
-Application code should install `@ninsho/server`, which re-exports everything
+Application code should install `@ninshorg/server`, which re-exports everything
 here. Depend on this package directly only when sharing types across a boundary
 — for example between a server and a future browser client.
 
 ```bash
-npm install @ninsho/core
+npm install @ninshorg/core
 ```
 
 ## What is in it

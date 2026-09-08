@@ -5,7 +5,7 @@ import {
   type BuildRegistrationOptionsInput,
 } from './options.js';
 import { DEFAULT_ALGORITHMS, ES256, EdDSA, RS256 } from './cose.js';
-import { MemoryStore } from '@ninsho/server';
+import { MemoryStore } from '@ninshorg/server';
 import { WebAuthnServer } from './server.js';
 import { VirtualAuthenticator } from './testing.js';
 

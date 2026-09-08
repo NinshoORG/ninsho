@@ -67,7 +67,7 @@ survives a refactor and explains why the assertion matters.
 
 These are settled. Reopening one needs an argument, not a preference.
 
-1. **`@ninsho/core` has zero runtime dependencies.** CI enforces that its bundle
+1. **`@ninshorg/core` has zero runtime dependencies.** CI enforces that its bundle
    requires nothing beyond `node:crypto`.
 2. **No cryptographic primitives are implemented here.** Ed25519, SHA-256 and
    the CSPRNG all come from `node:crypto`. PASETO's Pre-Authentication Encoding
@@ -145,7 +145,7 @@ Before a first public release:
       pages npm renders; a dead link there is the same failure the predecessor
       shipped in its security policy. Re-check them if the repository is ever
       renamed or transferred to an organisation
-- [ ] Claim the `@ninsho` scope — it was unclaimed as of 2026-08-31, which is
+- [ ] Claim the `@ninshorg` scope — it was unclaimed as of 2026-08-31, which is
       not guaranteed to last
 - [ ] `npm publish --dry-run` and check the file list
 - [x] Verify `npm ci && npm run build && npm run test` on a clean checkout.

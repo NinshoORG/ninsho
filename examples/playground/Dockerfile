@@ -27,7 +27,7 @@ COPY examples/playground/package.json examples/playground/
 
 # `npm ci` refuses a lockfile that disagrees with the manifests, which is the
 # same regression gate CI runs on.
-RUN npm ci --workspace @ninsho/playground --include-workspace-root
+RUN npm ci --workspace @ninshorg/playground --include-workspace-root
 
 # The shared compiler configuration every package extends. Without it tsup's
 # declaration build cannot resolve the base config and fails.
@@ -36,10 +36,10 @@ COPY tsconfig.base.json ./
 COPY packages/ packages/
 COPY examples/playground/ examples/playground/
 
-RUN npm run build --workspace @ninsho/core \
- && npm run build --workspace @ninsho/server \
- && npm run build --workspace @ninsho/webauthn \
- && npm run build --workspace @ninsho/client
+RUN npm run build --workspace @ninshorg/core \
+ && npm run build --workspace @ninshorg/server \
+ && npm run build --workspace @ninshorg/webauthn \
+ && npm run build --workspace @ninshorg/client
 
 # ─── Runtime ───────────────────────────────────────────────────────────────
 FROM node:24-alpine
@@ -77,4 +77,4 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["npm", "run", "start", "--workspace", "@ninsho/playground"]
+CMD ["npm", "run", "start", "--workspace", "@ninshorg/playground"]

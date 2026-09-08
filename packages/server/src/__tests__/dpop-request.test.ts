@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TokenInvalidError, TokenMissingError } from '@ninsho/core';
+import { TokenInvalidError, TokenMissingError } from '@ninshorg/core';
 import { MemoryAuditSink } from '../audit.js';
 import {
   defaultRequestUrl,

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ConfigurationError, type Principal } from '@ninsho/core';
+import { ConfigurationError, type Principal } from '@ninshorg/core';
 import { Ninsho } from '../ninsho.js';
 import { MemoryStore } from '../store/memory.js';
 import { MemoryAuditSink } from '../audit.js';

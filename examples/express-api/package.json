@@ -1,5 +1,5 @@
 {
-  "name": "@ninsho/example-express-api",
+  "name": "@ninshorg/example-express-api",
   "version": "0.1.0",
   "private": true,
   "description": "Reference Express API built on Ninsho.",
@@ -10,9 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ninsho/server": "0.1.0",
+    "@ninshorg/server": "0.1.0",
     "express": "^5.2.1",
-    "@ninsho/webauthn": "0.1.0"
+    "@ninshorg/webauthn": "0.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0"

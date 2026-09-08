@@ -5,7 +5,7 @@ import {
   type FailureMode,
   type KeySet,
   type TokenStrategy,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import type { NinshoStore } from './store/types.js';
 import { ConsoleAuditSink, safeSink } from './audit.js';
 import type { OneTimeTokenOptions } from './tokens/one-time.js';
