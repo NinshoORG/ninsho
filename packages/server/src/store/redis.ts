@@ -59,7 +59,23 @@ export class RedisStore implements NinshoStore {
       enableOfflineQueue: false,
     };
 
-    this.#client = new Redis(url, redisOptions);
+    // ─── Why this cast exists ───────────────────────────────────────────
+    // ioredis 6's own `RedisOptions` cannot be passed to ioredis 6's own
+    // constructor under `exactOptionalPropertyTypes`. `RedisOptions` declares
+    // `replyMapping?: ReplyMappingMode | undefined`, while every constructor
+    // overload intersects it with `{ replyMapping?: ReplyMapping }` — a
+    // different type, and one that forbids an explicit `undefined`. No value
+    // can satisfy both, so this is an upstream inconsistency rather than
+    // anything about the options assembled above.
+    //
+    // `Omit` rather than `any` or `never`: it drops exactly the one member
+    // that cannot be satisfied — a member nothing here sets — and leaves every
+    // other option fully type-checked. Delete the cast when ioredis reconciles
+    // the two declarations; `store.contract.test.ts` against a real Redis is
+    // what would catch a behavioural regression, and it is unaffected either
+    // way because this is purely a compile-time concern.
+    // ────────────────────────────────────────────────────────────────────
+    this.#client = new Redis(url, redisOptions as Omit<RedisOptions, 'replyMapping'>);
     this.#client.on('error', options.onError ?? (() => {}));
     this.#ready = this.#awaitInitialConnection();
     // Attach a rejection handler immediately so a failed initial connection
