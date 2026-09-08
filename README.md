@@ -1,6 +1,11 @@
-# Ninsho
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./website/assets/brand/ninsho-lockup-on-dark.png" />
+    <img src="./website/assets/brand/ninsho-lockup-on-light.png" alt="Ninsho — authenticate, secure, empower" width="420" />
+  </picture>
+</p>
 
-**認証** — an authentication engine for Node.js.
+<p align="center"><strong>認証</strong> — an authentication engine for Node.js.</p>
 
 [![CI](https://github.com/Djain912/ninsho/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Djain912/ninsho/actions/workflows/ci.yml)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-informational)](./package.json)

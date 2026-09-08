@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Ninsho mark</title>
+<meta name="description" content="The Ninsho logo: what it means, the files, and the four rules for using it." />
+<link rel="icon" href="./assets/brand/icon-32.png" sizes="32x32" />
+<link rel="apple-touch-icon" href="./assets/brand/icon-180.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="./assets/style.css" />
+<style>
+  /* Page-specific: the specimen surfaces. Two grounds side by side, because a
+     mark that only works on one is not finished. */
+  .specimen {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .swatch { display: grid; place-items: center; gap: 1.1rem; padding: 2.75rem 1.5rem; }
+  .swatch-dark  { background: #0B0F16; color: #F2F5F9; }
+  .swatch-light { background: #FBFAF8; color: #14181D; }
+  .swatch-cap {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.65;
+  }
+  .sizes { display: flex; align-items: flex-end; gap: 2rem; flex-wrap: wrap; }
+  .size { display: grid; justify-items: center; gap: 0.6rem; }
+  .size-cap { font-family: 'JetBrains Mono', monospace; font-size: 0.625rem; color: var(--faint); }
+  .rule-list { display: grid; gap: 1.5rem; }
+  .rule-item { display: grid; gap: 0.35rem; }
+  .rule-item h3 { color: var(--ink); }
+  .rule-item p { margin: 0; color: var(--dim); font-size: 0.9375rem; max-width: var(--measure); }
+  .files { font-size: 0.875rem; }
+  .files td:first-child { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; white-space: nowrap; }
+  .palette { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+  .chip { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .chip-fill { height: 72px; }
+  .chip-meta { padding: 0.7rem 0.85rem; display: grid; gap: 0.15rem; }
+  .chip-meta b { font-size: 0.8125rem; }
+  .chip-meta span { font-family: 'JetBrains Mono', monospace; font-size: 0.6875rem; color: var(--faint); }
+</style>
+<script>
+  try {
+    var t = localStorage.getItem('ninsho-theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"><img src="./assets/brand/icon-64.png" alt="" width="28" height="28" /></span>Ninsho</a>
+    <div class="nav-right">
+      <a class="nav-link hide-sm" href="./index.html#stops">What it stops</a>
+      <a class="nav-link hide-sm" href="./performance.html">Performance</a>
+      <a class="nav-link hide-sm" href="./demo.html">Demo</a>
+      <a class="nav-link hide-sm" href="./brand.html">Brand</a>
+      <a class="nav-link" href="https://github.com/Djain912/ninsho">GitHub</a>
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch theme">
+        <svg class="theme-light-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="theme-dark-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ── What it means ──────────────────────────────────────────────────── -->
+  <section class="band">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">The mark</p>
+        <h2>An N, and the path through it.</h2>
+      </div>
+      <div>
+        <p>
+          認証 — <em>ninshō</em> — is certification. A geometric <strong>N</strong> in white,
+          cut by a blue-to-cyan band that traces a <strong>V through its centre</strong>: the
+          request going out to the store and coming back. That round trip is the one read on
+          every authenticated call, and it is what buys revocation that actually takes effect.
+        </p>
+        <p>
+          The band is the only place the identity spends colour, and it is the only part that
+          moves. Everything else — the navy ground, the white stems — holds still.
+        </p>
+        <p>
+          It is deliberately not a shield, a padlock or a keyhole. Those say
+          <em>security-flavoured</em> and nothing else, and every competitor already owns one.
+        </p>
+        <p class="cite">The read it draws <span>· docs/architecture.md — “the one read per request”</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Specimens ──────────────────────────────────────────────────────── -->
+  <section class="band band-alt">
+    <div class="wrap stack">
+      <div>
+        <p class="eyebrow cool">Specimens</p>
+        <h2>The lockup, on both grounds.</h2>
+        <p class="lede">
+          Two files, one for each ground, because the wordmark inverts and the mark does not.
+          The tagline sits under the word at a fixed optical size — it is part of the lockup,
+          not a caption added to it.
+        </p>
+      </div>
+
+      <div class="specimen" style="margin-top:1.75rem">
+        <div class="swatch swatch-dark" style="background:#041526">
+          <img src="./assets/brand/ninsho-lockup-on-dark.png" alt="Ninsho lockup on dark" style="width:min(300px,100%);height:auto" />
+          <span class="swatch-cap">On ground · #041526</span>
+        </div>
+        <div class="swatch swatch-light" style="background:#FFFFFF">
+          <img src="./assets/brand/ninsho-lockup-on-light.png" alt="Ninsho lockup on light" style="width:min(300px,100%);height:auto" />
+          <span class="swatch-cap">On paper</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Scale ──────────────────────────────────────────────────────────── -->
+  <section class="band">
+    <div class="wrap stack">
+      <div>
+        <p class="eyebrow cool">Scale</p>
+        <h2>It has to survive 16 pixels.</h2>
+        <p class="lede">
+          A favicon is the smallest place a logo ever lives and the one it is judged in most
+          often. Four strokes and a round join is the whole budget at that size — which is why
+          the mark has exactly that and nothing else.
+        </p>
+      </div>
+
+      <div class="sizes" style="margin-top:2rem">
+        <div class="size"><img src="./assets/brand/icon-64.png" alt="" width="16" height="16" style="border-radius:4px" /><span class="size-cap">16</span></div>
+        <div class="size"><img src="./assets/brand/icon-64.png" alt="" width="24" height="24" style="border-radius:6px" /><span class="size-cap">24</span></div>
+        <div class="size"><img src="./assets/brand/icon-64.png" alt="" width="32" height="32" style="border-radius:7px" /><span class="size-cap">32</span></div>
+        <div class="size"><img src="./assets/brand/icon-64.png" alt="" width="64" height="64" style="border-radius:15px" /><span class="size-cap">64</span></div>
+        <div class="size"><img src="./assets/brand/icon-512.png" alt="" width="112" height="112" style="border-radius:26px" /><span class="size-cap">112</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Palette ────────────────────────────────────────────────────────── -->
+  <section class="band band-alt">
+    <div class="wrap stack">
+      <div>
+        <p class="eyebrow cool">Palette</p>
+        <h2>One accent, two grounds.</h2>
+      </div>
+      <div class="palette" style="margin-top:1.5rem">
+        <div class="chip"><div class="chip-fill" style="background:#041526"></div><div class="chip-meta"><b>Ground</b><span>#041526 · the navy the mark sits on</span></div></div>
+        <div class="chip"><div class="chip-fill" style="background:#0071F0"></div><div class="chip-meta"><b>Band start</b><span>#0071F0 · blue · left of the gradient</span></div></div>
+        <div class="chip"><div class="chip-fill" style="background:#11D8FE"></div><div class="chip-meta"><b>Band end</b><span>#11D8FE · cyan · right of the gradient</span></div></div>
+        <div class="chip"><div class="chip-fill" style="background:#18ACFD"></div><div class="chip-meta"><b>Accent</b><span>#18ACFD · UI accent, sampled mid-band</span></div></div>
+        <div class="chip"><div class="chip-fill" style="background:#F7F9FB"></div><div class="chip-meta"><b>Paper</b><span>#F7F9FB · light ground</span></div></div>
+        <div class="chip"><div class="chip-fill" style="background:#3DDC97"></div><div class="chip-meta"><b>Pass</b><span>#3DDC97 · citations only</span></div></div>
+      </div>
+      <p class="lede" style="margin-top:1.25rem">
+        Every value here was sampled from the artwork itself rather than matched by eye, so
+        the site and the logo are the same blue rather than two blues that nearly agree.
+        On light grounds the accent deepens to <code>#0060D6</code> to hold contrast. Green is
+        reserved for citations and verdicts — it is semantic, not decorative, and using it
+        anywhere else would spend the one signal the interface has.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Rules ──────────────────────────────────────────────────────────── -->
+  <section class="band">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Using it</p>
+        <h2>Four rules, and they are the short kind.</h2>
+      </div>
+      <div class="rule-list">
+        <div class="rule-item">
+          <h3>Keep clear space of one mark-width</h3>
+          <p>Nothing sits closer to the lockup than the width of the icon itself. It is the only spacing rule, and it is enough.</p>
+        </div>
+        <div class="rule-item">
+          <h3>Never redraw the N</h3>
+          <p>Do not narrow the stems, round the corners, or let the band drift off the V. The geometry is the mark; the gradient is only riding on it.</p>
+        </div>
+        <div class="rule-item">
+          <h3>Do not put the mark on a busy ground</h3>
+          <p>The icon carries its own navy tile, so use that on anything textured or photographic rather than lifting the bare N onto it.</p>
+        </div>
+        <div class="rule-item">
+          <h3>Do not recolour the band</h3>
+          <p>Blue to cyan, in that direction, at that angle. It is the only colour the identity spends and the only thing that moves.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Files ──────────────────────────────────────────────────────────── -->
+  <section class="band band-alt">
+    <div class="wrap stack">
+      <div>
+        <p class="eyebrow cool">Files</p>
+        <h2>One master, everything derived.</h2>
+        <p class="lede">
+          One master, and every other size box-filtered down from it. Nothing here was
+          redrawn by hand, because a redrawn mark is a second mark — and the first attempt at
+          one diverged from the artwork at four of six scan lines before it was thrown away.
+        </p>
+      </div>
+
+      <div class="scroll" style="margin-top:1.5rem">
+        <table class="files">
+          <thead><tr><th>File</th><th>Use it for</th></tr></thead>
+          <tbody>
+            <tr><td>assets/brand/ninsho-icon.png</td><td>The master, 1254&nbsp;px. Everything else is derived from it</td></tr>
+            <tr><td>assets/brand/ninsho-lockup-on-dark.png</td><td>Horizontal lockup with the tagline, for dark grounds</td></tr>
+            <tr><td>assets/brand/ninsho-lockup-on-light.png</td><td>The same, for light grounds</td></tr>
+            <tr><td>assets/brand/icon-512.png</td><td>App icon, store listings, GitHub org avatar</td></tr>
+            <tr><td>assets/brand/icon-180.png</td><td>apple-touch-icon</td></tr>
+            <tr><td>assets/brand/icon-64.png</td><td>The 28&nbsp;px nav mark, at 2&times; for retina</td></tr>
+            <tr><td>assets/brand/icon-32.png</td><td>Favicon</td></tr>
+            <tr><td>assets/brand/og-card.svg</td><td>Social preview, 1200&nbsp;&times;&nbsp;630, artwork embedded</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap stack" style="text-align:center; place-items:center">
+      <h2>Take it and use it.</h2>
+      <p class="lede" style="margin-inline:auto">
+        MIT, like the rest. If you are writing about Ninsho, the lockup and the rules above are
+        all you need — and you do not have to ask.
+      </p>
+      <div class="cta-row" style="justify-content:center; margin-top:0.5rem">
+        <a class="btn btn-primary" href="https://github.com/Djain912/ninsho/tree/main/website/assets/brand">Get the files</a>
+        <a class="btn btn-ghost" href="./">Back to Ninsho</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-note" style="margin-top:0; padding-top:0; border-top:0">
+      <p><a href="./" style="font-weight:700; color:var(--ink)">← Back to Ninsho</a></p>
+      <p>認証 · <em>ninshō</em>, certification: verifying that a thing is what it claims to be.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="./assets/app.js"></script>
+</body>
+</html>

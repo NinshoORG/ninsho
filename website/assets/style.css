@@ -18,22 +18,23 @@
 :root {
   color-scheme: light dark;
 
-  /* Warm off-white, biased away from neutral grey on purpose. */
-  --void:      #F2EFEA;
-  --ground:    #FBFAF8;
+  /* Cool off-white, biased toward the navy rather than a neutral grey. */
+  --void:      #EDF1F5;
+  --ground:    #F7F9FB;
   --surface:   #FFFFFF;
-  --raised:    #F6F4F1;
+  --raised:    #F1F5F9;
 
-  --line:      #E2DDD6;
-  --line-hot:  #CFC7BC;
+  --line:      #DCE3EA;
+  --line-hot:  #C3CDD8;
 
-  --ink:       #14181D;
-  --dim:       #5B6470;
-  --faint:     #8A8F98;
+  --ink:       #041526;
+  --dim:       #4A5A6B;
+  --faint:     #7C8B9A;
 
-  /* The hanko seal. Darkened from the dark-theme value to hold contrast. */
-  --seal:      #C7301C;
-  --seal-soft: #FBEDEA;
+  /* The band. Darkened from the dark-theme value to hold contrast on paper. */
+  --seal:      #0060D6;
+  --seal-soft: #E7F1FE;
+  --cyan:      #0E9FCB;
   --amber:     #A66A00;
   --pass:      #0B7A52;
 
@@ -46,20 +47,21 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --void:      #07090D;
-    --ground:    #0B0F16;
-    --surface:   #121826;
-    --raised:    #18202F;
+    --void:      #020D17;
+    --ground:    #041526;
+    --surface:   #0A2032;
+    --raised:    #0F2B40;
 
-    --line:      #222C3D;
-    --line-hot:  #35425A;
+    --line:      #17334A;
+    --line-hot:  #24485F;
 
-    --ink:       #F2F5F9;
-    --dim:       #A3B0C2;
-    --faint:     #6C7A8F;
+    --ink:       #F2F7FB;
+    --dim:       #9FB3C6;
+    --faint:     #6B8298;
 
-    --seal:      #FF4D3D;
-    --seal-soft: #241414;
+    --seal:      #18ACFD;
+    --seal-soft: #072A44;
+    --cyan:      #11D8FE;
     --amber:     #FFB454;
     --pass:      #3DDC97;
 
@@ -68,20 +70,21 @@
 }
 
 :root[data-theme='dark'] {
-  --void:      #07090D;
-  --ground:    #0B0F16;
-  --surface:   #121826;
-  --raised:    #18202F;
+  --void:      #020D17;
+  --ground:    #041526;
+  --surface:   #0A2032;
+  --raised:    #0F2B40;
 
-  --line:      #222C3D;
-  --line-hot:  #35425A;
+  --line:      #17334A;
+  --line-hot:  #24485F;
 
-  --ink:       #F2F5F9;
-  --dim:       #A3B0C2;
-  --faint:     #6C7A8F;
+  --ink:       #F2F7FB;
+  --dim:       #9FB3C6;
+  --faint:     #6B8298;
 
-  --seal:      #FF4D3D;
-  --seal-soft: #241414;
+  --seal:      #18ACFD;
+  --seal-soft: #072A44;
+  --cyan:      #11D8FE;
   --amber:     #FFB454;
   --pass:      #3DDC97;
 
@@ -210,17 +213,17 @@ h3 { font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.012em; }
   text-decoration: none;
   font-size: 1.0625rem;
 }
+/* The mark carries its own ground and its own gradient, so unlike the old
+   flat seal it needs no background from the theme — it is artwork, not a
+   coloured box with a glyph in it. */
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 27px; height: 27px;
-  border-radius: 6px;
-  background: var(--seal);
-  color: #fff;
-  font-size: 0.8125rem;
-  font-weight: 700;
+  display: block;
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  overflow: hidden;
   flex: none;
 }
+.brand-mark img { width: 28px; height: 28px; display: block; }
 .nav-right { display: flex; align-items: center; gap: 0.35rem; }
 .nav-link {
   padding: 0.4rem 0.7rem;

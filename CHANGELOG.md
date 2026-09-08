@@ -7,6 +7,26 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **A visual identity.** The mark, the horizontal lockups and the tagline —
+  *authenticate · secure · empower* — supplied by the maintainer and wired
+  through the site, the README and the repository.
+
+  A geometric **N** in white on navy, cut by a blue-to-cyan band tracing a V
+  through its centre: the request going out to the store and coming back, which
+  is the one read on every authenticated call.
+
+  Two things are worth recording about how it was installed. Every colour in the
+  stylesheet was **sampled from the artwork** rather than matched by eye —
+  `#041526` for the ground, `#0071F0` to `#11D8FE` for the band — so the site
+  and the logo are the same blue rather than two blues that nearly agree. And
+  every size is box-filtered down from the single 1254&nbsp;px master rather
+  than redrawn: a first attempt to recreate the mark as vector was compared
+  against the artwork scan line by scan line, diverged at four of six, and was
+  thrown away. A redrawn logo is a second logo.
+
+  `website/brand.html` documents the lockups, the scale test from 16&nbsp;px up,
+  the sampled palette and the four usage rules.
+
 - **A wider performance evaluation.** Contributed by Yash Jadhav.
   `BENCHMARK-REPORT.md` and four supplementary suites under `benchmarks/`:
   isolated cryptographic primitives, DPoP key generation and proof
