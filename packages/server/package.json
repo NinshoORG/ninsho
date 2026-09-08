@@ -86,9 +86,9 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@koa/router": "^13.1.1",
+    "@koa/router": "^15.7.0",
     "@types/koa": "^3.0.3",
-    "@types/koa__router": "^12.0.5",
+    "@types/koa__router": "^15.0.0",
     "fastify": "^5.2.1",
     "hono": "^4.13.5",
     "koa": "^3.2.1"
