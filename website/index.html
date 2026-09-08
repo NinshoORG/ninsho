@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ninsho — auth that proves it works</title>
+<meta name="description" content="A security-first authentication engine for Node.js. Sessions, passkeys, token rotation and proof-of-possession — where every security claim names the test that demonstrates it." />
+<link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Ninsho — auth that proves it works" />
+<meta property="og:description" content="Sessions, passkeys, token rotation and DPoP for Node.js. 2,056 tests, and every security claim on this page names the one behind it." />
+<meta property="og:url" content="https://github.com/Djain912/ninsho" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="./assets/style.css" />
+
+<script>
+  // Set the theme before first paint so there is no flash of the wrong one.
+  try {
+    var t = localStorage.getItem('ninsho-theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+</head>
+<body>
+
+<div class="banner">
+  <strong>v0.1.0 · pre-release.</strong> Not on npm, and not independently audited yet. Everything below is built and tested today.
+</div>
+
+<nav class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="./">
+      <span class="brand-mark" aria-hidden="true">認</span>
+      Ninsho
+    </a>
+    <div class="nav-right">
+      <a class="nav-link hide-sm" href="#stops">What it stops</a>
+      <a class="nav-link hide-sm" href="./performance.html">Performance</a>
+      <a class="nav-link hide-sm" href="./demo.html">Demo</a>
+      <a class="nav-link" href="https://github.com/Djain912/ninsho">GitHub</a>
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch theme">
+        <svg class="theme-light-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="theme-dark-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ── Hero ───────────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">Authentication engine for Node.js</p>
+        <h1>Auth that <span class="accent">proves</span> it works.</h1>
+        <p class="hero-sub">
+          Sessions, passkeys, token rotation and proof-of-possession in one library.
+          <strong>Every security claim on this site names the test that demonstrates it</strong> —
+          because the last library that skipped that step is why this one exists.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#start">Get started</a>
+          <a class="btn btn-ghost" href="#stops">See what it stops</a>
+        </div>
+        <p class="hero-note">
+          Node 20+ · TypeScript strict · MIT<br />
+          Zero runtime dependencies in three of four packages
+        </p>
+      </div>
+
+      <div class="term">
+        <div class="term-bar">
+          <span class="dot" style="background:#FF5F57"></span>
+          <span class="dot" style="background:#FEBC2E"></span>
+          <span class="dot" style="background:#28C840"></span>
+          <span class="term-name">server.ts</span>
+        </div>
+<pre><span class="k">import</span> { Ninsho, RedisStore, getAuth } <span class="k">from</span> <span class="s">'@ninsho/server'</span>;
+
+<span class="k">const</span> auth = <span class="k">new</span> <span class="f">Ninsho</span>({
+  store: <span class="k">new</span> <span class="f">RedisStore</span>(process.env.REDIS_URL)
+});
+
+<span class="c">// That is the entire configuration.</span>
+<span class="c">// No keys to generate. No algorithm to choose.</span>
+
+app.<span class="f">get</span>(<span class="s">'/me'</span>, auth.<span class="f">verify</span>(), (req, res) =&gt;
+  res.<span class="f">json</span>(<span class="f">getAuth</span>(req)));
+
+<span class="c">// Authenticated is not the same as entitled.</span>
+app.<span class="f">get</span>(<span class="s">'/users/:id/orders'</span>,
+  auth.<span class="f">verify</span>(),
+  auth.<span class="f">requireOwner</span>((req) =&gt; req.params?.id),
+  handler);</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Trust strip ────────────────────────────────────────────────────── -->
+  <div class="trust">
+    <div class="wrap" style="padding-inline:0">
+      <div class="trust-grid">
+        <div class="trust-cell">
+          <span class="trust-n">2,056</span>
+          <span class="trust-l">tests, zero skipped, against real Redis</span>
+        </div>
+        <div class="trust-cell">
+          <span class="trust-n">0</span>
+          <span class="trust-l">runtime dependencies in core, client &amp; webauthn</span>
+        </div>
+        <div class="trust-cell">
+          <span class="trust-n">7</span>
+          <span class="trust-l">WebAuthn attestation formats verified</span>
+        </div>
+        <div class="trust-cell">
+          <span class="trust-n">4</span>
+          <span class="trust-l">framework adapters, none importing a framework</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── What it stops ──────────────────────────────────────────────────── -->
+  <section class="band" id="stops">
+    <div class="wrap stack">
+      <div>
+        <p class="eyebrow">What it stops</p>
+        <h2>Six attacks, and the test that proves each one fails.</h2>
+        <p class="lede">
+          Every card below runs in the demonstration app. You click the attack and watch it
+          lose, with the store operations printed underneath — and the file that pins it is
+          named right here.
+        </p>
+      </div>
+
+      <div class="grid-3" style="margin-top:1.5rem">
+        <article class="card">
+          <span class="tag">Stolen refresh token</span>
+          <h3>Token theft, replayed</h3>
+          <p>An attacker redeems a rotated refresh token before the real client does. Most libraries return a 401 and move on, leaving the attacker holding a valid chain.</p>
+          <p class="cite">Entire family revoked, alarm raised <span>· session.test.ts</span></p>
+        </article>
+
+        <article class="card">
+          <span class="tag">XSS exfiltration</span>
+          <h3>Access token copied out</h3>
+          <p>Script injected into your page reads the token and sends it elsewhere. A bearer token is just a string, so it works anywhere, forever.</p>
+          <p class="cite">Inert without the non-extractable key <span>· dpop-integration.test.ts</span></p>
+        </article>
+
+        <article class="card">
+          <span class="tag">Botnet credential stuffing</span>
+          <h3>One account, thousands of hosts</h3>
+          <p>Attempts spread so thin that no single address approaches a per-IP limit — which is precisely what a per-IP limit alone never sees.</p>
+          <p class="cite">Caught by the per-account bucket <span>· ratelimit.test.ts</span></p>
+        </article>
+
+        <article class="card">
+          <span class="tag">Forwarded reset link</span>
+          <h3>Password reset, used twice</h3>
+          <p>A reset email is forwarded, or two tabs race the same link. Read-then-delete lets both through.</p>
+          <p class="cite">Atomic single use — exactly one wins <span>· ott-race-probe.test.ts</span></p>
+        </article>
+
+        <article class="card">
+          <span class="tag">Object-level access</span>
+          <h3>Reading someone else's orders</h3>
+          <p>A signed-in user changes an ID in the URL. Authentication passed, so most middleware waves it through — the top of the OWASP API list.</p>
+          <p class="cite">Ownership checked; undeterminable is refused <span>· middleware.test.ts</span></p>
+        </article>
+
+        <article class="card">
+          <span class="tag">Store outage</span>
+          <h3>Redis goes down mid-attack</h3>
+          <p>Revocation cannot be checked. A library that keeps serving is accepting tokens it has no way to know were revoked.</p>
+          <p class="cite">Fails closed — 503, against a dead Redis <span>· store-invariants.test.ts</span></p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The rule ───────────────────────────────────────────────────────── -->
+  <section class="band band-alt">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">The rule</p>
+        <p class="quote">
+          A security property must name the test that <em>demonstrates</em> it — or it does not ship.
+        </p>
+      </div>
+      <div>
+        <p>
+          Ninsho is a ground-up rebuild of an earlier library, started after an audit found that
+          its release <strong>could not be built from a clean checkout</strong>, bundled a test
+          double into its production artifact, and disabled its own headline feature during a
+          store outage — while advertising instant revocation and “all attacks blocked”.
+        </p>
+        <p>
+          The claims were not dishonest by intent. They outran the evidence, which for an
+          authentication library amounts to the same thing.
+        </p>
+        <p>
+          So every claim here carries its citation, and that rule has teeth: writing this site's
+          own performance page caught two documents in this repository quoting different
+          multiples for the same comparison, and a published benchmark timing a verification
+          with two of its checks silently disabled.
+        </p>
+        <p class="cite">Enforced in review · <span>CONTRIBUTING.md, PULL_REQUEST_TEMPLATE.md</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Capabilities ───────────────────────────────────────────────────── -->
+  <section class="band">
+    <div class="wrap stack">
+      <div>
+        <p class="eyebrow cool">What is built</p>
+        <h2>Complete, not a roadmap.</h2>
+        <p class="lede">
+          Anything not listed here does not exist. That is the point of listing it.
+        </p>
+      </div>
+
+      <div class="hairline" style="margin-top:1.5rem">
+        <div class="cell">
+          <h3>Two token strategies</h3>
+          <p>Opaque by default — no signing keys at all. PASETO v4.public when services must verify independently.</p>
+          <p class="spec">opaque · paseto</p>
+        </div>
+        <div class="cell">
+          <h3>Proof-of-possession</h3>
+          <p>Tokens bound to a non-extractable browser key, with a fresh signed proof on every request.</p>
+          <p class="spec">RFC 9449 · DPoP</p>
+        </div>
+        <div class="cell">
+          <h3>Passkeys, complete</h3>
+          <p>All seven attestation formats WebAuthn L3 defines — and what each one <em>cannot</em> prove is stated as plainly as what it can.</p>
+          <p class="spec">packed · apple · tpm · fido-u2f · android-key · safetynet · none</p>
+        </div>
+        <div class="cell">
+          <h3>Authorization guards</h3>
+          <p>Roles, scopes, ownership, tenancy and step-up. Exact matching, never prefix or wildcard.</p>
+          <p class="spec">requireRole · requireOwner · requireFreshAuth</p>
+        </div>
+        <div class="cell">
+          <h3>Rate limiting, two-dimensional</h3>
+          <p>Per-address and per-account together, because either one alone fails in the opposite direction.</p>
+          <p class="spec">sliding window · trustProxy required</p>
+        </div>
+        <div class="cell">
+          <h3>Four frameworks</h3>
+          <p>Express, Fastify, Hono and Koa. Each tested against the real thing; none imported.</p>
+          <p class="spec">/fastify · /hono · /koa</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Get started ────────────────────────────────────────────────────── -->
+  <section class="band band-alt" id="start">
+    <div class="wrap stack">
+      <div>
+        <p class="eyebrow">Get started</p>
+        <h2>Running in about a minute.</h2>
+        <p class="lede">
+          Not on npm yet, so today you build from source. Everything below runs the real
+          library, not a preview of one.
+        </p>
+      </div>
+
+      <div class="steps" style="margin-top:1.75rem">
+        <div class="step">
+          <span class="step-n">01 — CLONE AND VERIFY</span>
+          <h3>Nothing here asks to be believed</h3>
+<pre><span class="c">$</span> git clone https://github.com/Djain912/ninsho.git
+<span class="c">$</span> cd ninsho
+
+<span class="c">$</span> npm ci
+<span class="c">$</span> npm run build
+<span class="c">$</span> npm run test
+
+<span class="s">→ 2,056 passing</span></pre>
+        </div>
+
+        <div class="step">
+          <span class="step-n">02 — OPEN THE DEMONSTRATION</span>
+          <h3>Ten panels. Run the attacks yourself</h3>
+<pre><span class="c">$</span> npm run dev --workspace @ninsho/playground
+
+<span class="s">→ http://localhost:4000</span>
+
+<span class="c"># or, in a container</span>
+<span class="c">$</span> docker build -f examples/playground/Dockerfile \
+    -t ninsho-playground .
+<span class="c">$</span> docker run -p <span class="n">4000</span>:<span class="n">4000</span> ninsho-playground</pre>
+        </div>
+
+        <div class="step">
+          <span class="step-n">03 — WIRE IT UP</span>
+          <h3>One store, then mount the guards</h3>
+<pre><span class="k">const</span> auth = <span class="k">new</span> <span class="f">Ninsho</span>({
+  store: <span class="k">new</span> <span class="f">RedisStore</span>(url)
+});
+
+app.<span class="f">post</span>(<span class="s">'/account/email'</span>,
+  auth.<span class="f">verify</span>(),
+  auth.<span class="f">requireFreshAuth</span>(<span class="n">300</span>),
+  handler);
+
+<span class="c">// Refreshing is not re-authenticating.</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Status ─────────────────────────────────────────────────────────── -->
+  <section class="band">
+    <div class="wrap stack">
+      <div>
+        <p class="eyebrow cool">Where it stands</p>
+        <h2>Ready to demonstrate. Not yet ready to depend on.</h2>
+        <p class="lede">
+          A library that overstated its readiness is the reason this one exists, so here is the
+          state without varnish. The engineering is complete and verified from a fresh clone.
+          What remains is not code.
+        </p>
+      </div>
+
+      <div class="scroll" style="margin-top:1.5rem">
+        <table>
+          <thead>
+            <tr><th>Item</th><th>State</th><th>When</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Library, tests, documentation, CI</td><td><span class="pill pill-done">complete</span></td><td>shipped</td></tr>
+            <tr><td>Verified from a fresh clone, CI green on Node 20 and 22</td><td><span class="pill pill-done">complete</span></td><td>shipped</td></tr>
+            <tr><td>Zero vulnerabilities across the workspace</td><td><span class="pill pill-done">complete</span></td><td>shipped</td></tr>
+            <tr><td>Independent cryptographic audit of PASETO v4.public</td><td><span class="pill pill-done">complete</span></td><td>shipped</td></tr>
+            <tr><td>External security review</td><td><span class="pill pill-open">not started</span></td><td>before 1.0</td></tr>
+            <tr><td>Published to npm under <code>@ninsho</code></td><td><span class="pill pill-open">planned</span></td><td>next</td></tr>
+            <tr><td>Hosted demonstration</td><td><span class="pill pill-open">planned</span></td><td>next</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Final ──────────────────────────────────────────────────────────── -->
+  <section class="band band-alt">
+    <div class="wrap stack" style="text-align:center; place-items:center">
+      <p class="eyebrow">認証 · ninshō · certification</p>
+      <h2>Don't take the claims. Run them.</h2>
+      <p class="lede" style="margin-inline:auto">
+        Clone it, start the playground, and try to break it. Every panel prints the store
+        operations behind it, so you check the claim rather than accept it.
+      </p>
+      <div class="cta-row" style="justify-content:center; margin-top:0.5rem">
+        <a class="btn btn-primary" href="https://github.com/Djain912/ninsho">Read the source</a>
+        <a class="btn btn-ghost" href="./demo.html">Tour the demonstration</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="brand" href="./" style="margin-bottom:0.8rem">
+          <span class="brand-mark" aria-hidden="true">認</span>
+          Ninsho
+        </a>
+        <p style="color:var(--dim); font-size:0.875rem; margin:0; max-width:34ch">
+          <em>ninshō</em>, certification: verifying that a thing is what it claims to be.
+        </p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#stops">What it stops</a></li>
+          <li><a href="./performance.html">Performance</a></li>
+          <li><a href="./demo.html">Demonstration</a></li>
+          <li><a href="#start">Get started</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Documentation</h4>
+        <ul>
+          <li><a href="https://github.com/Djain912/ninsho/blob/main/docs/getting-started.md">Getting started</a></li>
+          <li><a href="https://github.com/Djain912/ninsho/blob/main/docs/configuration.md">Configuration</a></li>
+          <li><a href="https://github.com/Djain912/ninsho/blob/main/docs/authorization.md">Authorization</a></li>
+          <li><a href="https://github.com/Djain912/ninsho/blob/main/docs/architecture.md">Architecture</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul>
+          <li><a href="https://github.com/Djain912/ninsho">GitHub</a></li>
+          <li><a href="https://github.com/Djain912/ninsho/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/Djain912/ninsho/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/Djain912/ninsho/blob/main/CHANGELOG.md">Changelog</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-note">
+      <p>Node 20+ · Redis via ioredis · TypeScript strict with <code>exactOptionalPropertyTypes</code> · MIT licensed</p>
+      <p>Every figure on this site was measured, not estimated. Where a claim could not be demonstrated, it was left off.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="./assets/app.js"></script>
+</body>
+</html>
