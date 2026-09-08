@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Page not found — Ninsho</title>
+<meta name="robots" content="noindex" />
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="/assets/style.css" />
+<script>
+  try {
+    var t = localStorage.getItem('ninsho-theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">認</span>Ninsho</a>
+    <div class="nav-right">
+      <a class="nav-link" href="https://github.com/Djain912/ninsho">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main class="band">
+  <div class="wrap stack" style="place-items:center; text-align:center; padding-block:clamp(2rem,8vw,5rem)">
+    <p class="eyebrow">404</p>
+    <h1 style="font-size:clamp(2.4rem,6vw,4rem)">This page could not be&nbsp;verified.</h1>
+    <p class="lede" style="margin-inline:auto">
+      Which, for a library whose whole argument is that a claim must name its evidence, is at
+      least on brand. The page you asked for is not here.
+    </p>
+    <div class="cta-row" style="justify-content:center; margin-top:0.75rem">
+      <a class="btn btn-primary" href="/">Back to the start</a>
+      <a class="btn btn-ghost" href="https://github.com/Djain912/ninsho">Read the source</a>
+    </div>
+  </div>
+</main>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>
