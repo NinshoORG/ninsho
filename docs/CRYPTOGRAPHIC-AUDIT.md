@@ -211,15 +211,26 @@ Tested against official PASETO specification vectors (`paseto-standard/test-vect
 - **Status**: Remediated
 - **Affected Component**: `packages/server/src/paseto/v4.ts` (`le64`)
 - **Evidence**: `buf.writeBigUInt64LE(BigInt(value) & 0x7fffffffffffffffn)` previously cleared the MSB with bitwise AND rather than throwing if the MSB was set.
-- **Impact**: In JavaScript/Node.js, buffer lengths and piece counts are bounded by `buffer.constants.MAX_LENGTH` (<= 4 GB), which never sets bit 63. No exploit is possible in Node.js. However, the PASETO specification states that an implementation encountering an integer with MSB set MUST reject the input.
-- **Remediation**: Implemented strict validation in `le64`:
+- **Impact**: **None reachable.** In Node.js, buffer lengths and piece counts are bounded by `buffer.constants.MAX_LENGTH`, which never sets bit 63, and both are the only values `le64` receives from inside this library. No exploit is possible.
+- **What the specification actually says**: the specification requires the *encoded* MSB to be zero — "The most significant bit MUST be cleared for interoperability with programming languages that do not have unsigned integer support" — and its reference implementation achieves that by **masking** (`n &= 127` on the final byte). It does **not** require implementations to reject. The change below is therefore *stricter than the reference*, by choice, and is not a conformance fix.
+- **Rationale for choosing rejection over masking**: masking maps two distinct inputs — `n` and `n | 2^63` — onto one encoding. Producing distinct preimages for distinct inputs is the entire purpose of PAE, so refusing keeps that property total rather than almost-total. Both behaviours satisfy the specification's requirement that the emitted MSB be zero.
+- **Remediation**: strict validation in `le64`:
   ```ts
-  const b = BigInt(value);
-  if (b < 0n || b > 0x7fffffffffffffffn || (b & 0x8000000000000000n) !== 0n) {
-    throw new PasetoFormatError('integer MSB is set or out of range');
+  if (n < 0n || n > 0x7fff_ffff_ffff_ffffn) {
+    throw new PasetoFormatError('length is negative or has bit 63 set');
   }
   ```
-  Boundary and regression tests covering `0`, `1`, `0x7fffffffffffffff` (accepted), `0x8000000000000000` (rejected), and `0xffffffffffffffff` (rejected) were added in `packages/server/src/__tests__/paseto-v4.test.ts`.
+  One comparison covers both halves: every value above that bound has bit 63 set. An additional `n & (1n << 63n)` test would be unreachable, and an unreachable guard in a signing path is worse than no guard because it reads as protection to the next reviewer.
+
+  Boundary and regression tests covering `0`, `1`, `0x7fffffffffffffff` (accepted), `0x8000000000000000` and `0xffffffffffffffff` (rejected), plus negative, fractional, `NaN`, `Infinity` and oversized inputs, are in `packages/server/src/__tests__/paseto-v4.test.ts` › *le64 MSB rejection and validation*.
+
+### Finding 2: Manual test scripts were outside every type check (Remediated)
+- **Severity**: Informational
+- **Status**: Remediated
+- **Affected Component**: `manualtest/`
+- **Evidence**: `manualtest/` is not a workspace and had no `tsconfig.json`, so its ~4,500 lines of TypeScript were compiled by nothing — not `npm run typecheck`, not CI. A check confirmed one file already failed to compile: `retest-mt05b.ts(82,5): error TS2322`.
+- **Impact**: No effect on shipped code; `manualtest/` is never packaged. The risk is to the evidence rather than to the library — a script that silently stopped compiling would still be cited as proof in `TEST-RESULTS.md`. That is the failure this project was built to avoid: the predecessor's README claimed 110 tests while 8 of 9 test files failed to import.
+- **Remediation**: added `manualtest/tsconfig.json` extending the shared strict base, wired into the root `typecheck` script so CI compiles it on every push. The existing type error was fixed.
 
 ---
 

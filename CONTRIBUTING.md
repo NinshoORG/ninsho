@@ -42,6 +42,12 @@ docker run -d --rm -p 6379:6379 redis:7-alpine
 REDIS_URL=redis://localhost:6379 npm run test
 ```
 
+Attacker's-eye tests live in [`manualtest/`](./manualtest/) and are run by
+hand against a locally running example, because they assert things a unit test
+cannot see — real HTTP status codes, headers, cookies and audit output. They
+are not part of `npm run test`, but they **are** type-checked by
+`npm run typecheck`, so they cannot rot into evidence that no longer compiles.
+
 ## What a change needs
 
 **Every security-relevant change needs a test that fails without it.** Write the

@@ -73,8 +73,17 @@ async function run(): Promise<void> {
   const tokenA = signV4Public(JSON.stringify(claimsA), privateKeyObj, footer);
   console.log(`[MT-19B] Token A minted: ${maskToken(tokenA)}`);
 
-  // Verify crypto signature
+  // Verify crypto signature.
+  //
+  // The payload is compared rather than discarded: MT-19B's whole claim is
+  // that a *genuinely signed* token is still refused on issuer, so the
+  // signature being authentic AND the claims surviving the round trip is the
+  // half that has to hold before the rejection below means anything.
   const parsedA = verifyV4Public(tokenA, publicKeyObj);
+  if (parsedA.payload !== JSON.stringify(claimsA)) {
+    console.error('[MT-19B] ERROR: Token A payload did not survive the round trip!');
+    process.exit(1);
+  }
   console.log('[MT-19B] Token A verifyV4Public: PASSED (Signature is authentic)');
 
   let errorDetailA = '';
@@ -113,8 +122,12 @@ async function run(): Promise<void> {
   const tokenB = signV4Public(JSON.stringify(claimsB), privateKeyObj, footer);
   console.log(`[MT-19B] Token B minted: ${maskToken(tokenB)}`);
 
-  // Verify crypto signature
+  // Verify crypto signature. Same reasoning as Token A above.
   const parsedB = verifyV4Public(tokenB, publicKeyObj);
+  if (parsedB.payload !== JSON.stringify(claimsB)) {
+    console.error('[MT-19B] ERROR: Token B payload did not survive the round trip!');
+    process.exit(1);
+  }
   console.log('[MT-19B] Token B verifyV4Public: PASSED (Signature is authentic)');
 
   let errorDetailB = '';

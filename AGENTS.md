@@ -68,8 +68,16 @@ examples/
   express-api/  A complete integration meant to be copied.
   playground/   The interactive demonstration. Ten panels, real library.
 docs/           Reference documentation.
+manualtest/     Attacker's-eye HTTP tests, run by hand against a local server.
 .github/        CI, issue and PR templates.
 ```
+
+`manualtest/` is not a workspace and ships nothing, but it **is** type-checked —
+`npm run typecheck` compiles it via `manualtest/tsconfig.json`. It was added
+because the scripts there are cited as evidence in `manualtest/TEST-RESULTS.md`
+and in the cryptographic audit, and evidence that silently stops compiling is
+the failure this project exists to avoid. Adding the check found one file
+already broken.
 
 ### Where things actually live in `packages/server`
 
@@ -125,8 +133,8 @@ Test counts differ depending on whether Redis is present. Both are correct:
 
 | | Tests |
 | --- | --- |
-| Without `REDIS_URL` | 1,945 passing, 5 skipped |
-| With `REDIS_URL` (what CI runs) | **2,009 passing, 0 skipped** |
+| Without `REDIS_URL` | 1,992 passing, 5 skipped |
+| With `REDIS_URL` (what CI runs) | **2,056 passing, 0 skipped** |
 
 Run one package, or one test:
 
@@ -369,7 +377,18 @@ include §8.1, §8.3 and §8.4. If a change touches build order, dependencies,
 Node APIs or the packaged surface, **push it and read CI** rather than
 concluding from a green local run.
 
-### 8.10 DER integers must be minimal
+### 8.10 `--workspaces` does not reach everything
+
+`npm run typecheck --workspaces` only visits `packages/*` and `examples/*`,
+because that is what the root manifest declares. A directory outside those
+globs is compiled by nothing, and nothing warns you — `manualtest/` accumulated
+~4,500 lines of TypeScript that way, one file of which no longer compiled.
+
+The root `typecheck` script now names `manualtest/tsconfig.json` explicitly
+after the workspace pass. **If you add another top-level directory of
+TypeScript, it needs the same treatment or it is unchecked.**
+
+### 8.11 DER integers must be minimal
 
 Non-minimal leading zeros in a generated certificate produce "an x5c entry is
 not a valid certificate" at a rate of roughly 9 in 4,000 — often enough to look
