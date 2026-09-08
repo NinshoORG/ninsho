@@ -30,7 +30,7 @@
 <body>
 
 <div class="banner">
-  <strong>v0.1.0 · pre-release.</strong> Not on npm, and not independently audited yet. Everything below is built and tested today.
+  <strong>v0.1.0 is on npm.</strong> <code>npm i @ninshorg/server</code> — not independently audited yet, and everything below names the test behind it.
 </div>
 
 <nav class="nav">
@@ -270,36 +270,35 @@ app.<span class="f">get</span>(<span class="s">'/users/:id/orders'</span>,
         <p class="eyebrow">Get started</p>
         <h2>Running in about a minute.</h2>
         <p class="lede">
-          Not on npm yet, so today you build from source. Everything below runs the real
-          library, not a preview of one.
+          One install, and everything below runs the real library — not a preview of one.
         </p>
       </div>
 
       <div class="steps" style="margin-top:1.75rem">
         <div class="step">
-          <span class="step-n">01 — CLONE AND VERIFY</span>
-          <h3>Nothing here asks to be believed</h3>
-<pre><span class="c">$</span> git clone https://github.com/NinshoORG/ninsho.git
-<span class="c">$</span> cd ninsho
+          <span class="step-n">01 — INSTALL</span>
+          <h3>One package to start with</h3>
+<pre><span class="c">$</span> npm i @ninshorg/server
 
-<span class="c">$</span> npm ci
-<span class="c">$</span> npm run build
-<span class="c">$</span> npm run test
+<span class="c"># passkeys, and the browser half of DPoP</span>
+<span class="c">$</span> npm i @ninshorg/webauthn
+<span class="c">$</span> npm i @ninshorg/client
 
-<span class="s">→ 2,056 passing</span></pre>
+<span class="s">→ core arrives with server</span></pre>
         </div>
 
         <div class="step">
-          <span class="step-n">02 — OPEN THE DEMONSTRATION</span>
+          <span class="step-n">02 — OR CLONE, AND CHECK IT</span>
           <h3>Ten panels. Run the attacks yourself</h3>
-<pre><span class="c">$</span> npm run dev --workspace @ninshorg/playground
+<pre><span class="c">$</span> git clone https://github.com/NinshoORG/ninsho.git
+<span class="c">$</span> cd ninsho &amp;&amp; npm ci &amp;&amp; npm run build
+<span class="c">$</span> npm run test
 
-<span class="s">→ http://localhost:4000</span>
+<span class="s">→ 2,056 passing</span>
 
-<span class="c"># or, in a container</span>
-<span class="c">$</span> docker build -f examples/playground/Dockerfile \
-    -t ninsho-playground .
-<span class="c">$</span> docker run -p <span class="n">4000</span>:<span class="n">4000</span> ninsho-playground</pre>
+<span class="c">$</span> npm run dev --workspace @ninshorg/playground
+
+<span class="s">→ http://localhost:4000</span></pre>
         </div>
 
         <div class="step">
@@ -344,7 +343,7 @@ app.<span class="f">post</span>(<span class="s">'/account/email'</span>,
             <tr><td>Zero vulnerabilities across the workspace</td><td><span class="pill pill-done">complete</span></td><td>shipped</td></tr>
             <tr><td>Independent cryptographic audit of PASETO v4.public</td><td><span class="pill pill-done">complete</span></td><td>shipped</td></tr>
             <tr><td>External security review</td><td><span class="pill pill-open">not started</span></td><td>before 1.0</td></tr>
-            <tr><td>Published to npm under <code>@ninshorg</code></td><td><span class="pill pill-open">planned</span></td><td>next</td></tr>
+            <tr><td>Published to npm under <code>@ninshorg</code></td><td><span class="pill pill-done">complete</span></td><td>shipped</td></tr>
             <tr><td>Hosted demonstration</td><td><span class="pill pill-open">planned</span></td><td>next</td></tr>
           </tbody>
         </table>

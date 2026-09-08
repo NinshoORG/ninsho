@@ -23,7 +23,7 @@
 
 ## Status
 
-Ninsho is **pre-release (v0.1.0) and not published**. It has not been
+Ninsho is **published at v0.1.0** and remains pre-1.0. It has not been
 independently audited. Do not deploy it to production without your own review.
 
 ---

@@ -1,13 +1,18 @@
 # Getting started
 
-From a clone to a working sign-in route.
+From `npm i` to a working sign-in route.
 
 ## Install
 
-Ninsho is not on npm yet, so today you build from source. That is a real
-inconvenience and it is stated plainly rather than papered over — see
-[the release checklist](../CONTRIBUTING.md#releasing) for what has to happen
-first.
+```bash
+npm i @ninshorg/server
+```
+
+`@ninshorg/webauthn` for passkeys, `@ninshorg/client` for the browser half of
+DPoP, both optional. `@ninshorg/core` arrives with `server`; install it directly
+only if you are typing your own store.
+
+To work on Ninsho itself, or to run the demonstration:
 
 ```bash
 git clone https://github.com/NinshoORG/ninsho.git

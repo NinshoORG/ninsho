@@ -7,25 +7,146 @@
 
 <p align="center"><strong>認証</strong> — an authentication engine for Node.js.</p>
 
-[![CI](https://github.com/NinshoORG/ninsho/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/NinshoORG/ninsho/actions/workflows/ci.yml)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-informational)](./package.json)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-informational)](./tsconfig.base.json)
-[![License](https://img.shields.io/badge/license-MIT-informational)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-2%2C056%20passing-success)](./README.md#what-works-today)
+<p align="center">
+  <a href="https://www.npmjs.com/package/@ninshorg/server"><img src="https://img.shields.io/npm/v/@ninshorg/server?label=%40ninshorg%2Fserver&color=0071F0" alt="npm version" /></a>
+  <a href="https://github.com/NinshoORG/ninsho/actions/workflows/ci.yml"><img src="https://github.com/NinshoORG/ninsho/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+  <a href="./README.md#what-works-today"><img src="https://img.shields.io/badge/tests-2%2C056%20passing-3DDC97" alt="2,056 tests passing" /></a>
+  <a href="./package.json"><img src="https://img.shields.io/badge/node-%3E%3D20-informational" alt="Node >= 20" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-informational" alt="MIT" /></a>
+</p>
 
-> **Status: v0.1.0, pre-release. Not published to npm. Not ready to depend on.**
+Sessions, passkeys, refresh-token rotation and proof-of-possession in one
+library — with **every security claim in this README naming the test that
+demonstrates it.** That rule exists because the library Ninsho replaces did not
+have one; see [audit lineage](#audit-lineage).
+
+```bash
+npm i @ninshorg/server
+```
+
+---
+
+## Install
+
+| Package | Install when you need | Size |
+| :--- | :--- | ---: |
+| **[`@ninshorg/server`](https://www.npmjs.com/package/@ninshorg/server)** | Sessions, authorization, rate limiting, DPoP. **Start here** | 119 KB |
+| **[`@ninshorg/webauthn`](https://www.npmjs.com/package/@ninshorg/webauthn)** | Passkeys — registration and sign-in ceremonies, attestation | 93 KB |
+| **[`@ninshorg/client`](https://www.npmjs.com/package/@ninshorg/client)** | The browser half of DPoP, if you enable it | 12 KB |
+| **[`@ninshorg/core`](https://www.npmjs.com/package/@ninshorg/core)** | Types and errors. Comes in with `server`; install directly only to type your own store | 4.9 KB |
+
+`server` pulls in `core` and `ioredis`. Nothing else has a runtime dependency at
+all, and CI fails the build if that stops being true.
+
+## Quick start
+
+```ts
+import express from 'express';
+import { Ninsho, RedisStore, getAuth } from '@ninshorg/server';
+
+const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
+const app = express();
+app.use(express.json());
+
+// You verify the password. Ninsho does not own your user model.
+app.post('/login', async (req, res) => {
+  const user = await checkPassword(req.body);
+  res.json(await auth.createSession({
+    userId: user.id, roles: user.roles, scopes: [],
+  }));
+});
+
+app.get('/me', auth.verify(), (req, res) => res.json(getAuth(req)));
+
+app.use(auth.errorHandler());
+```
+
+That is the whole configuration. **No keys to generate, no algorithm to
+choose** — the default is opaque tokens, which have neither. You get
+fail-closed behaviour, five-minute access tokens, and refresh rotation with
+reuse detection, without configuring any of it.
+
+Development? Swap `RedisStore` for `MemoryStore` and drop the URL. It refuses to
+start under `NODE_ENV=production`, so it cannot follow you to a real deployment
+by accident.
+
+## Common patterns
+
+```ts
+// Rate limiting in two dimensions. A per-IP limit alone does not stop a botnet
+// spreading attempts thin; a per-account limit alone punishes a shared office.
+app.post('/login',
+  auth.rateLimit({
+    action: 'login',
+    perIp:      { limit: 20, windowMs: 900_000 },
+    perAccount: { limit: 5,  windowMs: 900_000 },
+    identify: (req) => req.body?.email,
+    trustProxy: false,   // no default — guessing is a security bug either way
+  }),
+  handler);
+
+// Replaying a rotated token revokes the whole session and raises an alarm.
+app.post('/refresh', async (req, res) =>
+  res.json(await auth.refresh(req.cookies.refresh_token)));
+
+app.get('/admin/reports', auth.verify(), auth.requireRole('admin'), handler);
+
+// Authenticated is not the same as entitled — this closes the BOLA gap.
+app.get('/users/:id/orders',
+  auth.verify(),
+  auth.requireOwner((req) => req.params?.id),
+  handler);
+
+// Some things need more than a live session. Refreshing will never satisfy
+// this — only signing in again will.
+app.post('/account/email', auth.verify(), auth.requireFreshAuth(300), handler);
+```
+
+Full reference: **[configuration](./docs/configuration.md)** ·
+**[authorization](./docs/authorization.md)** ·
+**[framework adapters](./docs/frameworks.md)** ·
+**[deployment](./docs/deployment.md)**
+
+## What you get
+
+**Sessions that actually end.** Revocation takes effect on the next request, not
+the next expiry, because `verify()` reads the store every time. That one read is
+the whole architecture: a stateless token nothing consults is valid until it
+expires, whatever your "sign out everywhere" button claims.
+
+**Refresh rotation with theft detection.** Replay a rotated refresh token and the
+entire family dies — the attacker's *and* the legitimate client's — with an
+alarm raised. That is RFC 9700 §4.14.2, and it is deliberately aggressive:
+one of the two holders is a thief and the server cannot tell which.
+
+**Authorization, not just authentication.** Six guards — roles, scopes,
+ownership, tenancy, step-up, all-of-roles. `requireOwner()` closes the
+object-level gap that has topped the OWASP API list since the list existed.
+
+**Passkeys, completely.** All seven WebAuthn L3 attestation formats verified —
+and what each format *cannot* prove stated as plainly as what it can.
+
+**Proof-of-possession.** Opt into `binding: 'dpop'` and a stolen token is inert
+without a key that never leaves the browser.
+
+**Four frameworks, none imported.** Express, Fastify, Hono and Koa, each tested
+against the real thing. Middleware is typed structurally, so there is no
+framework dependency and no version matrix.
+
+```bash
+# See all of it running, with the store operations printed underneath
+git clone https://github.com/NinshoORG/ninsho.git && cd ninsho
+npm ci && npm run build
+npm run dev --workspace @ninshorg/playground   # → localhost:4000
+```
+
+> **Status: v0.1.0 — published, and not yet independently audited.**
 >
-> Sessions, both token strategies, authorization, rate limiting, and
-> proof-of-possession (RFC 9449) all work. This README documents what is built,
-> not what is planned. Anything not listed under "What works today" does not
-> exist.
-
-Ninsho is a ground-up rebuild of an earlier library (SecureAuth), started after
-a [security audit](#audit-lineage) found that its published release could not be
-built from a clean checkout, bundled a test double into its production artifact,
-and defaulted to disabling its own headline feature during a store outage.
-
-The rebuild keeps what that audit found sound and discards what it found broken.
+> The engineering is complete and verified: 2,056 tests against real Redis, CI
+> green on Node 20 and 22, verified from a clean checkout. What has *not*
+> happened is an external security review, so this is a considered choice
+> rather than a safe default. `0.1.0` says so on purpose — the predecessor
+> reached "1.0.0" in three days.
 
 ---
 
@@ -33,6 +154,12 @@ The rebuild keeps what that audit found sound and discards what it found broken.
 
 > **A security property stated in this README must name the test that
 > demonstrates it, or it does not go in this README.**
+
+Ninsho is a ground-up rebuild of an earlier library (SecureAuth), started after
+a [security audit](#audit-lineage) found that its published release could not be
+built from a clean checkout, bundled a test double into its production artifact,
+and defaulted to disabling its own headline feature during a store outage. The
+rebuild keeps what that audit found sound and discards what it found broken.
 
 The predecessor advertised "instant revocation", "110 tests" and "all attacks
 blocked". Its CI had not run since the release commit, 8 of 9 test files failed
@@ -254,53 +381,6 @@ One guarantee is weaker there than elsewhere: Hono hands over headers already
 collapsed, so on `@hono/node-server` a repeated `Authorization` header has been
 discarded by Node before Ninsho can see it. Express, Fastify and Koa all reach
 `rawHeaders` and refuse it.
-
-## Quick look
-
-```ts
-import { Ninsho, RedisStore, getAuth } from '@ninshorg/server';
-
-const auth = new Ninsho({ store: new RedisStore(process.env.REDIS_URL!) });
-```
-
-That is the entire configuration. No keys to generate, no algorithm to choose.
-It yields opaque tokens, fail-closed behaviour, five-minute access tokens, and
-refresh rotation with reuse detection.
-
-```ts
-app.post('/login',
-  auth.rateLimit({
-    action: 'login',
-    perIp:      { limit: 20, windowMs: 900_000 },
-    perAccount: { limit: 5,  windowMs: 900_000 },
-    identify: (req) => req.body?.email,
-    trustProxy: false,          // no default — state it deliberately
-  }),
-  async (req, res) => {
-    // Verify credentials yourself — Ninsho does not own your user model.
-    const user = await checkPassword(req.body);
-    res.json(await auth.createSession({
-      userId: user.id, roles: user.roles, scopes: [],
-    }));
-  });
-
-app.post('/refresh', async (req, res) => {
-  // Replaying a rotated token revokes the whole session and raises an alarm.
-  res.json(await auth.refresh(req.cookies.refresh_token));
-});
-
-app.get('/me', auth.verify(), (req, res) => res.json(getAuth(req)));
-
-app.get('/admin/reports', auth.verify(), auth.requireRole('admin'), handler);
-
-// Authenticated is not the same as entitled — this closes the BOLA gap.
-app.get('/users/:id/orders',
-  auth.verify(),
-  auth.requireOwner((req) => req.params?.id),
-  handler);
-```
-
----
 
 ## Design commitments
 

@@ -136,7 +136,7 @@ tree.
 If the drift job fails and the diff is only `"peer"` lines, your npm is behind.
 `npx npm@latest install --package-lock-only` and commit the result.
 
-Before a first public release:
+Before a first public release — **v0.1.0 shipped 2026-09-08**:
 
 - [ ] Fill in the reporting section of `SECURITY.md`; test the channel end to end
 - [ ] Add `.well-known/security.txt` per RFC 9116
@@ -145,9 +145,13 @@ Before a first public release:
       pages npm renders; a dead link there is the same failure the predecessor
       shipped in its security policy. Re-check them if the repository is ever
       renamed or transferred to an organisation
-- [ ] Claim the `@ninshorg` scope — it was unclaimed as of 2026-08-31, which is
-      not guaranteed to last
-- [ ] `npm publish --dry-run` and check the file list
+- [x] Claim the scope. `ninsho` turned out to be unavailable on npm, so the
+      organisation is **`ninshorg`** and every package was renamed to
+      `@ninshorg/*` before the first publish. The product name is unchanged;
+      only the scope moved
+- [x] `npm publish --dry-run` and check the file list. Checked for all four:
+      `dist`, `README.md`, `LICENSE`, `package.json` and nothing else — no
+      sources, no fixtures, no tests
 - [x] Verify `npm ci && npm run build && npm run test` on a clean checkout.
       Done from a fresh `git clone` of the published repository, not from a
       working directory that had already built — which is the distinction that
@@ -157,6 +161,10 @@ Before a first public release:
       all five jobs, Node 20 and 22, against real Redis. Getting there found
       three real defects — see the CHANGELOG entries for the clean-checkout
       typecheck, attestation on Node 20, and the lockfile gate
-- [ ] Decide the version. `0.1.0` is honest for an unaudited pre-release; `1.0.0`
-      is a promise about stability that should be earned, not defaulted to. The
-      predecessor reached "1.0.0" in three days
+- [x] Decide the version. Shipped **`0.1.0`** — honest for an unaudited
+      pre-release. `1.0.0` is a promise about stability that should be earned,
+      not defaulted to; the predecessor reached "1.0.0" in three days
+- [x] Verify the published packages install and run from the registry, not just
+      that `npm view` returns metadata. Done: a scratch project installed all
+      four from npm, imported every entry point including the three adapter
+      subpaths, and created and verified a real session
