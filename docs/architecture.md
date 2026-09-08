@@ -305,6 +305,6 @@ produced five separate buckets while the panel's own prose said otherwise.*
 - **A user table.** Ninsho stores sessions, not people.
 - **Cryptographic primitives.** Ed25519, SHA-256 and the CSPRNG come from
   `node:crypto`.
-- **A policy engine.** Seven guards, mounted at the route. See
+- **A policy engine.** Six guards, mounted at the route. See
   [Authorization](./authorization.md#what-ninsho-does-not-do-here).
 - **A framework.** See [Framework adapters](./frameworks.md).

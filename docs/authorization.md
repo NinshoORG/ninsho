@@ -5,10 +5,10 @@ Authentication answers *who is this*. Authorization answers *may they do **this*
 is why broken object-level authorization has sat at number one on the OWASP API
 Security Top Ten for as long as the list has existed.
 
-Ninsho ships seven guards. Every one of them is middleware, every one runs after
+Ninsho ships six guards. Every one of them is middleware, every one runs after
 `verify()`, and every one refuses rather than guesses when it cannot answer.
 
-> **Watch them run.** The playground's *Authorization* panel drives all seven
+> **Watch them run.** The playground's *Authorization* panel drives all six
 > against real tokens and prints what the caller was told beside what the audit
 > trail recorded. `npm run dev --workspace @ninsho/playground`, panel 3.
 
@@ -236,7 +236,7 @@ ordering is about clarity rather than cost.
 
 ## What Ninsho does not do here
 
-- **No policy language, no rules engine.** Seven guards, mounted explicitly at
+- **No policy language, no rules engine.** Six guards, mounted explicitly at
   the route. If your authorization needs a DSL, it needs code you own rather
   than a configuration format the library interprets.
 - **No implicit hierarchy.** `admin` does not inherit `user`. Roles are exact
