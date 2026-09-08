@@ -3,9 +3,34 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.0] — 2026-09-08
+
+**First published release.** `@ninshorg/core`, `@ninshorg/webauthn`,
+`@ninshorg/client` and `@ninshorg/server` are on npm.
+
+Everything from here down shipped in it — including the section dated
+2026-09-01 below, which is when the version number was chosen, not when
+anything reached a registry. Nothing was ever published before today, so
+`0.1.0` covers the whole history rather than a slice of it. A reader comparing
+this file against what they installed should read both sections as one release.
 
 ### Added
+
+- **Published to npm.** All four packages live at `0.1.0` under the
+  `@ninshorg` scope, public access.
+
+  Verified as installed rather than as uploaded: a scratch project ran
+  `npm install` against the real registry, imported every entry point —
+  including all three adapter subpaths — and created and verified a session.
+  `npm view` returning metadata only proves the upload happened; it does not
+  prove the thing works when someone actually installs it.
+
+  Getting there took four rejections, each a different thing, and each worth
+  writing down for whoever publishes the next one: a 403 because the account
+  had no 2FA; a 402 because a scoped package defaults to private and needs
+  `--access public`; a 404 because the scope had no organisation behind it;
+  and a second 404 because the organisation that did get created was
+  `ninshorg`, not `ninsho`, which forced the rename above.
 
 - **A visual identity.** The mark, the horizontal lockups and the tagline —
   *authenticate · secure · empower* — supplied by the maintainer and wired
@@ -1704,7 +1729,9 @@ This project uses [Semantic Versioning](https://semver.org/).
   them made the recorded lifetime differ from the configured TTL. Both now
   derive from one captured instant.
 
-## [0.1.0] — 2026-09-01
+## 2026-09-01 — the initial build
+
+*Not a separate release. Part of `0.1.0` above; see the note there.*
 
 First release of Ninsho. **Not published to npm.** Pre-release: the API may
 change, and the library has not been independently audited.

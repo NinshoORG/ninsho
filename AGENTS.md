@@ -444,7 +444,8 @@ that answer:
 
 ## 11. Current state
 
-- **Version** `0.1.0`. Not published. Not audited by anyone independent.
+- **Version** `0.1.0`, published to npm under the `@ninshorg` scope. Not
+  audited by anyone independent.
 - **CI** green on Node 20 and 22 against real Redis; verified from a fresh
   clone rather than a working directory.
 - **Not yet done, and none of it is code:** an external security review, a
