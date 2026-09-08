@@ -61,7 +61,7 @@
   },
   "dependencies": {
     "@ninsho/core": "0.1.0",
-    "ioredis": "^5.4.2"
+    "ioredis": "^6.0.0"
   },
   "keywords": [
     "ninsho",
