@@ -47,7 +47,7 @@ there is no Express dependency and no global type augmentation.
 **`opaque`** (default) — a 256-bit random token with all state in the store.
 Revocation is native and immediate, there are no signing keys to leak or rotate,
 and the token carries no claims to disclose. Correct for a single application,
-and [~15× faster to verify](https://github.com/Djain912/ninsho/blob/main/PERFORMANCE.md)
+and [~15× faster to verify](https://github.com/NinshoORG/ninsho/blob/main/PERFORMANCE.md)
 than the alternative.
 
 **`paseto`** — PASETO v4.public, Ed25519, for services that must verify
@@ -79,10 +79,10 @@ under `NODE_ENV=production`.
 
 ## Documentation
 
-[README](https://github.com/Djain912/ninsho#readme) ·
-[Security model and threat model](https://github.com/Djain912/ninsho/blob/main/SECURITY.md) ·
-[Performance](https://github.com/Djain912/ninsho/blob/main/PERFORMANCE.md) ·
-[Example API](https://github.com/Djain912/ninsho/tree/main/examples/express-api)
+[README](https://github.com/NinshoORG/ninsho#readme) ·
+[Security model and threat model](https://github.com/NinshoORG/ninsho/blob/main/SECURITY.md) ·
+[Performance](https://github.com/NinshoORG/ninsho/blob/main/PERFORMANCE.md) ·
+[Example API](https://github.com/NinshoORG/ninsho/tree/main/examples/express-api)
 
 ## Status
 

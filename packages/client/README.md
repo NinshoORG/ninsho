@@ -1,6 +1,6 @@
 # @ninsho/client
 
-Browser client for [Ninsho](https://github.com/Djain912/ninsho). Manages a DPoP
+Browser client for [Ninsho](https://github.com/NinshoORG/ninsho). Manages a DPoP
 session so your application does not have to.
 
 **Zero dependencies.** Web APIs only — WebCrypto, IndexedDB, fetch.

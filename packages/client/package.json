@@ -38,13 +38,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Djain912/ninsho.git",
+    "url": "git+https://github.com/NinshoORG/ninsho.git",
     "directory": "packages/client"
   },
   "bugs": {
-    "url": "https://github.com/Djain912/ninsho/issues"
+    "url": "https://github.com/NinshoORG/ninsho/issues"
   },
-  "homepage": "https://github.com/Djain912/ninsho#readme",
+  "homepage": "https://github.com/NinshoORG/ninsho#readme",
   "engines": {
     "node": ">=20.0.0"
   },
