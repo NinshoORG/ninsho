@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
-import type { Principal } from '@ninsho/core';
+import type { Principal } from '@ninshorg/core';
 import { Ninsho } from '../ninsho.js';
 import { MemoryStore } from '../store/memory.js';
 import { getAuth } from '../http/middleware.js';

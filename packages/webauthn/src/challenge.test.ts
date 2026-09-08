@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { MemoryStore } from '@ninsho/server';
+import { MemoryStore } from '@ninshorg/server';
 import {
   ChallengeConfigurationError,
   ChallengeError,
@@ -389,7 +389,7 @@ describe('configuration', () => {
 });
 
 describe('store compatibility', () => {
-  it('works with NinshoStore from @ninsho/server without an adapter', async () => {
+  it('works with NinshoStore from @ninshorg/server without an adapter', async () => {
     // The structural-typing claim, as a test rather than an assertion in a
     // comment: MemoryStore is a NinshoStore, and it is passed here with no
     // wrapper at all.

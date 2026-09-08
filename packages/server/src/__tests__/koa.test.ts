@@ -3,7 +3,7 @@ import Koa from 'koa';
 import Router from '@koa/router';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import type { Principal } from '@ninsho/core';
+import type { Principal } from '@ninshorg/core';
 import { Ninsho } from '../ninsho.js';
 import { MemoryStore } from '../store/memory.js';
 import { toKoa, getAuth, AUTH_STATE_KEY, type KoaLikeContext } from '../koa.js';
@@ -391,7 +391,7 @@ describe('the adapter itself', () => {
 
   it('imports nothing from Koa', async () => {
     // The adapter is structural. If it ever imported Koa, every consumer of
-    // `@ninsho/server` would pull the framework into their bundle.
+    // `@ninshorg/server` would pull the framework into their bundle.
     const source = await import('node:fs/promises').then((fs) =>
       fs.readFile(new URL('../koa.ts', import.meta.url), 'utf8'),
     );

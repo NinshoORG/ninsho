@@ -3,7 +3,7 @@
  *
  * Everything here is strategy-agnostic: nothing in this file knows whether an
  * access token is an opaque random string or a signed PASETO. That distinction
- * lives behind the `TokenStrategy` interface in `@ninsho/server`, which is what
+ * lives behind the `TokenStrategy` interface in `@ninshorg/server`, which is what
  * lets one API serve both single-app and multi-service deployments.
  *
  * This package has no runtime dependencies and no server- or browser-specific

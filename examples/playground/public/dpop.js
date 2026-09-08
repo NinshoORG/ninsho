@@ -7,7 +7,7 @@
  * marked non-extractable, and never leaves. The server sees a signature and a
  * public key, and could not produce that signature itself.
  *
- * It imports the real `@ninsho/client` bundle — served from the package it was
+ * It imports the real `@ninshorg/client` bundle — served from the package it was
  * built from rather than copied — so the code running is the code an
  * application would install.
  */

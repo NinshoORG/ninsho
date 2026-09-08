@@ -82,7 +82,7 @@
           <span class="dot" style="background:#28C840"></span>
           <span class="term-name">server.ts</span>
         </div>
-<pre><span class="k">import</span> { Ninsho, RedisStore, getAuth } <span class="k">from</span> <span class="s">'@ninsho/server'</span>;
+<pre><span class="k">import</span> { Ninsho, RedisStore, getAuth } <span class="k">from</span> <span class="s">'@ninshorg/server'</span>;
 
 <span class="k">const</span> auth = <span class="k">new</span> <span class="f">Ninsho</span>({
   store: <span class="k">new</span> <span class="f">RedisStore</span>(process.env.REDIS_URL)
@@ -292,7 +292,7 @@ app.<span class="f">get</span>(<span class="s">'/users/:id/orders'</span>,
         <div class="step">
           <span class="step-n">02 — OPEN THE DEMONSTRATION</span>
           <h3>Ten panels. Run the attacks yourself</h3>
-<pre><span class="c">$</span> npm run dev --workspace @ninsho/playground
+<pre><span class="c">$</span> npm run dev --workspace @ninshorg/playground
 
 <span class="s">→ http://localhost:4000</span>
 
@@ -344,7 +344,7 @@ app.<span class="f">post</span>(<span class="s">'/account/email'</span>,
             <tr><td>Zero vulnerabilities across the workspace</td><td><span class="pill pill-done">complete</span></td><td>shipped</td></tr>
             <tr><td>Independent cryptographic audit of PASETO v4.public</td><td><span class="pill pill-done">complete</span></td><td>shipped</td></tr>
             <tr><td>External security review</td><td><span class="pill pill-open">not started</span></td><td>before 1.0</td></tr>
-            <tr><td>Published to npm under <code>@ninsho</code></td><td><span class="pill pill-open">planned</span></td><td>next</td></tr>
+            <tr><td>Published to npm under <code>@ninshorg</code></td><td><span class="pill pill-open">planned</span></td><td>next</td></tr>
             <tr><td>Hosted demonstration</td><td><span class="pill pill-open">planned</span></td><td>next</td></tr>
           </tbody>
         </table>

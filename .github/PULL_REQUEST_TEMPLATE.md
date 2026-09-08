@@ -43,8 +43,8 @@
       watched it fail
 - [ ] Every bug fix has a regression test, marked `REGRESSION` with what the
       bug was
-- [ ] No new runtime dependency in `@ninsho/core`, `@ninsho/client` or
-      `@ninsho/webauthn`
+- [ ] No new runtime dependency in `@ninshorg/core`, `@ninshorg/client` or
+      `@ninshorg/webauthn`
 - [ ] No environment variable that turns a check off
 - [ ] No caught value interpolated into a client-facing `message` — that is
       what `detail` is for

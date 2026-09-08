@@ -211,7 +211,7 @@ This project uses [Semantic Versioning](https://semver.org/).
   asserted in the HTTP tests rather than left to look convincing — which is how
   the address off-by-one below was found.
 
-- **A Koa adapter — `@ninsho/server/koa`.** The middleware is Express-shaped,
+- **A Koa adapter — `@ninshorg/server/koa`.** The middleware is Express-shaped,
   and Fastify and Hono already had adapters; Koa was the one framework the
   README had to say was not claimed. It is claimed now.
 
@@ -343,7 +343,7 @@ This project uses [Semantic Versioning](https://semver.org/).
   rules enforced as everywhere else — and `Tlv` gained a `number` field so a
   caller can tell `[600]` from `[702]` at all.
 
-  With this, `@ninsho/webauthn` verified `none`, `packed`, `apple`, `tpm`,
+  With this, `@ninshorg/webauthn` verified `none`, `packed`, `apple`, `tpm`,
   `fido-u2f` and `android-key`; `android-safetynet` followed, and is the entry
   above.
 
@@ -402,7 +402,7 @@ This project uses [Semantic Versioning](https://semver.org/).
   with `allowedAaguids` is refused outright: "0000… is not on the allowed list"
   would be true and would send a caller off to add zeroes to their allowlist.
 
-  With these two, `@ninsho/webauthn` verified `none`, `packed`, `apple`, `tpm`
+  With these two, `@ninshorg/webauthn` verified `none`, `packed`, `apple`, `tpm`
   and `fido-u2f`; `android-key` and `android-safetynet` followed, and are the
   entries above.
 
@@ -479,7 +479,7 @@ This project uses [Semantic Versioning](https://semver.org/).
   bug earlier in the week.
 
   One section runs in the visitor's browser rather than on the server, which
-  makes it the one nobody has to take on trust: `@ninsho/client` generates a
+  makes it the one nobody has to take on trust: `@ninshorg/client` generates a
   non-extractable P-256 key in the page, `exportKey()` throws
   `InvalidAccessError` when you try to steal it, a session binds to its
   thumbprint, a proof signed in the page is accepted, the same proof replayed
@@ -506,7 +506,7 @@ This project uses [Semantic Versioning](https://semver.org/).
   clearest way to make that separation concrete, and it is also exactly why the
   README says not to deploy this one.
 
-- **A Hono adapter — `@ninsho/server/hono`.** The last framework gap the docs
+- **A Hono adapter — `@ninshorg/server/hono`.** The last framework gap the docs
   admitted to. Around 2 KB, importing nothing at runtime; CI asserts both that
   and that it stays out of the main bundle.
 
@@ -538,7 +538,7 @@ This project uses [Semantic Versioning](https://semver.org/).
   the application and a collision would silently replace an identity rather
   than fail.
 
-  **It targets Hono on Node** (`@hono/node-server`). `@ninsho/server` depends on
+  **It targets Hono on Node** (`@hono/node-server`). `@ninshorg/server` depends on
   `ioredis` and Node's crypto, so Workers and Deno are out of reach — said here
   rather than left to be discovered at deploy time.
 
@@ -624,7 +624,7 @@ This project uses [Semantic Versioning](https://semver.org/).
   18 end-to-end tests over real HTTP, including eight simultaneous clicks on
   one link where exactly one must succeed.
 
-- **A Fastify adapter — `@ninsho/server/fastify`.** The middleware was
+- **A Fastify adapter — `@ninshorg/server/fastify`.** The middleware was
   Express-shaped, and the docs said plainly that no adapter existed. One does
   now.
 
@@ -734,7 +734,7 @@ This project uses [Semantic Versioning](https://semver.org/).
   integration is not implemented — which manufacturers you trust is an
   operational decision, not library content.
 
-- **A certificate builder for tests, in `@ninsho/webauthn/testing`.**
+- **A certificate builder for tests, in `@ninshorg/webauthn/testing`.**
   Attestation needs real certificate chains to test against. Committed fixtures
   expire, and shelling out to `openssl` makes the suite depend on a CLI that
   differs by platform — on this repo's own Windows checkout `req -x509` mangles
@@ -770,7 +770,7 @@ This project uses [Semantic Versioning](https://semver.org/).
   which is the result worth having, and one that could not have been claimed
   before.
 
-- **`@ninsho/webauthn/testing` — a virtual authenticator.** Testing a passkey
+- **`@ninshorg/webauthn/testing` — a virtual authenticator.** Testing a passkey
   integration otherwise means a physical authenticator and a human finger,
   which is to say it does not get tested. `VirtualAuthenticator` holds a real
   key pair and produces genuinely signed responses, so an end-to-end test
@@ -802,8 +802,8 @@ This project uses [Semantic Versioning](https://semver.org/).
 
   29 new end-to-end tests, 72 in the example overall.
 
-- **`@ninsho/webauthn` — passkey registration and authentication.** No
-  third-party dependencies; depends only on `@ninsho/core`, which has none
+- **`@ninshorg/webauthn` — passkey registration and authentication.** No
+  third-party dependencies; depends only on `@ninshorg/core`, which has none
   either.
 
   WebAuthn establishes *who someone is* and stops there, so the package
@@ -862,7 +862,7 @@ This project uses [Semantic Versioning](https://semver.org/).
 
   318 tests.
 
-- **`@ninsho/client` — the browser half of DPoP.** Zero dependencies, Web APIs
+- **`@ninshorg/client` — the browser half of DPoP.** Zero dependencies, Web APIs
   only.
 
   The key is generated **non-extractable**: `crypto.subtle.exportKey` on it
@@ -909,6 +909,38 @@ This project uses [Semantic Versioning](https://semver.org/).
     property that makes DPoP worth having there.
 
   Opt-in, because enabling it is a breaking change for clients.
+
+### Changed (breaking)
+
+- **Every package renamed from `@ninsho/*` to `@ninshorg/*`.** The npm
+  organization name `ninsho` was unavailable — confirmed directly against
+  npm's own "name is not available" response when creating it, not assumed.
+  `ninshorg` was the name actually registered, and npm ties a scope to the
+  exact organization name, so the packages had to move to match it before a
+  first publish could succeed at all.
+
+  This is unrelated to the product name. Ninsho — 認証, the library, the
+  brand, the domain of the docs — is unchanged everywhere it appears as
+  prose. Only the npm scope moved: `@ninsho/core` is now `@ninshorg/core`,
+  and the same for `webauthn`, `client` and `server`, including the
+  `/fastify`, `/hono` and `/koa` subpath exports.
+
+  289 occurrences across 109 files were found by exact search (the literal
+  string `@ninsho` appears nowhere in this codebase except as this scope
+  prefix — verified before replacing, not assumed) and replaced in one pass:
+  every `package.json` name and cross-package dependency, every import
+  across all four packages and both examples, `manualtest/`, `benchmarks/`,
+  every doc, the website, and the CI workflow's `--workspace` invocations.
+
+  Verified after: build, typecheck and the full suite — 2,056 tests against
+  real Redis — unaffected. The four tarballs pack under their new names with
+  identical contents and near-identical sizes to before the rename. Every
+  relative link and heading anchor across 29 markdown and HTML files still
+  resolves.
+
+  Nothing was published under `@ninsho/*` before this, so there is no
+  deprecated old name to point anywhere — this is a rename before a first
+  release, not a breaking change to anything anyone had installed.
 
 ### Changed
 
@@ -1187,7 +1219,7 @@ This project uses [Semantic Versioning](https://semver.org/).
 
   The packed-tarball consumer test loads the built packages the way npm
   resolves them, which is the only way to catch a wrong `exports` condition or
-  a missing `.d.cts`. It imported one subpath — `@ninsho/webauthn/testing` —
+  a missing `.d.cts`. It imported one subpath — `@ninshorg/webauthn/testing` —
   and none of the three adapter subpaths, so the condition it exists to check
   was being checked for a quarter of the surface.
 
@@ -1683,7 +1715,7 @@ package name is different, so there is no upgrade path and none is owed.
 
 ### Added
 
-**Core** (`@ninsho/core`, zero runtime dependencies)
+**Core** (`@ninshorg/core`, zero runtime dependencies)
 - Strategy-agnostic type surface, compiled under `strict` with
   `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess`.
 - Error taxonomy with HTTP status mapping, where diagnostic `detail` is

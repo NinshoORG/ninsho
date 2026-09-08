@@ -1,4 +1,4 @@
-import { RateLimitError, StoreUnavailableError, type AuditSink, type FailureMode } from '@ninsho/core';
+import { RateLimitError, StoreUnavailableError, type AuditSink, type FailureMode } from '@ninshorg/core';
 import type { NinshoStore } from '../store/types.js';
 import { KEYS } from '../keys.js';
 

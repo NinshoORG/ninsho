@@ -15,14 +15,14 @@
  * structurally, so Ninsho gains no dependency and neither does your bundle.
  *
  * ─── One honest limitation ────────────────────────────────────────────────
- * `@ninsho/server` depends on `ioredis` and Node's crypto, so it runs on Node.
+ * `@ninshorg/server` depends on `ioredis` and Node's crypto, so it runs on Node.
  * This adapter therefore targets Hono on Node (`@hono/node-server`), not Hono
  * on Workers or Deno. Saying so is better than letting someone discover it at
  * deploy time.
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import type { AuthContext } from '@ninsho/core';
+import type { AuthContext } from '@ninshorg/core';
 import type { HttpRequest, HttpResponse, Middleware } from './http/types.js';
 
 /**
@@ -209,7 +209,7 @@ async function runOne(
  *
  * @example
  * ```ts
- * import { toHono, getAuth } from '@ninsho/server/hono';
+ * import { toHono, getAuth } from '@ninshorg/server/hono';
  *
  * app.use('/me', toHono(auth.verify()));
  * app.get('/me', (c) => c.json({ userId: getAuth(c).userId }));

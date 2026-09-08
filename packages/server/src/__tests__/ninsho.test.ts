@@ -6,7 +6,7 @@ import {
   TokenInvalidError,
   TokenRevokedError,
   type Principal,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import { Ninsho } from '../ninsho.js';
 import { MemoryStore } from '../store/memory.js';
 import { MemoryAuditSink } from '../audit.js';

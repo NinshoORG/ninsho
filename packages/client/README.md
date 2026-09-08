@@ -1,4 +1,4 @@
-# @ninsho/client
+# @ninshorg/client
 
 Browser client for [Ninsho](https://github.com/NinshoORG/ninsho). Manages a DPoP
 session so your application does not have to.
@@ -6,13 +6,13 @@ session so your application does not have to.
 **Zero dependencies.** Web APIs only — WebCrypto, IndexedDB, fetch.
 
 ```bash
-npm install @ninsho/client
+npm install @ninshorg/client
 ```
 
 ## Setup
 
 ```ts
-import { NinshoClient, IndexedDbKeyStore } from '@ninsho/client';
+import { NinshoClient, IndexedDbKeyStore } from '@ninshorg/client';
 
 const auth = new NinshoClient({
   baseUrl: 'https://api.example.com',

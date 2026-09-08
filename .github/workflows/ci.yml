@@ -54,7 +54,7 @@ jobs:
       #
       # The workspace packages resolve each other through `main` and `types`,
       # which point into `dist/`. Before a build there is no `dist/`, so
-      # `@ninsho/core` does not resolve and typechecking the packages that
+      # `@ninshorg/core` does not resolve and typechecking the packages that
       # import it fails — 227 errors from a genuinely clean checkout, measured.
       #
       # Typecheck used to run first and passed anyway on any machine that had
@@ -89,8 +89,8 @@ jobs:
       - name: Benchmarks still run
         if: matrix.node == '22'
         run: |
-          npm run bench --workspace @ninsho/server
-          npm run bench --workspace @ninsho/webauthn
+          npm run bench --workspace @ninshorg/server
+          npm run bench --workspace @ninshorg/webauthn
         env:
           REDIS_URL: redis://localhost:6379
 
@@ -99,7 +99,7 @@ jobs:
       # convenience must not quietly turn into "Redis is never tested in CI".
       - name: Assert the Redis contract suite actually ran
         run: |
-          npm run test --workspace @ninsho/server -- --reporter=verbose 2>&1 \
+          npm run test --workspace @ninshorg/server -- --reporter=verbose 2>&1 \
             | tee /tmp/test-output.txt
           if ! grep -q "RedisStore" /tmp/test-output.txt; then
             echo "::error::The RedisStore contract suite did not run."
@@ -172,8 +172,8 @@ jobs:
         run: |
           set -e
           for pkg in core server client webauthn; do
-            echo "── @ninsho/$pkg ──"
-            npm audit --audit-level=moderate --omit=dev --workspace "@ninsho/$pkg"
+            echo "── @ninshorg/$pkg ──"
+            npm audit --audit-level=moderate --omit=dev --workspace "@ninshorg/$pkg"
           done
           echo "Every published package is clean in production."
 
@@ -219,7 +219,7 @@ jobs:
       - name: Assert the example builds against the published surface
         run: |
           set -e
-          npm run typecheck --workspace @ninsho/example-express-api
+          npm run typecheck --workspace @ninshorg/example-express-api
           echo "Example type-checks against the built packages."
 
       # A package that declares files it does not have publishes a blank page
@@ -236,10 +236,10 @@ jobs:
               fi
             done
           done
-          npm pack --dry-run --workspace @ninsho/core
-          npm pack --dry-run --workspace @ninsho/server
-          npm pack --dry-run --workspace @ninsho/client
-          npm pack --dry-run --workspace @ninsho/webauthn
+          npm pack --dry-run --workspace @ninshorg/core
+          npm pack --dry-run --workspace @ninshorg/server
+          npm pack --dry-run --workspace @ninshorg/client
+          npm pack --dry-run --workspace @ninshorg/webauthn
           echo "Package contents verified."
 
       # A dual-format package can type-check inside its own workspace and still
@@ -250,38 +250,38 @@ jobs:
         run: |
           set -e
           WORK="$(mktemp -d)"
-          npm pack --workspace @ninsho/core     --pack-destination "$WORK"
-          npm pack --workspace @ninsho/server   --pack-destination "$WORK"
-          npm pack --workspace @ninsho/webauthn --pack-destination "$WORK"
+          npm pack --workspace @ninshorg/core     --pack-destination "$WORK"
+          npm pack --workspace @ninshorg/server   --pack-destination "$WORK"
+          npm pack --workspace @ninshorg/webauthn --pack-destination "$WORK"
 
           cd "$WORK"
           cat > package.json <<'JSON'
           {
             "name": "consumer-check", "version": "1.0.0", "type": "module", "private": true,
             "dependencies": {
-              "@ninsho/core": "file:./ninsho-core-0.1.0.tgz",
-              "@ninsho/server": "file:./ninsho-server-0.1.0.tgz",
-              "@ninsho/webauthn": "file:./ninsho-webauthn-0.1.0.tgz"
+              "@ninshorg/core": "file:./ninsho-core-0.1.0.tgz",
+              "@ninshorg/server": "file:./ninsho-server-0.1.0.tgz",
+              "@ninshorg/webauthn": "file:./ninsho-webauthn-0.1.0.tgz"
             }
           }
           JSON
           npm install --no-audit --no-fund
 
           cat > esm.mjs <<'JS'
-          import { Ninsho, MemoryStore } from '@ninsho/server';
-          import { generateId } from '@ninsho/core';
-          import { WebAuthnServer, importCoseKey, CoseError } from '@ninsho/webauthn';
-          import { VirtualAuthenticator } from '@ninsho/webauthn/testing';
+          import { Ninsho, MemoryStore } from '@ninshorg/server';
+          import { generateId } from '@ninshorg/core';
+          import { WebAuthnServer, importCoseKey, CoseError } from '@ninshorg/webauthn';
+          import { VirtualAuthenticator } from '@ninshorg/webauthn/testing';
           // Every adapter subpath, resolved the way a consumer resolves it.
           // This is the step that catches a wrong `exports` condition or a
           // missing declaration file, and until the adapters were named here
           // it was catching that for one subpath out of four.
-          import { toFastify } from '@ninsho/server/fastify';
-          import { toHono } from '@ninsho/server/hono';
-          import { toKoa } from '@ninsho/server/koa';
+          import { toFastify } from '@ninshorg/server/fastify';
+          import { toHono } from '@ninshorg/server/hono';
+          import { toKoa } from '@ninshorg/server/koa';
           for (const [n, adapt] of [['fastify', toFastify], ['hono', toHono], ['koa', toKoa]]) {
             if (typeof adapt !== 'function') {
-              console.error(`@ninsho/server/${n} did not export its adapter`);
+              console.error(`@ninshorg/server/${n} did not export its adapter`);
               process.exit(1);
             }
           }
@@ -329,15 +329,15 @@ jobs:
           JS
 
           cat > cjs.cjs <<'JS'
-          const { Ninsho, MemoryStore } = require('@ninsho/server');
-          const { generateId } = require('@ninsho/core');
-          const { WebAuthnServer } = require('@ninsho/webauthn');
-          const { toFastify } = require('@ninsho/server/fastify');
-          const { toHono } = require('@ninsho/server/hono');
-          const { toKoa } = require('@ninsho/server/koa');
+          const { Ninsho, MemoryStore } = require('@ninshorg/server');
+          const { generateId } = require('@ninshorg/core');
+          const { WebAuthnServer } = require('@ninshorg/webauthn');
+          const { toFastify } = require('@ninshorg/server/fastify');
+          const { toHono } = require('@ninshorg/server/hono');
+          const { toKoa } = require('@ninshorg/server/koa');
           for (const [name, adapt] of [['fastify', toFastify], ['hono', toHono], ['koa', toKoa]]) {
             if (typeof adapt !== 'function') {
-              console.error(`@ninsho/server/${name} did not export its adapter from CJS`);
+              console.error(`@ninshorg/server/${name} did not export its adapter from CJS`);
               process.exit(1);
             }
           }
@@ -400,7 +400,7 @@ jobs:
             "buildAuthenticatorData" \
             "rawToDerSignature"; do
             if grep -qF "$forbidden" packages/webauthn/dist/index.js packages/webauthn/dist/index.cjs; then
-              echo "::error::'$forbidden' leaked into the @ninsho/webauthn main bundle."
+              echo "::error::'$forbidden' leaked into the @ninshorg/webauthn main bundle."
               exit 1
             fi
           done
@@ -414,20 +414,20 @@ jobs:
           for adapter in fastify hono koa; do
             EXTERNAL=$(grep -oE "require\('[^.][^']*'\)" "packages/server/dist/$adapter.cjs" | sort -u || true)
             if [ -n "$EXTERNAL" ]; then
-              echo "::error::@ninsho/server/$adapter must import nothing at runtime. Found: $EXTERNAL"
+              echo "::error::@ninshorg/server/$adapter must import nothing at runtime. Found: $EXTERNAL"
               exit 1
             fi
           done
           if grep -qF "toFastify" packages/server/dist/index.js; then
-            echo "::error::The Fastify adapter leaked into the main @ninsho/server bundle."
+            echo "::error::The Fastify adapter leaked into the main @ninshorg/server bundle."
             exit 1
           fi
           if grep -qF "toHono" packages/server/dist/index.js; then
-            echo "::error::The Hono adapter leaked into the main @ninsho/server bundle."
+            echo "::error::The Hono adapter leaked into the main @ninshorg/server bundle."
             exit 1
           fi
           if grep -qF "toKoa" packages/server/dist/index.js; then
-            echo "::error::The Koa adapter leaked into the main @ninsho/server bundle."
+            echo "::error::The Koa adapter leaked into the main @ninshorg/server bundle."
             exit 1
           fi
           echo "Adapters are dependency-free and separate."
@@ -439,7 +439,7 @@ jobs:
           set -e
           DEPS=$(node -p "JSON.stringify(require('./packages/client/package.json').dependencies || {})")
           if [ "$DEPS" != "{}" ]; then
-            echo "::error::@ninsho/client must have no runtime dependencies. Found: $DEPS"
+            echo "::error::@ninshorg/client must have no runtime dependencies. Found: $DEPS"
             exit 1
           fi
           echo "Client dependency-free."
@@ -449,9 +449,9 @@ jobs:
       - name: Assert webauthn has no third-party dependencies
         run: |
           set -e
-          DEPS=$(node -p "Object.keys(require('./packages/webauthn/package.json').dependencies || {}).filter(d => !d.startsWith('@ninsho/')).join(',')")
+          DEPS=$(node -p "Object.keys(require('./packages/webauthn/package.json').dependencies || {}).filter(d => !d.startsWith('@ninshorg/')).join(',')")
           if [ -n "$DEPS" ]; then
-            echo "::error::@ninsho/webauthn must depend only on @ninsho/* packages. Found: $DEPS"
+            echo "::error::@ninshorg/webauthn must depend only on @ninshorg/* packages. Found: $DEPS"
             exit 1
           fi
           echo "WebAuthn dependency-free."
@@ -462,6 +462,6 @@ jobs:
           EXTERNAL=$(grep -oE "require\('[^.][^']*'\)" packages/core/dist/index.cjs | sort -u || true)
           echo "External requires: ${EXTERNAL:-none}"
           if echo "$EXTERNAL" | grep -vqE "^(require\('(node:)?crypto'\))?$"; then
-            echo "::error::@ninsho/core must depend only on node:crypto."
+            echo "::error::@ninshorg/core must depend only on node:crypto."
             exit 1
           fi

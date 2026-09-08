@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { AuthContext, Principal } from '@ninsho/core';
+import type { AuthContext, Principal } from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { OpaqueEngine } from '../engine/opaque.js';
 import { PasetoEngine } from '../engine/paseto.js';

@@ -5,10 +5,10 @@
 This audit is an independent cryptographic verification of the PASETO (Platform-Agnostic Security Tokens) v4.public implementation in Ninsho v0.1.0. The audit covers the serialization framing, the Pre-Authentication Encoding (PAE), digital signature generation and verification over Ed25519, footer authentication, implicit assertions, key handling, base64url canonicalization, expiry and claim enforcement, cross-tenant/cross-service issuer/audience binding, and key rotation lifecycles.
 
 Audited packages:
-- `@ninsho/server` (`packages/server/src/paseto/v4.ts`)
-- `@ninsho/server` (`packages/server/src/engine/paseto.ts`)
-- `@ninsho/server` (`packages/server/src/keys/keyring.ts`)
-- `@ninsho/core` (`packages/core/src/time.ts`, `packages/core/src/errors.ts`)
+- `@ninshorg/server` (`packages/server/src/paseto/v4.ts`)
+- `@ninshorg/server` (`packages/server/src/engine/paseto.ts`)
+- `@ninshorg/server` (`packages/server/src/keys/keyring.ts`)
+- `@ninshorg/core` (`packages/core/src/time.ts`, `packages/core/src/errors.ts`)
 
 ---
 

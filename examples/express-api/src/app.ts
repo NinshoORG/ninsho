@@ -9,8 +9,8 @@ import {
   RefreshReuseError,
   toErrorResponse,
   type NinshoStore,
-} from '@ninsho/server';
-import { WebAuthnServer } from '@ninsho/webauthn';
+} from '@ninshorg/server';
+import { WebAuthnServer } from '@ninshorg/webauthn';
 import {
   createUser,
   deliverResetLink,

@@ -12,7 +12,7 @@ import {
   isoIn,
   nowIso,
   type Principal,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import {
   signV4Public,
   verifyV4Public,

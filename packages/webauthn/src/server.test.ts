@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MemoryStore } from '@ninsho/server';
+import { MemoryStore } from '@ninshorg/server';
 import { WebAuthnServer } from './server.js';
 import { ChallengeError } from './challenge.js';
 import { WebAuthnError } from './ceremony.js';

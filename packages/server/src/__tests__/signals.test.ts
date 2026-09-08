@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { hashSignal, type Principal } from '@ninsho/core';
+import { hashSignal, type Principal } from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { OpaqueEngine } from '../engine/opaque.js';
 import { SessionManager } from '../session/manager.js';

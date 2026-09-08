@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ConfigurationError, RateLimitError, StoreUnavailableError } from '@ninsho/core';
+import { ConfigurationError, RateLimitError, StoreUnavailableError } from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { MemoryAuditSink } from '../audit.js';
 import { RateLimiter } from '../ratelimit/limiter.js';

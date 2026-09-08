@@ -6,7 +6,7 @@ written to the store, the audit events, and the attacks failing.
 
 ```bash
 npm run build                                   # from the repo root
-npm run dev --workspace @ninsho/playground
+npm run dev --workspace @ninshorg/playground
 # → http://localhost:4000
 ```
 
@@ -82,7 +82,7 @@ the client-address resolution: before the fix the panel showed five separate buc
 nothing, while its own prose said the opposite.
 
 **Your browser holds the key.** The one section that does not run on the server, and therefore
-the one a visitor does not have to take on trust. It imports `@ninsho/client` — served from the
+the one a visitor does not have to take on trust. It imports `@ninshorg/client` — served from the
 package it was built from, not a copy — and walks six steps:
 
 1. Generate a P-256 key pair **in the page**, non-extractable.
@@ -212,7 +212,7 @@ URL — an unfortunate thing for a security demo to be.
 ## Tested
 
 ```bash
-npm run test --workspace @ninsho/playground
+npm run test --workspace @ninshorg/playground
 ```
 
 95 tests over real HTTP. A demo does not usually get tests, and this one needs

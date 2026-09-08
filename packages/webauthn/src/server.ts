@@ -19,7 +19,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import type { Principal } from '@ninsho/core';
+import type { Principal } from '@ninshorg/core';
 import {
   ChallengeManager,
   type ChallengeStore,

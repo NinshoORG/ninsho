@@ -36,9 +36,9 @@ import {
   type SecurityEvent,
   type SessionSummary,
   type TokenPair,
-} from '@ninsho/server';
-import { decodeCbor, verifyRegistration } from '@ninsho/webauthn';
-import { VirtualAuthenticator, createCertificate } from '@ninsho/webauthn/testing';
+} from '@ninshorg/server';
+import { decodeCbor, verifyRegistration } from '@ninshorg/webauthn';
+import { VirtualAuthenticator, createCertificate } from '@ninshorg/webauthn/testing';
 import { RecordingStore, type StoreOperation } from './store-recorder.ts';
 import { VisitorRegistry } from './visitors.ts';
 import {
@@ -226,7 +226,7 @@ app.use('/vendor', express.static(localPath('../../../packages/client/dist')));
 // free CPU sink on a public host.
 //
 // So the demo limits itself, using the limiter it demonstrates. Nothing here
-// is fixture code: it is `@ninsho/server` doing the same job it would do in
+// is fixture code: it is `@ninshorg/server` doing the same job it would do in
 // front of a login route.
 // ───────────────────────────────────────────────────────────────────────────
 

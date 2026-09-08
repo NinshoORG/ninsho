@@ -62,19 +62,19 @@ Before running any manual tests, start the target service(s):
 ### Option 1: Start `express-api` (Port 3000)
 ```bash
 # In Terminal 1:
-npm run dev --workspace @ninsho/example-express-api
+npm run dev --workspace @ninshorg/example-express-api
 # Output: ninsho example listening on http://localhost:3000
 ```
 
 *Optional with Redis:*
 ```bash
-REDIS_URL=redis://localhost:6379 npm run dev --workspace @ninsho/example-express-api
+REDIS_URL=redis://localhost:6379 npm run dev --workspace @ninshorg/example-express-api
 ```
 
 ### Option 2: Start `playground` (Port 4000)
 ```bash
 # In Terminal 2:
-npm run dev --workspace @ninsho/playground
+npm run dev --workspace @ninshorg/playground
 # Output: listening on http://localhost:4000
 ```
 

@@ -39,7 +39,7 @@ import {
   isExpired,
   isoFrom,
   type AuditSink,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import type { NinshoStore } from '../store/types.js';
 import { KEYS } from '../keys.js';
 

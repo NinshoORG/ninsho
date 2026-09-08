@@ -17,7 +17,7 @@ import {
   isoToMs,
   nowIso,
   secondsUntil,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import type { NinshoStore } from '../store/types.js';
 import type { TokenEngine } from '../engine/types.js';
 import { KEYS } from '../keys.js';

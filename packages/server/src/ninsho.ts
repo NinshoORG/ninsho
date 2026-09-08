@@ -1,4 +1,4 @@
-import type { Principal, TokenPair } from '@ninsho/core';
+import type { Principal, TokenPair } from '@ninshorg/core';
 import { resolveConfig, type NinshoConfig, type ResolvedConfig } from './config.js';
 import type { NinshoStore } from './store/types.js';
 import type { TokenEngine } from './engine/types.js';

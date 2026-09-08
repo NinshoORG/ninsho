@@ -60,7 +60,7 @@ whether a caller may do a given thing.
   which subject redeemed it; hashing the password and storing it stay yours.
 
   WebAuthn is the one exception, and a deliberately narrow one:
-  `@ninsho/webauthn` verifies the ceremony — challenge, origin, RP ID,
+  `@ninshorg/webauthn` verifies the ceremony — challenge, origin, RP ID,
   signature, counter — and returns a `Principal`. It does not store credentials,
   own a user table, or decide what a user may do. Storage stays in your database
   next to the user it identifies.
@@ -199,7 +199,7 @@ one of the other three, or normalise at the edge.
 
 ### WebAuthn attestation: what each format actually proves
 
-`@ninsho/webauthn` verifies every statement format WebAuthn L3 defines —
+`@ninshorg/webauthn` verifies every statement format WebAuthn L3 defines —
 `none`, `packed`, `apple`, `tpm`, `fido-u2f`, `android-key` and
 `android-safetynet`. A format name outside that set is refused, and
 allowlisting it does not change that. There is deliberately no arrangement of

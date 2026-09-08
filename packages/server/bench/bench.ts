@@ -2,8 +2,8 @@
  * Performance benchmarks for the operations on the request hot path.
  *
  *   npm run build
- *   npm run bench --workspace @ninsho/server
- *   REDIS_URL=redis://localhost:6379 npm run bench --workspace @ninsho/server
+ *   npm run bench --workspace @ninshorg/server
+ *   REDIS_URL=redis://localhost:6379 npm run bench --workspace @ninshorg/server
  *
  * Measures the built output rather than the source, so the numbers describe
  * what actually ships — including whatever the bundler did to it.

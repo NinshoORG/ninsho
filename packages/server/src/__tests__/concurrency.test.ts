@@ -4,7 +4,7 @@ import {
   RefreshReuseError,
   TokenInvalidError,
   type Principal,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { OpaqueEngine } from '../engine/opaque.js';
 import { SessionManager } from '../session/manager.js';

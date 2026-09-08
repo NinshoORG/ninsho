@@ -1,4 +1,4 @@
-import { StoreUnavailableError, type FailureMode } from '@ninsho/core';
+import { StoreUnavailableError, type FailureMode } from '@ninshorg/core';
 import type { NinshoStore } from '../store/types.js';
 import { KEYS } from '../keys.js';
 

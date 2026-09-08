@@ -22,7 +22,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import type { AuthContext } from '@ninsho/core';
+import type { AuthContext } from '@ninshorg/core';
 import type { HttpRequest, HttpResponse, Middleware } from './http/types.js';
 
 /** The parts of a Koa context this adapter uses. */
@@ -172,7 +172,7 @@ async function runOne(
  *
  * @example
  * ```ts
- * import { toKoa, getAuth } from '@ninsho/server/koa';
+ * import { toKoa, getAuth } from '@ninshorg/server/koa';
  *
  * router.get('/me', toKoa(auth.verify()), (ctx) => {
  *   ctx.body = { userId: getAuth(ctx).userId };

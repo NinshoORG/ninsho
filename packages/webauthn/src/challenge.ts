@@ -26,7 +26,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { NinshoError, generateToken, hashToken, isExpired, isoFrom } from '@ninsho/core';
+import { NinshoError, generateToken, hashToken, isExpired, isoFrom } from '@ninshorg/core';
 
 /** Which ceremony a challenge belongs to. */
 export type CeremonyType = 'registration' | 'authentication';
@@ -34,7 +34,7 @@ export type CeremonyType = 'registration' | 'authentication';
 /**
  * The storage this module needs — the two atomic operations, nothing more.
  *
- * `NinshoStore` from `@ninsho/server` satisfies this structurally, so a
+ * `NinshoStore` from `@ninshorg/server` satisfies this structurally, so a
  * deployment already running Redis passes its existing store straight in.
  * Declaring the narrow shape rather than importing the wide one keeps this
  * package free of a dependency it would use two methods of.

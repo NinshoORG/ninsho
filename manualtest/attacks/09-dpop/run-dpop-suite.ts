@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { generateDpopKeyPair, createDpopProof, jwkThumbprint } from '@ninsho/server';
+import { generateDpopKeyPair, createDpopProof, jwkThumbprint } from '@ninshorg/server';
 
 function getCookie(headers: Headers): string | null {
   const sc = headers.get('set-cookie');

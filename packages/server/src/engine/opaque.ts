@@ -11,7 +11,7 @@ import {
   isExpired,
   isoFrom,
   secondsUntil,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import type { NinshoStore } from '../store/types.js';
 import { KEYS } from '../keys.js';
 import type {

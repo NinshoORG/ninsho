@@ -6,7 +6,7 @@ import {
   verifyDpopProof,
   parseJwk,
   type Principal,
-} from '@ninsho/server';
+} from '@ninshorg/server';
 import { NinshoClient } from './client.js';
 import { MemoryKeyStore } from './storage.js';
 import { generateDpopKey, jwkThumbprint as clientThumbprint } from './keys.js';

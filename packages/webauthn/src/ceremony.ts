@@ -23,7 +23,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { NinshoError, safeEqual } from '@ninsho/core';
+import { NinshoError, safeEqual } from '@ninshorg/core';
 import { CborError, decodeCbor, type CborValue } from './cbor.js';
 import { AuthDataError, parseAuthenticatorData, type ParsedAuthenticatorData } from './authdata.js';
 import {

@@ -5,7 +5,7 @@ import { SessionManager } from '../session/manager.js';
 import { MemoryAuditSink } from '../audit.js';
 import { mapConcurrent, DEFAULT_CONCURRENCY } from '../internal/concurrent.js';
 import type { NinshoStore } from '../store/types.js';
-import type { Principal } from '@ninsho/core';
+import type { Principal } from '@ninshorg/core';
 
 describe('mapConcurrent', () => {
   it('returns results in input order regardless of completion order', async () => {

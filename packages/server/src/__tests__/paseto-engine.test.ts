@@ -5,7 +5,7 @@ import {
   TokenInvalidError,
   TokenRevokedError,
   type Principal,
-} from '@ninsho/core';
+} from '@ninshorg/core';
 import { MemoryStore } from '../store/memory.js';
 import { PasetoEngine } from '../engine/paseto.js';
 import { KeyRing, generateKeyPair, loadPrivateKey } from '../keys/keyring.js';

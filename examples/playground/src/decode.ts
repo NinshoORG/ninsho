@@ -18,7 +18,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { decodeCbor, decodeCborPrefix, parseAuthenticatorData } from '@ninsho/webauthn';
+import { decodeCbor, decodeCborPrefix, parseAuthenticatorData } from '@ninshorg/webauthn';
 
 /** One labelled span of bytes. */
 export interface Field {

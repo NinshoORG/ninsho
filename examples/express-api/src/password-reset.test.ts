@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { MemoryStore } from '@ninsho/server';
+import { MemoryStore } from '@ninshorg/server';
 import { createApp } from './app.js';
 import { lastResetLink, resetUsers } from './users.js';
 import { resetCredentials } from './credentials.js';

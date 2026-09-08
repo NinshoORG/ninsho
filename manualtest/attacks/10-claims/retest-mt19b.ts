@@ -20,7 +20,7 @@ import {
   MemoryStore,
   Ninsho,
   toErrorResponse,
-} from '@ninsho/server';
+} from '@ninshorg/server';
 
 function maskToken(token: string): string {
   const parts = token.split('.');
