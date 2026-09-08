@@ -259,9 +259,9 @@ jobs:
           {
             "name": "consumer-check", "version": "1.0.0", "type": "module", "private": true,
             "dependencies": {
-              "@ninshorg/core": "file:./ninsho-core-0.1.0.tgz",
-              "@ninshorg/server": "file:./ninsho-server-0.1.0.tgz",
-              "@ninshorg/webauthn": "file:./ninsho-webauthn-0.1.0.tgz"
+              "@ninshorg/core": "file:./ninshorg-core-0.1.0.tgz",
+              "@ninshorg/server": "file:./ninshorg-server-0.1.0.tgz",
+              "@ninshorg/webauthn": "file:./ninshorg-webauthn-0.1.0.tgz"
             }
           }
           JSON
