@@ -58,6 +58,21 @@ robots.txt
 sitemap.xml
 ```
 
+## The brand assets
+
+`assets/brand/` holds the identity. The PNGs are the masters — the icon at
+1254&nbsp;px and the two horizontal lockups with the tagline. The SVGs are
+vector recreations of the same geometry, for the places a megabyte of raster
+has no business being: a favicon, a 28&nbsp;px nav mark, a social card.
+
+Every colour in `style.css` was **sampled from the artwork** rather than matched
+by eye — `#041526` for the ground, `#0071F0` to `#11D8FE` for the band — so the
+site and the logo are the same blue rather than two blues that nearly agree. If
+the artwork is ever revised, resample rather than adjust.
+
+[`brand.html`](./brand.html) documents the lockups, the scale test and the four
+usage rules.
+
 ## The one house rule
 
 **Every claim on this site names the test that demonstrates it.** That is the
