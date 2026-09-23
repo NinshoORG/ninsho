@@ -73,7 +73,7 @@ rotating chain while the victim sees one failed refresh and signs in again.
 
 ## Requirements
 
-Node 20+. Redis 6.2+ for `RedisStore` (`GETDEL` makes single-use consumption
+Node 22+. Redis 6.2+ for `RedisStore` (`GETDEL` makes single-use consumption
 atomic). `MemoryStore` is available for development and refuses to construct
 under `NODE_ENV=production`.
 
@@ -86,6 +86,6 @@ under `NODE_ENV=production`.
 
 ## Status
 
-Pre-release (0.1.0). Not independently audited. The API may change.
+Pre-1.0. Not independently audited. The API may change.
 
 MIT

@@ -1,6 +1,6 @@
 {
   "name": "@ninshorg/webauthn",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "WebAuthn / passkey registration and authentication verification for Ninsho. Zero dependencies.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -33,6 +33,9 @@
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -57,13 +60,13 @@
   },
   "homepage": "https://github.com/NinshoORG/ninsho#readme",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "sideEffects": false,
   "dependencies": {
-    "@ninshorg/core": "0.1.0"
+    "@ninshorg/core": "0.2.0"
   },
   "devDependencies": {
-    "@ninshorg/server": "0.1.0"
+    "@ninshorg/server": "0.2.0"
   }
 }

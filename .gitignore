@@ -15,3 +15,8 @@ coverage/
 .DS_Store
 Thumbs.db
 *.log
+
+# Local launch-video builds (brag / Hyperframes). Carries its own node_modules
+# and an 80 MB ffmpeg binary — the rendered videos are distributed separately,
+# never through this repository.
+brag-output/

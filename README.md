@@ -140,13 +140,15 @@ npm ci && npm run build
 npm run dev --workspace @ninshorg/playground   # → localhost:4000
 ```
 
-> **Status: v0.1.0 — published, and not yet independently audited.**
+> **Status: pre-1.0, on a stable track — and not yet independently audited.**
 >
 > The engineering is complete and verified: 2,056 tests against real Redis, CI
-> green on Node 20 and 22, verified from a clean checkout. What has *not*
-> happened is an external security review, so this is a considered choice
-> rather than a safe default. `0.1.0` says so on purpose — the predecessor
-> reached "1.0.0" in three days.
+> green on Node 22, 24 and 26, verified from a clean checkout. The public API is
+> recorded and CI-gated, so it cannot change without a reviewer seeing it. What
+> has *not* happened is an external security review, so this is a considered
+> choice rather than a safe default — and the version stays below `1.0.0` on
+> purpose; the predecessor reached "1.0.0" in three days.
+> [`docs/stability.md`](./docs/stability.md) says exactly what 1.0 is waiting on.
 
 ---
 
@@ -513,14 +515,14 @@ npm run typecheck
 npm run build
 ```
 
-Node 20+. CI runs on 20 and 22.
+Node 22+. CI runs on 22, 24 and 26.
 
 ### CI gates
 
 Four independent jobs, so a failure in one cannot silently disable the others —
 which is precisely how the predecessor's audit gate stopped running.
 
-- **verify** — `npm ci`, typecheck, test, build on Node 20 and 22
+- **verify** — `npm ci`, build, typecheck, public-API check, test, on Node 22, 24 and 26
 - **lockfile** — regenerates the lockfile and fails on any drift
 - **audit** — `npm audit --audit-level=moderate`
 - **bundle** — fails if a test double or env kill-switch reaches `dist/`, or if

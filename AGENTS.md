@@ -67,7 +67,9 @@ packages/
 examples/
   express-api/  A complete integration meant to be copied.
   playground/   The interactive demonstration. Ten panels, real library.
-docs/           Reference documentation.
+docs/           Reference documentation. docs/stability.md is the semver policy.
+api/            The public API, recorded. Generated — never edit by hand. See §7.
+scripts/        api-report.mjs (the API gate) and release-check.mjs (pre-publish).
 manualtest/     Attacker's-eye HTTP tests, run by hand against a local server.
 benchmarks/     Supplementary performance suites, plus their recorded results.
 .github/        CI, issue and PR templates.
@@ -165,6 +167,7 @@ matter of taste; it will fail the build, and the build is right.
 
 | Invariant | Enforced by |
 | --- | --- |
+| The public API does not change unless `api/*.api.md` changes with it | **Verify** › *Public API matches the recorded report* |
 | `@ninshorg/core` has zero third-party runtime dependencies | **Bundle purity** › *Assert core has no third-party runtime dependencies* |
 | `@ninshorg/client` has no dependencies at all | **Bundle purity** › *Assert the client has no dependencies at all* |
 | `@ninshorg/webauthn` has no third-party dependencies | **Bundle purity** › *Assert webauthn has no third-party dependencies* |
@@ -301,6 +304,20 @@ shape is new, and a test in `src/playground.test.ts`. The panel must state in
 advance what each outcome *should* be — a demonstration that stopped
 demonstrating would look exactly like one that still works.
 
+**Changing the public API.** Build, then `npm run api:report`, and commit the
+changed `api/*.api.md` in the same pull request. Say in the description whether
+the change is breaking under `docs/stability.md` — a removal, a rename, or a
+signature that accepts less or returns more is. CI fails a pull request whose
+built declarations do not match the committed report; do not regenerate the
+report just to make that go green without reading what changed.
+
+**Cutting a release.** Bump every workspace to one version (the four packages
+release in lockstep, and internal `@ninshorg/*` pins match it exactly),
+regenerate the lockfile per §8.3, add a CHANGELOG entry, merge, then on `main`:
+`npm ci && npm run build && npm run release:check`. Date the CHANGELOG heading
+last. The script prints the `npm publish` commands and never runs them —
+publishing is manual by maintainer decision, and nothing here may automate it.
+
 ---
 
 ## 8. Traps
@@ -324,21 +341,40 @@ silently deletes nothing and reports success, which is worse than failing.
 
 ### 8.3 The lockfile gate is npm-version-sensitive
 
-`npm install --package-lock-only` is not stable across npm versions. npm 11.6
-writes `"peer": true` markers; npm 11.19 strips them; npm 10 strips them too. CI
-regenerates on Node 24 with a current npm and asserts no drift.
+`npm install --package-lock-only` is not stable across npm versions. Which
+markers it writes — `"peer": true`, `"libc"` — has changed direction between
+npm releases, so any rule of the form "version X strips them" goes stale. An
+earlier version of this section had one, and it was wrong by the next bump.
 
-**If the drift job fails and the diff is only `"peer"` lines, your npm is
-behind.** Fix it with `npx npm@latest install --package-lock-only` and commit
-the result. Do not hand-edit the lockfile.
+**The only reliable reference is the npm the CI gate uses:** the one bundled
+with the newest Node 24. Look it up rather than assuming it —
+<https://nodejs.org/dist/index.json> lists the npm for every Node release. On
+2026-09-23 that was Node 24.21.0 → **npm 11.19.0**.
+
+If the drift job fails and the diff is only markers, regenerate with exactly
+that version and commit the result:
+
+```bash
+npx npm@11.19.0 install --package-lock-only
+```
+
+**Not `npm@latest`.** Latest is 12.x, a different major from the one CI runs,
+and it would introduce drift of its own. Do not hand-edit the lockfile.
+
+Observed on the `0.2.0` bump: the local npm, 11.6.2, stripped every `"peer"`
+and `"libc"` entry in the file. npm 11.19.0 kept them, and its output was
+byte-identical to the committed file plus the version changes.
 
 ### 8.4 Node version differences are real, and CI runs a matrix
 
-CI runs Node 20 and 22. An API available on your machine may not exist on 20.
-This is not hypothetical: `X509Certificate.validFromDate` / `validToDate` are
-Node 22.10+, and using them made **the entire attestation verifier inert on Node
-20** — it silently treated every certificate as invalid. Parse
-`cert.validFrom` / `cert.validTo` with `Date.parse` instead.
+CI runs Node 22, 24 and 26. The floor is 22 — see `docs/stability.md` for why
+and for how it moves. An API available on your machine may not exist on the
+floor, and the matrix exists because this is not hypothetical: when the floor
+was Node 20, `X509Certificate.validFromDate` / `validToDate` (Node 22.10+) made
+**the entire attestation verifier inert on Node 20** — it silently treated every
+certificate as invalid. The code parses `cert.validFrom` / `cert.validTo` with
+`Date.parse` instead, and that remains the right habit: check an API's version
+table against the *floor*, not against the Node you happen to be running.
 
 ### 8.5 Duplicate HTTP headers behave differently per header
 
@@ -444,13 +480,15 @@ that answer:
 
 ## 11. Current state
 
-- **Version** `0.1.0`, published to npm under the `@ninshorg` scope. Not
-  audited by anyone independent.
-- **CI** green on Node 20 and 22 against real Redis; verified from a fresh
-  clone rather than a working directory.
-- **Not yet done, and none of it is code:** an external security review, a
-  security disclosure contact in `SECURITY.md`, a hosted demonstration, and the
-  version decision. See the checklist at the end of `CONTRIBUTING.md`.
+- **Version** — see `CHANGELOG.md`; `0.1.0` is on npm under `@ninshorg`, and
+  `0.2.0` is the first release on the stable track. Not audited by anyone
+  independent. Publishing is manual: `npm run release:check`, then a person
+  runs the commands it prints.
+- **CI** on Node 22, 24 and 26 against real Redis; verified from a fresh clone
+  rather than a working directory. The public API is gated by `npm run api:check`.
+- **What stands between here and 1.0** is a table in `docs/stability.md`, with
+  a status per gate. Most of it is not code: an external security review, a
+  tested disclosure channel for `SECURITY.md`, and branch protection.
 
 If you are an agent picking this up: the engineering is complete and verified.
 The most valuable thing you can do is not to add features — it is to find code

@@ -33,7 +33,7 @@ npm run test
 npm run typecheck
 ```
 
-Node 20+. CI runs on 20 and 22.
+Node 22+. CI runs on 22, 24 and 26.
 
 ```bash
 # The store contract suite runs against MemoryStore by default and adds
@@ -110,7 +110,7 @@ an oracle.
 Open one against `main`. The template asks for the evidence — which test, and
 what it asserts — because that is the rule applied to the review process.
 
-CI runs on every pull request: Node 20 and 22 against real Redis, plus bundle
+CI runs on every pull request: Node 22, 24 and 26 against real Redis, plus bundle
 purity, a dependency audit, and a lockfile drift check. All five must be green.
 Two of those gates exist because a local run cannot see what they see, so a
 green machine is not a substitute — see [AGENTS.md §8](./AGENTS.md#8-traps).

@@ -88,6 +88,6 @@ both implementations, and client proofs verified by the server's real verifier.
 
 ## Status
 
-Pre-release (0.1.0). Not independently audited.
+Pre-1.0. Not independently audited.
 
 MIT

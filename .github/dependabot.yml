@@ -45,6 +45,18 @@ updates:
     # ioredis is the one runtime dependency a consumer installs, and a major
     # bump changes behaviour the store contract depends on. Kept out of the
     # groups above so it always arrives as its own reviewable pull request.
+    ignore:
+      # @types/node describes the *oldest* Node this project supports, not the
+      # newest. Typing against Node 26 while `engines` says >=22 lets the
+      # compiler approve an API that crashes on the floor version — the type
+      # check would pass and a Node 22 user would find out at runtime.
+      #
+      # This was also the one Dependabot PR that kept arriving red (#19, #26):
+      # each @types/node major tightens the WebCrypto `BufferSource` typings.
+      # Chasing that is the wrong fix. The major moves deliberately, in the
+      # same change that raises `engines.node` — see docs/stability.md.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

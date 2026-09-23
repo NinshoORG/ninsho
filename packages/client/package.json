@@ -1,6 +1,6 @@
 {
   "name": "@ninshorg/client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Browser client for Ninsho — DPoP proof-of-possession with a non-extractable key, automatic refresh. Zero dependencies.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -23,6 +23,9 @@
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -46,10 +49,10 @@
   },
   "homepage": "https://github.com/NinshoORG/ninsho#readme",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "sideEffects": false,
   "devDependencies": {
-    "@ninshorg/server": "0.1.0"
+    "@ninshorg/server": "0.2.0"
   }
 }

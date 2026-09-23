@@ -1,5 +1,15 @@
 # Ninsho PASETO v4.public Cryptographic Audit
 
+> **Who performed this, and what "independent" means here.** This review was
+> carried out by a contributor to the project. "Independent" below describes
+> the *method* — a reference implementation of PAE, and direct `node:crypto`
+> verification, that share no code with Ninsho's own helpers — not the
+> reviewer. It is therefore not the external security review that
+> [`stability.md`](./stability.md#the-road-to-10) lists as a gate for `1.0.0`,
+> and it does not change the README's statement that Ninsho has not been
+> independently audited. Both things are true: the PASETO implementation has
+> been checked hard, and nobody outside the project has checked it yet.
+
 ## Scope
 
 This audit is an independent cryptographic verification of the PASETO (Platform-Agnostic Security Tokens) v4.public implementation in Ninsho v0.1.0. The audit covers the serialization framing, the Pre-Authentication Encoding (PAE), digital signature generation and verification over Ed25519, footer authentication, implicit assertions, key handling, base64url canonicalization, expiry and claim enforcement, cross-tenant/cross-service issuer/audience binding, and key rotation lifecycles.

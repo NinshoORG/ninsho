@@ -1,6 +1,6 @@
 {
   "name": "@ninshorg/server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ninsho authentication engine for Node.js — opaque or PASETO tokens, injected session store, secure by default.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -53,6 +53,9 @@
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -60,7 +63,7 @@
     "bench": "node --experimental-strip-types bench/bench.ts"
   },
   "dependencies": {
-    "@ninshorg/core": "0.1.0",
+    "@ninshorg/core": "0.2.0",
     "ioredis": "^6.0.0"
   },
   "keywords": [
@@ -82,7 +85,7 @@
   },
   "homepage": "https://github.com/NinshoORG/ninsho#readme",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "sideEffects": false,
   "devDependencies": {
