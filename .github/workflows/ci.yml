@@ -18,7 +18,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20', '22']
+        # Every Node line that is supported upstream, and nothing older. Node 20
+        # reached end-of-life on 2026-04-30; testing a runtime nobody patches
+        # would describe it as supported. 22 and 24 are LTS; 26 is Current and
+        # becomes LTS in October, so a break there is news worth hearing early.
+        # The floor in every package's `engines` is the first entry here —
+        # docs/stability.md says what moving it means.
+        node: ['22', '24', '26']
 
     # A real Redis, not a mock library. The store contract suite runs the same
     # assertions against MemoryStore and RedisStore, so the two cannot drift
@@ -68,6 +74,19 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # The public API is recorded in api/*.api.md, generated from the built
+      # declaration files. A pull request that changes what a consumer compiles
+      # against therefore changes a file a reviewer can read — and one that
+      # changes it without regenerating the report fails here.
+      #
+      # This is the mechanism behind the semver promise in docs/stability.md.
+      # Without it, "we don't break the API in a minor" is a claim nobody can
+      # check; with it, every break is a visible diff that someone approved.
+      # Once per matrix: declaration output does not depend on the Node line.
+      - name: Public API matches the recorded report
+        if: matrix.node == '24'
+        run: npm run api:check
+
       - name: Test (with real Redis)
         run: npm run test
         env:
@@ -82,12 +101,13 @@ jobs:
       # Running them here is not a performance gate. It is a check that the
       # documented figures can still be reproduced by the command the
       # documentation tells you to run.
-      # Only on the newest matrix entry: the benchmark scripts run TypeScript
-      # directly through `--experimental-strip-types`, which Node 20 does not
-      # have — it exits 9 on the unknown flag. The scripts are checked for
-      # still running, not for a number, so once per matrix is the whole point.
+      # Once per matrix, on 24 because that is the line PERFORMANCE.md's
+      # figures were measured on. The scripts are checked for still running,
+      # not for a number, so one run is the whole point. (This used to be
+      # pinned to 22 because Node 20 lacked `--experimental-strip-types` and
+      # exited 9 on the unknown flag; every supported line has it now.)
       - name: Benchmarks still run
-        if: matrix.node == '22'
+        if: matrix.node == '24'
         run: |
           npm run bench --workspace @ninshorg/server
           npm run bench --workspace @ninshorg/webauthn
@@ -146,7 +166,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
       - run: npm ci
 
@@ -188,7 +208,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - run: npm run build
@@ -255,16 +275,33 @@ jobs:
           npm pack --workspace @ninshorg/webauthn --pack-destination "$WORK"
 
           cd "$WORK"
-          cat > package.json <<'JSON'
-          {
-            "name": "consumer-check", "version": "1.0.0", "type": "module", "private": true,
-            "dependencies": {
-              "@ninshorg/core": "file:./ninshorg-core-0.1.0.tgz",
-              "@ninshorg/server": "file:./ninshorg-server-0.1.0.tgz",
-              "@ninshorg/webauthn": "file:./ninshorg-webauthn-0.1.0.tgz"
-            }
-          }
-          JSON
+          # The tarball names carry the version, and this step used to spell
+          # them out as `ninshorg-core-0.1.0.tgz`. The first version bump would
+          # have broken the gate with a missing-file error that says nothing
+          # about the packages — the same trap the scope rename fell into,
+          # when tarball names dropped the `@` and a search for `@ninsho`
+          # never matched. Resolved from what `npm pack` actually wrote, and
+          # exactly one of each, so a stale tarball cannot be picked up either.
+          node -e '
+            const fs = require("fs");
+            const tgz = (name) => {
+              const found = fs.readdirSync(".").filter((f) => f.startsWith(`ninshorg-${name}-`) && f.endsWith(".tgz"));
+              if (found.length !== 1) {
+                console.error(`::error::expected exactly one ${name} tarball, found ${found.length}: ${found.join(", ")}`);
+                process.exit(1);
+              }
+              return `file:./${found[0]}`;
+            };
+            fs.writeFileSync("package.json", JSON.stringify({
+              name: "consumer-check", version: "1.0.0", type: "module", private: true,
+              dependencies: {
+                "@ninshorg/core": tgz("core"),
+                "@ninshorg/server": tgz("server"),
+                "@ninshorg/webauthn": tgz("webauthn"),
+              },
+            }, null, 2));
+          '
+          cat package.json
           npm install --no-audit --no-fund
 
           cat > esm.mjs <<'JS'

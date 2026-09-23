@@ -1,6 +1,6 @@
 {
   "name": "@ninshorg/example-express-api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Reference Express API built on Ninsho.",
   "type": "module",
@@ -10,14 +10,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ninshorg/server": "0.1.0",
+    "@ninshorg/server": "0.2.0",
     "express": "^5.2.1",
-    "@ninshorg/webauthn": "0.1.0"
+    "@ninshorg/webauthn": "0.2.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   }
 }

@@ -23,7 +23,7 @@
 
 ## Status
 
-Ninsho is **published at v0.1.0** and remains pre-1.0. It has not been
+Ninsho is published and remains pre-1.0 — see [`docs/stability.md`](./docs/stability.md). It has not been
 independently audited. Do not deploy it to production without your own review.
 
 ---

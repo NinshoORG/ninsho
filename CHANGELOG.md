@@ -3,6 +3,83 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — Unreleased
+
+**The first release on a stable track.** The public API is now written down,
+and a change to it cannot land without someone seeing it. This is not
+`1.0.0`: [`docs/stability.md`](./docs/stability.md) lists what still stands
+between here and there, and most of it is not code.
+
+### Breaking
+
+- **Node.js 20 is no longer supported.** It reached end-of-life on 2026-04-30,
+  and a release that promises stability cannot list a runtime nobody patches
+  as supported. `engines.node` is `>=22.0.0` in every package, and CI now tests
+  22, 24 and 26. Moving to Node 22 or later is the whole upgrade — no API
+  changed.
+
+  This ships as a minor release because semver lets `0.x` break in a minor, and
+  it is why dropping the floor had to happen *before* `1.0.0` rather than after.
+
+### Added
+
+- **The public API, recorded.** `api/*.api.md` holds each package's
+  declarations exactly as a consumer's compiler reads them, one section per
+  `exports` entry. CI regenerates them and fails on any difference, so an API
+  change arrives as a diff a reviewer reads rather than a surprise a user
+  finds. Chunk hashes are normalised and nothing else is touched.
+
+  Verified by breaking it: renaming `generateId` in a built declaration made
+  `npm run api:check` exit 1 and name the line; rebuilding made it exit 0.
+
+- **[`docs/stability.md`](./docs/stability.md).** What is public, what counts as
+  breaking, the runtime policy, and the gates to `1.0.0` with their status.
+  Every promise in it names the mechanism that enforces it.
+
+- **`npm run release:check`.** A pre-publish check that never publishes:
+  lockstep versions, internal pins, `publishConfig`, the Node floor, a dated
+  CHANGELOG entry, built exports, the API report, tarball contents, whether the
+  version is already on npm, a clean tree on `main`, and green CI on the commit.
+  If everything passes it prints the `npm publish` commands in dependency order
+  for a person to run. Publishing stays manual by decision.
+
+  Its first run reported `0.1.0` as already on the registry — a published
+  version can never be replaced, so that is the check doing its job.
+
+- **`publishConfig.access: "public"`** on all four packages. The first publish
+  failed with a 402 because a scoped package defaults to private, and the fix
+  was a flag someone had to remember to pass. It is in the manifest now.
+
+### Fixed
+
+- **CI's consumer check would have broken on this release.** It spelled the
+  tarball names out as `ninshorg-core-0.1.0.tgz`, so the first version bump
+  would have failed it with a missing-file error that said nothing about the
+  packages — the same trap the scope rename fell into. It now resolves the
+  names from what `npm pack` wrote, and requires exactly one of each so a stale
+  tarball cannot be picked up instead.
+
+- **`@types/node` majors no longer arrive on their own.** Dependabot kept
+  proposing Node 26 typings (#19, #26) while `engines` said `>=20`, which would
+  let the compiler approve APIs that crash on the floor version. Those pull
+  requests were also the ones that kept going red. The major now moves
+  deliberately, in the same change that raises the floor.
+
+- **The status comment at the top of `@ninshorg/server`'s entry point** said a
+  browser client package did not exist yet. `@ninshorg/client` shipped in
+  `0.1.0`. The comment no longer carries a version, which is how it went stale.
+
+- **[`CRYPTOGRAPHIC-AUDIT.md`](./docs/CRYPTOGRAPHIC-AUDIT.md) now says who
+  performed it.** It called itself "an independent cryptographic verification",
+  meaning the method — a reference implementation sharing no code with Ninsho —
+  and a reader could fairly take it to mean the reviewer. That would contradict
+  the README's "not independently audited". Both statements are now true at once.
+
+### Changed
+
+- CI's audit and bundle-purity jobs run on Node 24 instead of 20; the
+  benchmark smoke run moved to 24, the line PERFORMANCE.md was measured on.
+
 ## [0.1.0] — 2026-09-08
 
 **First published release.** `@ninshorg/core`, `@ninshorg/webauthn`,

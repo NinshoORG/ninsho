@@ -1,14 +1,17 @@
 /**
  * @ninshorg/server — the Ninsho authentication engine.
  *
- * ─── Status: v0.1.0, Phase 8 ──────────────────────────────────────────────
- * What exists: the storage seam, the opaque token engine, sessions with
- * refresh-token rotation and reuse detection, configuration validation, and
- * audit sinks.
+ * ─── What this entry point is ─────────────────────────────────────────────
+ * Sessions, refresh rotation with reuse detection, the opaque and PASETO
+ * engines, authorization guards, rate limiting, one-time tokens, and the
+ * server half of DPoP. The browser half — a non-extractable WebCrypto key and
+ * the proofs it signs — is `@ninshorg/client`; `createDpopProof` here exists
+ * for Node callers and tests.
  *
- * What does not exist yet: a browser client package. DPoP proofs can be
- * generated in Node with `createDpopProof`; a browser should use WebCrypto
- * with a non-extractable key, which no helper here can provide.
+ * What is public, and what may change between versions, is recorded in
+ * `api/server.api.md` and governed by `docs/stability.md`. There is
+ * deliberately no version number in this comment: it went stale the first
+ * time, and said a package that had shipped did not exist yet.
  * ──────────────────────────────────────────────────────────────────────────
  *
  * @example The whole setup

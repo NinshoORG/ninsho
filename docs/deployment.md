@@ -2,8 +2,8 @@
 
 Before this goes in front of real users.
 
-> **Read this first.** Ninsho is `0.1.0`, unpublished, and **has not been
-> independently audited**. The entire project exists because a library's claims
+> **Read this first.** Ninsho is pre-1.0 and **has not been independently
+> audited** — [`stability.md`](./stability.md) says what 1.0 is waiting on. The entire project exists because a library's claims
 > outran its evidence, so it will not make an exception for itself: run your own
 > review before you depend on this. Everything below assumes you have decided to
 > anyway.

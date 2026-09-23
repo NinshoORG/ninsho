@@ -309,7 +309,7 @@ WebAuthn defeated, quietly, while every signature still verifies.
 
 ## Requirements
 
-Node 20 or newer. Ed25519 support comes from Node's WebCrypto.
+Node 22 or newer. Ed25519 support comes from Node's WebCrypto.
 
 ## Licence
 

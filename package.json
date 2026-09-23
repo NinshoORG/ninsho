@@ -21,7 +21,10 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p manualtest/tsconfig.json && tsc --noEmit -p benchmarks/tsconfig.json",
     "lint:lockfile": "npm install --package-lock-only && git diff --exit-code package-lock.json",
-    "clean": "rimraf --glob \"packages/*/dist\" \"packages/*/*.tsbuildinfo\""
+    "clean": "rimraf --glob \"packages/*/dist\" \"packages/*/*.tsbuildinfo\"",
+    "api:report": "node scripts/api-report.mjs",
+    "api:check": "node scripts/api-report.mjs --check",
+    "release:check": "node scripts/release-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -31,7 +34,7 @@
     "vitest": "^5.0.0"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.0.0",
     "npm": ">=11"
   },
   "license": "MIT",

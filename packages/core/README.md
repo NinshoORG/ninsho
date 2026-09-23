@@ -33,7 +33,7 @@ ISO-8601 time predicates that fail closed on unparseable input.
 
 ## Status
 
-Pre-release (0.1.0). Not independently audited. See the
+Pre-1.0. Not independently audited. See the
 [security policy](https://github.com/NinshoORG/ninsho/blob/main/SECURITY.md).
 
 MIT
