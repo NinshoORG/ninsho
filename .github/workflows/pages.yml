@@ -1,0 +1,52 @@
+name: Website
+
+# Publishes website/ to GitHub Pages. This deploys the site and nothing else:
+# it has no npm token, touches no package, and changes no version. Publishing
+# to npm stays manual by maintainer decision — see `npm run release:check`.
+#
+# One-time setup, by a maintainer: Settings → Pages → Build and deployment →
+# Source: "GitHub Actions". Branch-based Pages can only serve `/` or `/docs`,
+# which is why the site needs this workflow rather than a folder setting.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push supersedes a queued one, but a
+# deployment already running is allowed to finish rather than left half-done.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # The walkthroughs on the site are recordings, and CI's verify job
+      # re-records them and fails if the library stopped behaving the way they
+      # show. This workflow does not repeat that; it only refuses to publish a
+      # site whose recording file is missing, which would render an empty page.
+      - name: Walkthrough recordings are present
+        run: test -s website/assets/walkthroughs.js
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: website
+      - id: deployment
+        uses: actions/deploy-pages@v5

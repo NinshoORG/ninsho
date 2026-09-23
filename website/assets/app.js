@@ -55,8 +55,11 @@
   // Mark the current page so the nav says where you are.
   var here = location.pathname.split('/').pop() || 'index.html';
   Array.prototype.forEach.call(document.querySelectorAll('.nav-link'), function (a) {
-    var target = a.getAttribute('href');
-    if (target === here || (here === 'index.html' && target === './')) {
+    // The links are written `./demo.html`; the path's last segment is
+    // `demo.html`. Compared as written, no page but the home page ever
+    // matched, so the nav never said where you were.
+    var target = (a.getAttribute('href') || '').replace(/^\.\//, '');
+    if (target === here || (here === 'index.html' && target === '')) {
       a.setAttribute('aria-current', 'page');
     }
   });

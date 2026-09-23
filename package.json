@@ -24,7 +24,9 @@
     "clean": "rimraf --glob \"packages/*/dist\" \"packages/*/*.tsbuildinfo\"",
     "api:report": "node scripts/api-report.mjs",
     "api:check": "node scripts/api-report.mjs --check",
-    "release:check": "node scripts/release-check.mjs"
+    "release:check": "node scripts/release-check.mjs",
+    "walkthroughs": "npm run walkthroughs --workspace @ninshorg/playground",
+    "walkthroughs:check": "npm run walkthroughs:check --workspace @ninshorg/playground"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

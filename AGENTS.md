@@ -67,6 +67,7 @@ packages/
 examples/
   express-api/  A complete integration meant to be copied.
   playground/   The interactive demonstration. Ten panels, real library.
+                Also records the website's walkthroughs (src/walkthroughs.ts).
 docs/           Reference documentation. docs/stability.md is the semver policy.
 api/            The public API, recorded. Generated — never edit by hand. See §7.
 scripts/        api-report.mjs (the API gate) and release-check.mjs (pre-publish).
@@ -303,6 +304,17 @@ button in `public/index.html`, renderer in `public/app.js` if the response
 shape is new, and a test in `src/playground.test.ts`. The panel must state in
 advance what each outcome *should* be — a demonstration that stopped
 demonstrating would look exactly like one that still works.
+
+**Adding or changing a website walkthrough.** Scenarios live in
+`examples/playground/src/walkthroughs.ts`; the app they drive is
+`walkthrough-app.ts` beside it, which the website prints verbatim. Every step
+states its expected status in `expect`, and any note that makes a claim about an
+audit event lists that event in `events` — the recorder refuses to write a trace
+the library disagrees with. Cite tests by their exact quoted name; the check
+fails on a citation it cannot find. Then `npm run build && npm run walkthroughs`
+and commit `website/assets/walkthroughs.js`. Read what was recorded before you
+write the note: one draft claimed `signalMatch: different` for a refresh replay,
+and the library, correctly, said `same`.
 
 **Changing the public API.** Build, then `npm run api:report`, and commit the
 changed `api/*.api.md` in the same pull request. Say in the description whether

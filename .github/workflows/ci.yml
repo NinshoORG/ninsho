@@ -87,6 +87,18 @@ jobs:
         if: matrix.node == '24'
         run: npm run api:check
 
+      # The website's walkthroughs are recordings of the real library, and a
+      # recording is exactly the artefact that quietly stops matching what it
+      # depicts — this project was founded on an attack suite that tested a
+      # reimplementation. So they are recorded again here, against this
+      # commit's build, and the job fails if a status, a store operation or an
+      # audit event differs from what the website shows. It also fails if a
+      # walkthrough cites a test that no longer exists, or if the app source
+      # printed on the page is not the source that ran.
+      - name: Website walkthroughs match the library
+        if: matrix.node == '24'
+        run: npm run walkthroughs:check
+
       - name: Test (with real Redis)
         run: npm run test
         env:
