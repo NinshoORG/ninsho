@@ -55,10 +55,14 @@ people's test suites import it, and breaking a test suite is still breaking.
   class and the code, never on the text.
 - Anything reachable only through a path outside `exports`. The `exports` map
   makes those unreachable to a well-behaved import anyway.
-- **Store key names and stored record formats — for now.** These should be
-  covered, because two versions sharing one Redis during a rolling deploy read
-  each other's records. Nothing yet tests that they can, so this document does
-  not promise it. Closing that is a 1.0 gate, below.
+- **Stored record formats — for now.** Keys are versioned (`ninsho:v1:`), and
+  a schema change is designed to bump that prefix, so records written under the
+  old one become invisible — a forced re-login — rather than misread under the
+  new one. What is not yet covered is the case in between: a record written by
+  one release, read by the next, with the prefix still `v1`. Two versions share
+  one Redis during every rolling deploy, so this matters, and nothing yet tests
+  it; this document therefore does not promise it. Closing that is a 1.0 gate,
+  below.
 
 ---
 
@@ -74,6 +78,7 @@ people's test suites import it, and breaking a test suite is still breaking.
 | An audit event `type` is renamed | **Yes** | Alerts stop firing, silently |
 | A default becomes less safe | **Yes** | See above |
 | The Node.js floor rises | **Yes** | Installs on the old line stop working |
+| The store namespace version changes (`ninsho:v1:` → `v2`) | **Yes** | Every existing session becomes invisible, so everyone is signed out on upgrade — safe by design, and an operator still needs to know it is coming |
 | A new export, a new optional option, a new error class | No | Nothing existing changes |
 | A new audit event `type` | No | Consumers should ignore types they do not recognise |
 | Error or event message wording | No | Not contract, see above |
@@ -164,7 +169,7 @@ npm run release:check
 | The release procedure is encoded, not remembered | ✅ **Done** in `0.2.0` — `release:check` |
 | **A private vulnerability-reporting channel, tested end to end** | ⬜ **Open.** GitHub private vulnerability reporting is currently **disabled** on the repository, and `SECURITY.md` still carries the placeholder that says so. It needs enabling, then a test report filed and received, before `SECURITY.md` may point at it — a policy naming a channel that does not work is how the predecessor failed. |
 | `.well-known/security.txt` per RFC 9116 | ⬜ **Open.** Follows the channel above; a `security.txt` pointing nowhere is worse than none. |
-| **Rolling upgrades do not sign anyone out** | ⬜ **Open.** Stored records carry no format version, and nothing tests that a session written by version *N* verifies under *N + 1*. Until something does, store formats are excluded from the promise above. |
+| **Rolling upgrades do not sign anyone out** | ⬜ **Open.** Keys carry a namespace version (`ninsho:v1:`) so an incompatible schema is made invisible rather than misread — but nothing tests that a session written by release *N* still verifies under *N + 1* while that version is unchanged. Until something does, record formats are excluded from the promise above. |
 | **An external security review** | ⬜ **Open.** [`CRYPTOGRAPHIC-AUDIT.md`](./CRYPTOGRAPHIC-AUDIT.md) is a project contributor's review of the PASETO implementation — thorough and useful, and not independent. `1.0.0` needs a reviewer from outside the project, across the whole surface. |
 | One minor cycle with no breaking change to the API report | ⬜ **Open.** The clock starts at `0.2.0`. |
 | `main` accepts only changes that passed CI | ⬜ **Open.** Branch protection is not enabled. |
