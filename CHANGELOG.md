@@ -23,6 +23,39 @@ between here and there, and most of it is not code.
 
 ### Added
 
+- **Walkthroughs on the website** — `website/walkthroughs.html`. Seven attacks
+  against an app built on Ninsho, stepped through one request at a time:
+  sign-out-everywhere, a stolen refresh token, broken object-level
+  authorization, distributed credential stuffing, a reset link raced from five
+  tabs, a stolen access token under DPoP, and the store going down mid-attack.
+  Each step shows the request, the response, the store operations and the audit
+  events, and links the test that pins the behaviour.
+
+  They are recordings, and a recording is exactly the artefact that drifts, so
+  `examples/playground/src/walkthroughs.ts` holds them to the library: the app
+  runs on a real socket against a real store; each step declares its expected
+  status and audit events before it runs and nothing is written if the library
+  disagrees; no raw token may appear in any store operation; and every cited
+  test must exist. CI re-records on every push (`npm run walkthroughs:check`).
+
+  Each of those checks was verified by breaking it. Removing `requireOwner`
+  from the app made the recorder refuse — *expected 403, got 200* — and leave
+  the committed file untouched. A tampered recording and a citation to a test
+  that does not exist each failed the check with the exact location.
+
+  Building it found three things in its own first draft worth recording. The
+  raw-token check ran on output already shortened for display, so it could not
+  have found a leak. The drift check compared rate-limit keys that embed the
+  current minute, so it passed within a minute of recording and failed after.
+  And a note claimed the refresh-reuse alarm fired with `signalMatch: different`;
+  the library said `same` — correctly, because the attacker redeemed first, so
+  the replay came from Alice. Notes that make claims about events now assert
+  them.
+
+- **A GitHub Pages workflow** for the website (`.github/workflows/pages.yml`).
+  It deploys `website/` and nothing else — no npm token, no version change.
+  Needs one setting before it can run: Settings → Pages → Source: GitHub Actions.
+
 - **The public API, recorded.** `api/*.api.md` holds each package's
   declarations exactly as a consumer's compiler reads them, one section per
   `exports` entry. CI regenerates them and fails on any difference, so an API
@@ -51,6 +84,13 @@ between here and there, and most of it is not code.
   was a flag someone had to remember to pass. It is in the manifest now.
 
 ### Fixed
+
+- **The site's nav never marked the current page**, except the home page.
+  `app.js` compared the link as written (`./demo.html`) against the path's last
+  segment (`demo.html`), so they never matched.
+
+- **`website/README.md` said GitHub Pages could serve `/website` from `main`.**
+  Branch-based Pages serves only `/` or `/docs`; it needs the workflow above.
 
 - **CI's consumer check would have broken on this release.** It spelled the
   tarball names out as `ninshorg-core-0.1.0.tgz`, so the first version bump

@@ -8,7 +8,9 @@
     "dev": "node --experimental-strip-types src/server.ts",
     "start": "node --experimental-strip-types src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "walkthroughs": "node --experimental-strip-types src/walkthroughs.ts",
+    "walkthroughs:check": "node --experimental-strip-types src/walkthroughs.ts --check"
   },
   "dependencies": {
     "@ninshorg/client": "0.2.0",

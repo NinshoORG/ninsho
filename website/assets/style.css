@@ -537,3 +537,218 @@ td.name { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; white-
   color: var(--ink);
 }
 .banner strong { color: var(--seal); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Walkthroughs — walkthroughs.html
+   ───────────────────────────────────────────────────────────────────────────
+   Recordings of the real library, replayed step by step. Colour carries role,
+   not verdict: an attacker's step is amber whether it was refused or not, and
+   every step shows a green check because every step did what it said it would
+   — the recorder refuses to write one that did not.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wt-hero { padding-bottom: clamp(2rem, 5vw, 3.5rem); }
+.wt-hero h1 { max-width: 20ch; }
+.wt-hero .lede em { font-style: italic; color: var(--ink); }
+
+.wt-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 1px;
+  margin: 1.25rem 0 0;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.wt-fact { background: var(--surface); padding: 1rem 1.1rem; }
+.wt-fact dt {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.wt-fact dd { margin: 0.2rem 0 0; font-size: 0.8125rem; color: var(--dim); }
+.wt-caveat { margin: 0.9rem 0 0; max-width: 78ch; font-size: 0.8125rem; line-height: 1.6; color: var(--dim); }
+.wt-caveat strong { color: var(--pass); }
+.wt-caveat a { color: var(--seal); }
+
+.wt-band { padding-top: clamp(2rem, 4vw, 3rem); }
+.wt-layout {
+  display: grid;
+  grid-template-columns: minmax(13rem, 17rem) minmax(0, 1fr);
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  align-items: start;
+}
+
+/* ── Index ───────────────────────────────────────────────────────────────── */
+.wt-index { position: sticky; top: 4.75rem; }
+.wt-index ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.wt-index-link {
+  display: grid;
+  grid-template-columns: 1.9rem minmax(0, 1fr);
+  gap: 0.1rem 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--dim);
+}
+.wt-index-link:hover { background: var(--raised); color: var(--ink); }
+.wt-index-link[aria-current='true'] { background: var(--surface); border-color: var(--line-hot); color: var(--ink); box-shadow: var(--shadow); }
+.wt-index-n { grid-row: span 2; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--seal); padding-top: 0.12rem; }
+.wt-index-t { font-size: 0.875rem; font-weight: 600; line-height: 1.35; }
+.wt-index-c { font-size: 0.72rem; color: var(--faint); }
+
+@media (max-width: 940px) {
+  .wt-layout { grid-template-columns: minmax(0, 1fr); }
+  .wt-index { position: static; }
+  .wt-index ol { grid-auto-flow: column; grid-auto-columns: minmax(12.5rem, 1fr); overflow-x: auto; padding-bottom: 0.4rem; }
+}
+
+/* ── Player ──────────────────────────────────────────────────────────────── */
+.wt-player { min-width: 0; }
+.wt-head { display: grid; gap: 0.75rem; }
+.wt-head h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
+.wt-config {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--seal);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.wt-cites { display: grid; gap: 0.2rem; }
+.wt-cites a { color: inherit; }
+
+.wt-controls {
+  position: sticky;
+  top: 4.25rem;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.25rem 0 1rem;
+  padding: 0.6rem;
+  background: color-mix(in srgb, var(--ground) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.wt-btn { padding: 0.5rem 0.9rem; font-size: 0.8125rem; font-family: inherit; }
+/* `.btn` was written for links. On a <button> the browser paints its own
+   background, and because :root declares `color-scheme: light dark` it follows
+   the OS rather than the site theme — dark grey slabs on the light theme. */
+.wt-btn.btn-ghost { background: transparent; }
+.wt-btn.btn-ghost:hover:not(:disabled) { background: var(--surface); }
+.wt-btn:disabled { opacity: 0.4; cursor: default; }
+.wt-counter { margin-inline: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--dim); }
+
+.wt-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
+.wt-step {
+  --role: var(--seal);
+  display: grid;
+  gap: 0.8rem;
+  padding: 1.05rem 1.1rem 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--role);
+  border-radius: 12px;
+  scroll-margin-top: 9rem;
+}
+/* `display: grid` above outranks the browser's own `[hidden] { display: none }`,
+   so without this every step rendered while the counter said "3 of 5". The
+   player's own check read the attribute and reported one step visible; only a
+   screenshot showed all five. */
+.wt-step[hidden] { display: none; }
+.wt-step[data-role='attacker'] { --role: var(--amber); }
+.wt-step[data-role='system'] { --role: var(--faint); }
+.wt-step.is-current { box-shadow: var(--shadow); border-color: var(--line-hot); border-left-color: var(--role); }
+@media (prefers-reduced-motion: no-preference) {
+  .wt-step.is-current { animation: wt-in 0.28s ease-out; }
+  @keyframes wt-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+
+.wt-step-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.6rem; }
+.wt-step-n { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--faint); }
+.wt-step-n span { opacity: 0.7; }
+.wt-actor {
+  padding: 0.14rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--role);
+  background: color-mix(in srgb, var(--role) 13%, transparent);
+}
+.wt-step-title { flex: 1 1 14rem; font-size: 1rem; }
+.wt-verdict { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--pass); white-space: nowrap; }
+.wt-verdict-got { color: var(--faint); }
+
+/* One request/response exchange. */
+.wt-x { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+@media (max-width: 640px) { .wt-x { grid-template-columns: minmax(0, 1fr); } }
+.wt-req, .wt-res { min-width: 0; padding: 0.65rem 0.8rem; background: var(--raised); display: grid; gap: 0.45rem; align-content: start; }
+.wt-line { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+.wt-method { font-weight: 700; color: var(--seal); }
+.wt-path { color: var(--ink); }
+.wt-headers { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; line-height: 1.55; color: var(--dim); overflow-wrap: anywhere; }
+.wt-h { color: var(--faint); }
+.wt-json { margin: 0; overflow-x: auto; font-size: 0.72rem; line-height: 1.55; color: var(--ink); }
+.j-key { color: var(--seal); }
+.j-str { color: var(--pass); }
+.j-lit { color: var(--amber); }
+.wt-status { display: inline-block; padding: 0.08rem 0.45rem; border-radius: 6px; font-weight: 700; }
+.wt-status.s-ok { color: var(--pass); background: color-mix(in srgb, var(--pass) 13%, transparent); }
+.wt-status.s-no { color: var(--amber); background: color-mix(in srgb, var(--amber) 15%, transparent); }
+.wt-status.s-down { color: var(--amber); background: color-mix(in srgb, var(--amber) 22%, transparent); }
+
+.wt-many { display: grid; gap: 0.5rem; }
+.wt-many-label { margin: 0; font-size: 0.75rem; color: var(--faint); }
+.wt-many-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); gap: 0.4rem; }
+.wt-x-compact { grid-template-columns: minmax(0, 1fr) auto; }
+.wt-x-compact .wt-req, .wt-x-compact .wt-res { padding: 0.45rem 0.6rem; }
+.wt-system { padding: 0.65rem 0.8rem; border: 1px dashed var(--line-hot); border-radius: 9px; font-size: 0.8125rem; color: var(--dim); }
+
+.wt-note { margin: 0; max-width: 72ch; font-size: 0.9rem; line-height: 1.65; color: var(--dim); }
+.wt-note code, .wt-head .lede code { font-size: 0.85em; padding: 0.05rem 0.3rem; border-radius: 4px; background: var(--raised); color: var(--ink); }
+
+.wt-more summary { cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--dim); }
+.wt-more summary:hover { color: var(--ink); }
+.wt-more[open] summary { margin-bottom: 0.5rem; }
+.wt-count { font-family: 'JetBrains Mono', monospace; font-weight: 400; color: var(--faint); }
+.wt-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.wt-ops { width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+.wt-ops th { text-align: left; padding: 0.4rem 0.6rem; background: var(--raised); color: var(--faint); font-weight: 500; }
+.wt-ops td { padding: 0.32rem 0.6rem; border-top: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+.wt-ops .wt-op { color: var(--seal); }
+.wt-ops .wt-key { color: var(--ink); }
+
+.wt-events { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.wt-event {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--line-hot);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--dim);
+}
+.wt-event-t { color: var(--ink); font-weight: 700; }
+.wt-event b { color: var(--amber); }
+
+/* ── The app source ──────────────────────────────────────────────────────── */
+.wt-source { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.wt-source summary { cursor: pointer; padding: 0.85rem 1rem; font-size: 0.875rem; font-weight: 600; background: var(--raised); }
+.wt-source-meta { font-weight: 400; color: var(--faint); font-size: 0.8rem; }
+.wt-code { margin: 0; max-height: 34rem; overflow: auto; padding: 0.8rem 0; font-size: 0.72rem; line-height: 1.6; counter-reset: line; }
+.wt-code .ln { display: block; padding: 0 1rem 0 0; white-space: pre; }
+.wt-code .ln::before { counter-increment: line; content: counter(line); display: inline-block; width: 3.2rem; padding-right: 1rem; text-align: right; color: var(--faint); opacity: 0.6; user-select: none; }
+.t-c { color: var(--faint); font-style: italic; }
+.t-s { color: var(--pass); }
+.t-k { color: var(--seal); }
+.t-t { color: var(--amber); }
