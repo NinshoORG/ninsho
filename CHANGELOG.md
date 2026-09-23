@@ -23,6 +23,26 @@ between here and there, and most of it is not code.
 
 ### Added
 
+- **Upgrades are tested against what a real release left behind.** During a
+  rolling deploy the old and new versions share one Redis, so every session a
+  user holds was written by the old release. Nothing tested that the new one
+  could read it. `upgrade-compat.test.ts` now seeds a store with the exact state
+  the **published `0.1.0`** left behind — live, rotated and revoked sessions, a
+  pending reset link, PASETO and DPoP-bound sessions, 46 keys — recorded from
+  the registry by `scripts/record-upgrade-fixture.mjs`, and checks today's code
+  honours all of it. Fifteen tests, all passing: the `0.1.0 → 0.2.0` upgrade
+  signs nobody out, still catches reuse of a refresh token `0.1.0` rotated, and
+  keeps every session `0.1.0` revoked revoked.
+
+  Verified by breaking it both ways: a store written with a record in a
+  different shape, and code that renames a key without bumping the namespace,
+  each failed it. Stored session state is now part of the stability contract,
+  with its limits stated — see `docs/stability.md` — and that 1.0 gate is closed.
+  `release:check` fails a release if the previous published version has no
+  snapshot, so the chain cannot silently skip one.
+
+  The suite is now **2,071** tests with Redis, 2,007 without.
+
 - **Walkthroughs on the website** — `website/walkthroughs.html`. Seven attacks
   against an app built on Ninsho, stepped through one request at a time:
   sign-out-everywhere, a stolen refresh token, broken object-level

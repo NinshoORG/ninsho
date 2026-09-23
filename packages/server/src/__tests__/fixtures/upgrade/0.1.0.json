@@ -1,0 +1,327 @@
+{
+  "$comment": "Recorded by scripts/record-upgrade-fixture.mjs from a released @ninshorg/server. Test material: every token and key here was generated for this file and authorises nothing. Never edit or re-record — see upgrade-compat.test.ts.",
+  "version": "0.1.0",
+  "recordedAt": 1790164216791,
+  "namespace": "ninsho:v1",
+  "opaque": {
+    "config": {
+      "refreshGraceSeconds": 0
+    },
+    "tokens": {
+      "live": {
+        "accessToken": "ePRVfsepXYa40v-3doeJ4bd0oV8gizTxOMCcaF6GNpo",
+        "refreshToken": "D84h5lqoufliwhJBMC4HC47bLQKG0CU0Q_4t-N0Gc1o",
+        "sessionId": "TQVQyllGHNCvP1IlFx0YMw"
+      },
+      "second": {
+        "accessToken": "5FbmvM3yLpquna9HFKl7MTxGCzL0D9cyQGgAdthMBJI",
+        "sessionId": "SU04LLeuXJYvmOoaHbebZg"
+      },
+      "rotated": {
+        "spentRefreshToken": "yO5Zli7J91-KKndchpLeUl1Yh3z-8u58buND95t7Pz8",
+        "accessToken": "WifF0NrO9-eIAYZNzTk9J7UnquWnTHb8AnwinDXN-4M",
+        "refreshToken": "MOuiPQjH0IxCwVkpZb8xesimotTJ5Pn27tKrkjoEl78"
+      },
+      "revoked": {
+        "accessToken": "WdWIaB7ee9JEsUz8phq3675Rh6oDbwJNSz80FGLTPh0",
+        "refreshToken": "EzR50xSq2b60pOLRjBba0qIzp1brj7XALnfIRTrTniE"
+      },
+      "reset": "KHKtSgAm7m2jQLSOql3a9b7Skh1axNzReRdUOKUMVsg"
+    },
+    "expect": {
+      "userId": "u_alice",
+      "liveSessions": 3
+    },
+    "keys": [
+      {
+        "key": "ninsho:v1:at:11c1f5b5e3ae318c939110e371a7c1420f7452f77776a2cc84d057ccf68d14e6",
+        "value": "{\"tokenId\":\"Z0zamxLk-OfzO6jnEzK7iw\",\"sessionId\":\"pNzCAB0hbJ6ohF24quEtNA\",\"principal\":{\"userId\":\"u_alice\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.799Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.797Z\",\"expiresAt\":\"2026-09-23T11:55:16.799Z\"}"
+      },
+      {
+        "key": "ninsho:v1:at:809b65d05e10b671610770e21e7a7713dab2785ed2060f8383dceb33c34b86d4",
+        "value": "{\"tokenId\":\"CHeD_xENMqjb23s-1SFoFQ\",\"sessionId\":\"SU04LLeuXJYvmOoaHbebZg\",\"principal\":{\"userId\":\"u_alice\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.797Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.797Z\",\"expiresAt\":\"2026-09-23T11:55:16.797Z\"}"
+      },
+      {
+        "key": "ninsho:v1:at:91da188fad3b833b01b2ab7f21d7a979139281a0e401f1d713a36f7c4135d07d",
+        "value": "{\"tokenId\":\"irPd6mL5BV5uSYanqC1MPw\",\"sessionId\":\"pNzCAB0hbJ6ohF24quEtNA\",\"principal\":{\"userId\":\"u_alice\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.797Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.797Z\",\"expiresAt\":\"2026-09-23T11:55:16.797Z\"}"
+      },
+      {
+        "key": "ninsho:v1:at:a6010430212a9fe850a28d923ee05ea603750965a924cda9eca98826d049a8a9",
+        "value": "{\"tokenId\":\"e2LKz0wzLphbdsU66gy83Q\",\"sessionId\":\"TQVQyllGHNCvP1IlFx0YMw\",\"principal\":{\"userId\":\"u_alice\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.796Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.793Z\",\"expiresAt\":\"2026-09-23T11:55:16.796Z\"}"
+      },
+      {
+        "key": "ninsho:v1:atid:CHeD_xENMqjb23s-1SFoFQ",
+        "value": "809b65d05e10b671610770e21e7a7713dab2785ed2060f8383dceb33c34b86d4"
+      },
+      {
+        "key": "ninsho:v1:atid:Z0zamxLk-OfzO6jnEzK7iw",
+        "value": "11c1f5b5e3ae318c939110e371a7c1420f7452f77776a2cc84d057ccf68d14e6"
+      },
+      {
+        "key": "ninsho:v1:atid:e2LKz0wzLphbdsU66gy83Q",
+        "value": "a6010430212a9fe850a28d923ee05ea603750965a924cda9eca98826d049a8a9"
+      },
+      {
+        "key": "ninsho:v1:atid:irPd6mL5BV5uSYanqC1MPw",
+        "value": "91da188fad3b833b01b2ab7f21d7a979139281a0e401f1d713a36f7c4135d07d"
+      },
+      {
+        "key": "ninsho:v1:ott:password-reset:7c61b6a1dfb870a10aa5f3334e79675f7290ae39d88bda65ac2a80811cb9f4fb",
+        "value": "{\"purpose\":\"password-reset\",\"subject\":\"u_alice\",\"issuedAt\":\"2026-09-23T11:50:16.800Z\",\"expiresAt\":\"2026-09-23T12:05:16.800Z\",\"metadata\":{},\"generation\":1}"
+      },
+      {
+        "key": "ninsho:v1:ott:password-reset:gen:u_alice",
+        "value": "1"
+      },
+      {
+        "key": "ninsho:v1:rt:05b40bda05cd9c6d67f7ec46fbf4ed1532a0a6e91c772ed25b815fd2477b3b4b",
+        "value": "{\"sessionId\":\"SU04LLeuXJYvmOoaHbebZg\",\"principal\":{\"userId\":\"u_alice\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.797Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.797Z\",\"expiresAt\":\"2026-09-30T11:50:16.797Z\",\"familyExpiresAt\":\"2026-09-30T11:50:16.797Z\",\"generation\":0}"
+      },
+      {
+        "key": "ninsho:v1:rt:a4824e6bb2e5ad4c43ad50b346f36c88a2144d7a57efa5a9709ed8a541d9574b",
+        "value": "{\"sessionId\":\"pNzCAB0hbJ6ohF24quEtNA\",\"principal\":{\"userId\":\"u_alice\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.798Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.797Z\",\"expiresAt\":\"2026-09-30T11:50:16.797Z\",\"familyExpiresAt\":\"2026-09-30T11:50:16.797Z\",\"generation\":1}"
+      },
+      {
+        "key": "ninsho:v1:rt:e0a9393aab8bee2285eafe5e583d9dec9ef3cb10f36f72710d6b32c69b193fea",
+        "value": "{\"sessionId\":\"TQVQyllGHNCvP1IlFx0YMw\",\"principal\":{\"userId\":\"u_alice\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.793Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.793Z\",\"expiresAt\":\"2026-09-30T11:50:16.793Z\",\"familyExpiresAt\":\"2026-09-30T11:50:16.793Z\",\"generation\":0}"
+      },
+      {
+        "key": "ninsho:v1:rtc:5951561a120b2bd8bb7884f0e5da28b2a337ef96bb9f7b2943f4a39b6ba9f33a",
+        "value": "{\"sessionId\":\"pNzCAB0hbJ6ohF24quEtNA\",\"generation\":0,\"rotatedAt\":\"2026-09-23T11:50:16.798Z\",\"principal\":{\"userId\":\"u_alice\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"authenticatedAt\":\"2026-09-23T11:50:16.797Z\"}"
+      },
+      {
+        "key": "ninsho:v1:rtx:9557e32011a742f7cdfd5140cac7e4747b92b8688eb0d3f0e8861935a62d8b10",
+        "value": "1"
+      },
+      {
+        "key": "ninsho:v1:sess:GHDwoFJe2fv9O4l-O5jNYA:dead",
+        "value": "1"
+      },
+      {
+        "key": "ninsho:v1:sess:SU04LLeuXJYvmOoaHbebZg:at",
+        "members": [
+          "809b65d05e10b671610770e21e7a7713dab2785ed2060f8383dceb33c34b86d4"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:SU04LLeuXJYvmOoaHbebZg:meta",
+        "value": "{\"sessionId\":\"SU04LLeuXJYvmOoaHbebZg\",\"userId\":\"u_alice\",\"createdAt\":\"2026-09-23T11:50:16.797Z\",\"lastUsedAt\":\"2026-09-23T11:50:16.797Z\",\"expiresAt\":\"2026-09-30T11:50:16.797Z\",\"generation\":0,\"signals\":{\"userAgentHash\":\"e4a0ce4f90780f33\",\"ipHash\":\"e183220b699c10a8\"}}"
+      },
+      {
+        "key": "ninsho:v1:sess:SU04LLeuXJYvmOoaHbebZg:rt",
+        "members": [
+          "05b40bda05cd9c6d67f7ec46fbf4ed1532a0a6e91c772ed25b815fd2477b3b4b"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:TQVQyllGHNCvP1IlFx0YMw:at",
+        "members": [
+          "a6010430212a9fe850a28d923ee05ea603750965a924cda9eca98826d049a8a9"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:TQVQyllGHNCvP1IlFx0YMw:meta",
+        "value": "{\"sessionId\":\"TQVQyllGHNCvP1IlFx0YMw\",\"userId\":\"u_alice\",\"createdAt\":\"2026-09-23T11:50:16.793Z\",\"lastUsedAt\":\"2026-09-23T11:50:16.793Z\",\"expiresAt\":\"2026-09-30T11:50:16.793Z\",\"generation\":0,\"signals\":{\"userAgentHash\":\"74c00cc5c4f6778c\",\"ipHash\":\"e183220b699c10a8\"}}"
+      },
+      {
+        "key": "ninsho:v1:sess:TQVQyllGHNCvP1IlFx0YMw:rt",
+        "members": [
+          "e0a9393aab8bee2285eafe5e583d9dec9ef3cb10f36f72710d6b32c69b193fea"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:pNzCAB0hbJ6ohF24quEtNA:at",
+        "members": [
+          "11c1f5b5e3ae318c939110e371a7c1420f7452f77776a2cc84d057ccf68d14e6",
+          "91da188fad3b833b01b2ab7f21d7a979139281a0e401f1d713a36f7c4135d07d"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:pNzCAB0hbJ6ohF24quEtNA:meta",
+        "value": "{\"sessionId\":\"pNzCAB0hbJ6ohF24quEtNA\",\"userId\":\"u_alice\",\"createdAt\":\"2026-09-23T11:50:16.797Z\",\"lastUsedAt\":\"2026-09-23T11:50:16.798Z\",\"expiresAt\":\"2026-09-30T11:50:16.797Z\",\"generation\":1,\"signals\":{\"userAgentHash\":\"74c00cc5c4f6778c\",\"ipHash\":\"e183220b699c10a8\"}}"
+      },
+      {
+        "key": "ninsho:v1:sess:pNzCAB0hbJ6ohF24quEtNA:rt",
+        "members": [
+          "5951561a120b2bd8bb7884f0e5da28b2a337ef96bb9f7b2943f4a39b6ba9f33a",
+          "a4824e6bb2e5ad4c43ad50b346f36c88a2144d7a57efa5a9709ed8a541d9574b"
+        ]
+      },
+      {
+        "key": "ninsho:v1:user:u_alice:sess",
+        "members": [
+          "SU04LLeuXJYvmOoaHbebZg",
+          "TQVQyllGHNCvP1IlFx0YMw",
+          "pNzCAB0hbJ6ohF24quEtNA"
+        ]
+      }
+    ]
+  },
+  "paseto": {
+    "config": {
+      "strategy": "paseto",
+      "issuer": "https://api.example.test",
+      "audience": "https://app.example.test",
+      "keys": {
+        "active": {
+          "kid": "fixture-key-1",
+          "privateKey": "e918fb7560c446b9b52267058b60d9d3c5fd694406f50d9e71002aa45e031f3a",
+          "publicKey": "a9f3db5212f306116487045893705eb8841c0064172ebd6cd3eb62b8eb77f92a"
+        }
+      },
+      "refreshGraceSeconds": 0
+    },
+    "tokens": {
+      "live": {
+        "accessToken": "v4.public.eyJqdGkiOiJ6T1BPb0tDTkZsRndhUGRvaXdFam53Iiwic3ViIjoidV9ib2IiLCJpc3MiOiJodHRwczovL2FwaS5leGFtcGxlLnRlc3QiLCJhdWQiOiJodHRwczovL2FwcC5leGFtcGxlLnRlc3QiLCJpYXQiOiIyMDI2LTA5LTIzVDExOjUwOjE2LjgxM1oiLCJuYmYiOiIyMDI2LTA5LTIzVDExOjUwOjE2LjgxM1oiLCJhdXRoX3RpbWUiOiIyMDI2LTA5LTIzVDExOjUwOjE2LjgxM1oiLCJleHAiOiIyMDI2LTA5LTIzVDExOjU1OjE2LjgxM1oiLCJzaWQiOiJyR2lVcU1QdzlSbWRPYng1bGI5LUl3Iiwicm9sZXMiOlsidXNlciJdLCJzY29wZXMiOlsib3JkZXJzOnJlYWQiXX3LP1DQOJG3beu7vC6qU0Ojw7xB0GhdycSBflsu1CqxrxeJHjJ7k_BLEyL7fBmPia8ixfL9-bJy0fhch3LQR6sM.eyJraWQiOiJmaXh0dXJlLWtleS0xIn0",
+        "refreshToken": "ANQ5AUe_X2DQZNpoH31byB8GmSmQybH6iDXAEOpuMsw",
+        "sessionId": "rGiUqMPw9RmdObx5lb9-Iw"
+      },
+      "rotated": {
+        "spentRefreshToken": "vfjM45_nL3yedfrCgMpEssvmNAv3truf__7wKQCMDcY",
+        "accessToken": "v4.public.eyJqdGkiOiI4QkRfRFo3WmZVcDItaG9LOXJwTzRRIiwic3ViIjoidV9ib2IiLCJpc3MiOiJodHRwczovL2FwaS5leGFtcGxlLnRlc3QiLCJhdWQiOiJodHRwczovL2FwcC5leGFtcGxlLnRlc3QiLCJpYXQiOiIyMDI2LTA5LTIzVDExOjUwOjE2LjgxNVoiLCJuYmYiOiIyMDI2LTA5LTIzVDExOjUwOjE2LjgxNVoiLCJhdXRoX3RpbWUiOiIyMDI2LTA5LTIzVDExOjUwOjE2LjgxNVoiLCJleHAiOiIyMDI2LTA5LTIzVDExOjU1OjE2LjgxNVoiLCJzaWQiOiJkcGJpWmgwa1lLY0Z4MU94Q0ZNM0tnIiwicm9sZXMiOlsidXNlciJdLCJzY29wZXMiOlsib3JkZXJzOnJlYWQiXX1Ja8gogSf-v-0vfv_6i1CRxE6GS-BCux_U7RaNePGC8cyPj1fkxkG5sLL7CLGXDv5sbO9112uhOKGCc_voPQAE.eyJraWQiOiJmaXh0dXJlLWtleS0xIn0"
+      },
+      "revoked": {
+        "accessToken": "v4.public.eyJqdGkiOiI3dUtxNVZIMWxFYTJiOHhnbFFqM0ZBIiwic3ViIjoidV9ib2IiLCJpc3MiOiJodHRwczovL2FwaS5leGFtcGxlLnRlc3QiLCJhdWQiOiJodHRwczovL2FwcC5leGFtcGxlLnRlc3QiLCJpYXQiOiIyMDI2LTA5LTIzVDExOjUwOjE2LjgxNloiLCJuYmYiOiIyMDI2LTA5LTIzVDExOjUwOjE2LjgxNloiLCJhdXRoX3RpbWUiOiIyMDI2LTA5LTIzVDExOjUwOjE2LjgxNloiLCJleHAiOiIyMDI2LTA5LTIzVDExOjU1OjE2LjgxNloiLCJzaWQiOiJ6Q1hpZi1xeGRXcFFmMjNQdkpEazBnIiwicm9sZXMiOlsidXNlciJdLCJzY29wZXMiOlsib3JkZXJzOnJlYWQiXX1OY_Ur_833tOgKdAIX43ng6EN7fES8O3BvGLYff0Yd_3KK4vD1T3nUJGgXC_l26KgYSqQSvwh54DWUGbAJsasJ.eyJraWQiOiJmaXh0dXJlLWtleS0xIn0"
+      }
+    },
+    "expect": {
+      "userId": "u_bob"
+    },
+    "keys": [
+      {
+        "key": "ninsho:v1:rev:7uKq5VH1lEa2b8xglQj3FA",
+        "value": "1"
+      },
+      {
+        "key": "ninsho:v1:rt:185c8b85936b6e6754c3b45c1752f94d9fd769bc3415d5037e79c46d8dc30dfc",
+        "value": "{\"sessionId\":\"dpbiZh0kYKcFx1OxCFM3Kg\",\"principal\":{\"userId\":\"u_bob\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.815Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.815Z\",\"expiresAt\":\"2026-09-30T11:50:16.815Z\",\"familyExpiresAt\":\"2026-09-30T11:50:16.815Z\",\"generation\":1}"
+      },
+      {
+        "key": "ninsho:v1:rt:8635eb0c0eb42391359b8bec077f6114be74e06f937a080d45a3e33d82235a4f",
+        "value": "{\"sessionId\":\"rGiUqMPw9RmdObx5lb9-Iw\",\"principal\":{\"userId\":\"u_bob\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.813Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.813Z\",\"expiresAt\":\"2026-09-30T11:50:16.813Z\",\"familyExpiresAt\":\"2026-09-30T11:50:16.813Z\",\"generation\":0}"
+      },
+      {
+        "key": "ninsho:v1:rtc:89e1300027114851558e3afebde2e6e03c6a7780ecf96e7a12d83906f188ab65",
+        "value": "{\"sessionId\":\"dpbiZh0kYKcFx1OxCFM3Kg\",\"generation\":0,\"rotatedAt\":\"2026-09-23T11:50:16.815Z\",\"principal\":{\"userId\":\"u_bob\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"authenticatedAt\":\"2026-09-23T11:50:16.815Z\"}"
+      },
+      {
+        "key": "ninsho:v1:rtx:b8ccfd3c8cd7280f696da88c70250c6b8c588a0e86b17672e2596caa387a8f9d",
+        "value": "1"
+      },
+      {
+        "key": "ninsho:v1:sess:dpbiZh0kYKcFx1OxCFM3Kg:at",
+        "members": [
+          "8BD_DZ7ZfUp2-hoK9rpO4Q",
+          "Nq4-NpRGqdPWYfvwdxbulg"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:dpbiZh0kYKcFx1OxCFM3Kg:meta",
+        "value": "{\"sessionId\":\"dpbiZh0kYKcFx1OxCFM3Kg\",\"userId\":\"u_bob\",\"createdAt\":\"2026-09-23T11:50:16.815Z\",\"lastUsedAt\":\"2026-09-23T11:50:16.815Z\",\"expiresAt\":\"2026-09-30T11:50:16.815Z\",\"generation\":1}"
+      },
+      {
+        "key": "ninsho:v1:sess:dpbiZh0kYKcFx1OxCFM3Kg:rt",
+        "members": [
+          "185c8b85936b6e6754c3b45c1752f94d9fd769bc3415d5037e79c46d8dc30dfc",
+          "89e1300027114851558e3afebde2e6e03c6a7780ecf96e7a12d83906f188ab65"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:rGiUqMPw9RmdObx5lb9-Iw:at",
+        "members": [
+          "zOPOoKCNFlFwaPdoiwEjnw"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:rGiUqMPw9RmdObx5lb9-Iw:meta",
+        "value": "{\"sessionId\":\"rGiUqMPw9RmdObx5lb9-Iw\",\"userId\":\"u_bob\",\"createdAt\":\"2026-09-23T11:50:16.813Z\",\"lastUsedAt\":\"2026-09-23T11:50:16.813Z\",\"expiresAt\":\"2026-09-30T11:50:16.813Z\",\"generation\":0}"
+      },
+      {
+        "key": "ninsho:v1:sess:rGiUqMPw9RmdObx5lb9-Iw:rt",
+        "members": [
+          "8635eb0c0eb42391359b8bec077f6114be74e06f937a080d45a3e33d82235a4f"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:zCXif-qxdWpQf23PvJDk0g:dead",
+        "value": "1"
+      },
+      {
+        "key": "ninsho:v1:user:u_bob:sess",
+        "members": [
+          "dpbiZh0kYKcFx1OxCFM3Kg",
+          "rGiUqMPw9RmdObx5lb9-Iw"
+        ]
+      }
+    ]
+  },
+  "dpop": {
+    "config": {
+      "binding": "dpop",
+      "refreshGraceSeconds": 0
+    },
+    "key": {
+      "algorithm": "ES256",
+      "jkt": "p5a-hc8ehFnJ4fBCsdzwipVLKOTcBdTqoGjbEhd6ck8",
+      "publicJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "I9SpwjHkZcyW6SxS32Rd3slgAnWdFrJlGQh2I9xNfBg",
+        "y": "XDDK7mmZb9tQ8N8alUwyP4M0uFp6iZ2yOpK7y4Rc1EU"
+      },
+      "privateJwk": {
+        "kty": "EC",
+        "x": "I9SpwjHkZcyW6SxS32Rd3slgAnWdFrJlGQh2I9xNfBg",
+        "y": "XDDK7mmZb9tQ8N8alUwyP4M0uFp6iZ2yOpK7y4Rc1EU",
+        "crv": "P-256",
+        "d": "pwc66gWvQu_YmPVW5jkPUWmmpe3HoE7gduPoAZGZ2VM"
+      }
+    },
+    "tokens": {
+      "live": {
+        "accessToken": "D5mkEdZQxUE0CxRtY7tNAQanrqpWbzmar9tjrj4FU2A",
+        "sessionId": "0q3r2kHvf4Ra94KdkS_-iQ"
+      }
+    },
+    "expect": {
+      "userId": "u_carol"
+    },
+    "keys": [
+      {
+        "key": "ninsho:v1:at:69fd4c758f6adaf2ea4a0af0057d4f798d3f248eedd81334eb3c99b341445af9",
+        "value": "{\"tokenId\":\"f0SlZVCTZ60oA599sr3u6g\",\"sessionId\":\"0q3r2kHvf4Ra94KdkS_-iQ\",\"principal\":{\"userId\":\"u_carol\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.819Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.818Z\",\"expiresAt\":\"2026-09-23T11:55:16.819Z\",\"confirmationKey\":\"p5a-hc8ehFnJ4fBCsdzwipVLKOTcBdTqoGjbEhd6ck8\"}"
+      },
+      {
+        "key": "ninsho:v1:atid:f0SlZVCTZ60oA599sr3u6g",
+        "value": "69fd4c758f6adaf2ea4a0af0057d4f798d3f248eedd81334eb3c99b341445af9"
+      },
+      {
+        "key": "ninsho:v1:rt:81a9bec54d2875d892096131419362b6f0ed76a82e4137d7d2ce0e06e79cfc25",
+        "value": "{\"sessionId\":\"0q3r2kHvf4Ra94KdkS_-iQ\",\"principal\":{\"userId\":\"u_carol\",\"roles\":[\"user\"],\"scopes\":[\"orders:read\"]},\"issuedAt\":\"2026-09-23T11:50:16.818Z\",\"authenticatedAt\":\"2026-09-23T11:50:16.818Z\",\"expiresAt\":\"2026-09-30T11:50:16.818Z\",\"familyExpiresAt\":\"2026-09-30T11:50:16.818Z\",\"generation\":0,\"confirmationKey\":\"p5a-hc8ehFnJ4fBCsdzwipVLKOTcBdTqoGjbEhd6ck8\"}"
+      },
+      {
+        "key": "ninsho:v1:sess:0q3r2kHvf4Ra94KdkS_-iQ:at",
+        "members": [
+          "69fd4c758f6adaf2ea4a0af0057d4f798d3f248eedd81334eb3c99b341445af9"
+        ]
+      },
+      {
+        "key": "ninsho:v1:sess:0q3r2kHvf4Ra94KdkS_-iQ:meta",
+        "value": "{\"sessionId\":\"0q3r2kHvf4Ra94KdkS_-iQ\",\"userId\":\"u_carol\",\"createdAt\":\"2026-09-23T11:50:16.818Z\",\"lastUsedAt\":\"2026-09-23T11:50:16.818Z\",\"expiresAt\":\"2026-09-30T11:50:16.818Z\",\"generation\":0}"
+      },
+      {
+        "key": "ninsho:v1:sess:0q3r2kHvf4Ra94KdkS_-iQ:rt",
+        "members": [
+          "81a9bec54d2875d892096131419362b6f0ed76a82e4137d7d2ce0e06e79cfc25"
+        ]
+      },
+      {
+        "key": "ninsho:v1:user:u_carol:sess",
+        "members": [
+          "0q3r2kHvf4Ra94KdkS_-iQ"
+        ]
+      }
+    ]
+  }
+}

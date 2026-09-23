@@ -70,7 +70,8 @@ examples/
                 Also records the website's walkthroughs (src/walkthroughs.ts).
 docs/           Reference documentation. docs/stability.md is the semver policy.
 api/            The public API, recorded. Generated — never edit by hand. See §7.
-scripts/        api-report.mjs (the API gate) and release-check.mjs (pre-publish).
+scripts/        api-report.mjs (the API gate), release-check.mjs (pre-publish),
+                record-upgrade-fixture.mjs (store snapshots for upgrade tests).
 manualtest/     Attacker's-eye HTTP tests, run by hand against a local server.
 benchmarks/     Supplementary performance suites, plus their recorded results.
 .github/        CI, issue and PR templates.
@@ -143,8 +144,8 @@ Test counts differ depending on whether Redis is present. Both are correct:
 
 | | Tests |
 | --- | --- |
-| Without `REDIS_URL` | 1,992 passing, 5 skipped |
-| With `REDIS_URL` (what CI runs) | **2,056 passing, 0 skipped** |
+| Without `REDIS_URL` | 2,007 passing, 5 skipped |
+| With `REDIS_URL` (what CI runs) | **2,071 passing, 0 skipped** |
 
 Run one package, or one test:
 
@@ -329,6 +330,20 @@ regenerate the lockfile per §8.3, add a CHANGELOG entry, merge, then on `main`:
 `npm ci && npm run build && npm run release:check`. Date the CHANGELOG heading
 last. The script prints the `npm publish` commands and never runs them —
 publishing is manual by maintainer decision, and nothing here may automate it.
+
+Then, once the release is on the registry, record what it leaves in a store:
+`node scripts/record-upgrade-fixture.mjs --npm <version>`, and commit
+`packages/server/src/__tests__/fixtures/upgrade/<version>.json`. Every later
+release is tested against it by `upgrade-compat.test.ts`, and `release:check`
+fails the *next* release if it is missing. Record from the registry, never from
+a local build — the published package is what is in people's Redis. Never edit
+or re-record an existing snapshot; the script refuses to.
+
+**If `upgrade-compat.test.ts` fails,** a change stopped honouring state that a
+released version wrote. Either make the change read the old records, or — if it
+truly cannot — bump the key namespace in `src/keys.ts`, which is a breaking
+change under `docs/stability.md` and signs everyone out on upgrade. Do not edit
+the fixture to make the test pass.
 
 ---
 

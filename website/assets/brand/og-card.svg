@@ -34,7 +34,7 @@
 
   <g font-family="JetBrains Mono, ui-monospace, monospace" font-size="20">
     <text x="86" y="566" fill="#3DDC97">&#10003;</text>
-    <text x="110" y="566" fill="#9FB3C6">2,056 tests</text>
+    <text x="110" y="566" fill="#9FB3C6">2,071 tests</text>
     <text x="264" y="566" fill="#3DDC97">&#10003;</text>
     <text x="288" y="566" fill="#9FB3C6">0 runtime deps in 3 of 4 packages</text>
     <text x="722" y="566" fill="#3DDC97">&#10003;</text>
