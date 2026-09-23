@@ -18,14 +18,14 @@ import {
   findById,
   setPassword,
   verifyCredentials,
-} from './users.js';
+} from './users.ts';
 import {
   findByCredentialId,
   fromBase64Url,
   listForUser,
   saveCredential,
   updateSignCount,
-} from './credentials.js';
+} from './credentials.ts';
 
 /**
  * A complete, working API built on Ninsho.

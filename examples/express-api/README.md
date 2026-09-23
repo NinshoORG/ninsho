@@ -12,6 +12,12 @@ REDIS_URL=redis://localhost:6379 npm run dev --workspace @ninshorg/example-expre
 Runs on `MemoryStore` by default, which refuses to start under
 `NODE_ENV=production`.
 
+**Copying these files?** The imports use `.ts` specifiers (`from './app.ts'`) so
+Node can run the source directly with type stripping, which is what `npm run dev`
+does. In a project that compiles with `tsc`, either set
+`"rewriteRelativeImportExtensions": true` (TypeScript 5.7+), which rewrites them
+to `.js` when it emits, or change them to `.js`.
+
 ## What it demonstrates
 
 | Route | Shows |

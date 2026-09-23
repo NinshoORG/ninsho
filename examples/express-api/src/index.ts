@@ -6,7 +6,7 @@
  * Set REDIS_URL to use Redis; without it the example runs on MemoryStore,
  * which refuses to start under NODE_ENV=production.
  */
-import { createApp, createRedisStore } from './app.js';
+import { createApp, createRedisStore } from './app.ts';
 
 const port = Number.parseInt(process.env['PORT'] ?? '3000', 10);
 const redisUrl = process.env['REDIS_URL'];
