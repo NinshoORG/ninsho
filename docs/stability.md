@@ -48,6 +48,20 @@ people's test suites import it, and breaking a test suite is still breaking.
   lifetimes, the refresh grace window, the RSA key-size floor. Making any of
   these weaker is breaking even when no type changes, because code that relied
   on the default being safe is no longer safe.
+- **The session state an earlier release left in the store.** During a rolling
+  deploy the old and new versions share one Redis, so every session a user
+  holds was written by the old release. Within one key namespace
+  (`ninsho:v1:`), a release honours all of it: live sessions verify and rotate,
+  a refresh token the old release had rotated is still caught as reuse, a
+  session it revoked stays revoked, the per-user session index still lists and
+  signs out every session, an unredeemed reset link still works exactly once,
+  and a DPoP-bound session stays bound to its key — for opaque and PASETO
+  sessions alike.
+
+  *Not* covered, and therefore not promised: records that live for seconds by
+  design — the refresh grace window and DPoP proof-replay markers — and
+  rate-limit counters. Nothing tests how an upgrade treats them, so this
+  document says nothing about it.
 
 **Not part of the contract:**
 
@@ -55,14 +69,11 @@ people's test suites import it, and breaking a test suite is still breaking.
   class and the code, never on the text.
 - Anything reachable only through a path outside `exports`. The `exports` map
   makes those unreachable to a well-behaved import anyway.
-- **Stored record formats — for now.** Keys are versioned (`ninsho:v1:`), and
-  a schema change is designed to bump that prefix, so records written under the
-  old one become invisible — a forced re-login — rather than misread under the
-  new one. What is not yet covered is the case in between: a record written by
-  one release, read by the next, with the prefix still `v1`. Two versions share
-  one Redis during every rolling deploy, so this matters, and nothing yet tests
-  it; this document therefore does not promise it. Closing that is a 1.0 gate,
-  below.
+- **Store keys across a namespace change.** A schema change that cannot be
+  made compatible bumps the prefix (`ninsho:v1:` → `v2`), so the old records
+  become invisible — a forced re-login — rather than misread. That is listed as
+  breaking below, and it is the one way a release is allowed to stop honouring
+  earlier state.
 
 ---
 
@@ -78,6 +89,7 @@ people's test suites import it, and breaking a test suite is still breaking.
 | An audit event `type` is renamed | **Yes** | Alerts stop firing, silently |
 | A default becomes less safe | **Yes** | See above |
 | The Node.js floor rises | **Yes** | Installs on the old line stop working |
+| State an earlier release wrote, in the same namespace, stops being honoured | **Yes** | Users are signed out mid-deploy — or worse, a revoked session reads as live |
 | The store namespace version changes (`ninsho:v1:` → `v2`) | **Yes** | Every existing session becomes invisible, so everyone is signed out on upgrade — safe by design, and an operator still needs to know it is coming |
 | A new export, a new optional option, a new error class | No | Nothing existing changes |
 | A new audit event `type` | No | Consumers should ignore types they do not recognise |
@@ -146,6 +158,8 @@ package.
 | A published tarball holds its build and nothing else | `npm run release:check` › *tarball contents*; CI › *Assert every declared package file exists* |
 | The packed tarballs work for a real consumer, ESM and CJS | CI › *Assert the packed tarballs work for a real consumer* |
 | A version is never republished | `npm run release:check` › *is unpublished*, which asks the registry |
+| A release honours the session state earlier releases left in the store | `upgrade-compat.test.ts`, run against a snapshot recorded from **each published release** (`fixtures/upgrade/<version>.json`). Verified by breaking it both ways: a record stored in a different shape, and a key renamed without bumping the namespace, each failed it |
+| Every published release has a snapshot to test against | `npm run release:check` › *upgrade snapshot*, which asks the registry for the latest published version |
 
 ### Releasing
 
@@ -169,12 +183,12 @@ npm run release:check
 | The release procedure is encoded, not remembered | ✅ **Done** in `0.2.0` — `release:check` |
 | **A private vulnerability-reporting channel, tested end to end** | ⬜ **Open.** GitHub private vulnerability reporting is currently **disabled** on the repository, and `SECURITY.md` still carries the placeholder that says so. It needs enabling, then a test report filed and received, before `SECURITY.md` may point at it — a policy naming a channel that does not work is how the predecessor failed. |
 | `.well-known/security.txt` per RFC 9116 | ⬜ **Open.** Follows the channel above; a `security.txt` pointing nowhere is worse than none. |
-| **Rolling upgrades do not sign anyone out** | ⬜ **Open.** Keys carry a namespace version (`ninsho:v1:`) so an incompatible schema is made invisible rather than misread — but nothing tests that a session written by release *N* still verifies under *N + 1* while that version is unchanged. Until something does, record formats are excluded from the promise above. |
+| **Rolling upgrades do not sign anyone out** | ✅ **Done** in `0.2.0`. `upgrade-compat.test.ts` seeds the store the published `0.1.0` left behind and checks today's code honours all of it, including that a session `0.1.0` revoked stays revoked. Each release adds its own snapshot, so the coverage grows with the history. |
 | **An external security review** | ⬜ **Open.** [`CRYPTOGRAPHIC-AUDIT.md`](./CRYPTOGRAPHIC-AUDIT.md) is a project contributor's review of the PASETO implementation — thorough and useful, and not independent. `1.0.0` needs a reviewer from outside the project, across the whole surface. |
 | One minor cycle with no breaking change to the API report | ⬜ **Open.** The clock starts at `0.2.0`. |
 | `main` accepts only changes that passed CI | ⬜ **Open.** Branch protection is not enabled. |
 
-Two of the open gates are code — store-format versioning and the soak. The
-rest are decisions and settings that belong to a maintainer, and none of them
-can be completed by merging a pull request. That is also why this table exists:
+None of the open gates is code any more. The soak is time; the rest are
+decisions and settings that belong to a maintainer, and none of them can be
+completed by merging a pull request. That is also why this table exists:
 so that "is it ready for 1.0?" has an answer someone can check.

@@ -128,6 +128,29 @@ if (missingDist.length > 0) {
   }
 }
 
+// ── 6b. The last published release has an upgrade snapshot ────────────────
+// upgrade-compat.test.ts checks this code honours the store state every
+// earlier release left behind — but only the releases someone recorded. Skip
+// one and the chain has a hole nobody sees: the test still passes, testing
+// less than it appears to.
+try {
+  const published = run('npm view @ninshorg/server version');
+  const snapshot = join(ROOT, 'packages/server/src/__tests__/fixtures/upgrade', `${published}.json`);
+  if (published === VERSION) {
+    pass('Upgrade snapshot', `${VERSION} is the published version; nothing to record yet`);
+  } else if (existsSync(snapshot)) {
+    pass('Upgrade snapshot', `the store state ${published} leaves behind is recorded and tested`);
+  } else {
+    fail(
+      'Upgrade snapshot',
+      `no fixtures/upgrade/${published}.json — record it from the registry:\n` +
+        `      node scripts/record-upgrade-fixture.mjs --npm ${published}`,
+    );
+  }
+} catch {
+  warn('Upgrade snapshot', 'could not reach the registry to learn the latest published version');
+}
+
 // ── 7. The tarballs hold what they should and nothing else ─────────────────
 const ALLOWED = [/^package\.json$/, /^README\.md$/, /^LICENSE$/, /^dist\//];
 for (const p of PUBLISHABLE) {
