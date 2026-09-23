@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { MemoryStore } from '@ninshorg/server';
-import { createApp } from './app.js';
-import { createUser, resetUsers } from './users.js';
+import { createApp } from './app.ts';
+import { createUser, resetUsers } from './users.ts';
 
 /**
  * End-to-end tests against the assembled system over real HTTP.

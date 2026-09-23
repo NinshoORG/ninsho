@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { DUMMY_HASH_PROMISE, hashPassword, verifyPassword } from './passwords.js';
+import { DUMMY_HASH_PROMISE, hashPassword, verifyPassword } from './passwords.ts';
 
 /**
  * An in-memory user directory, standing in for your database.

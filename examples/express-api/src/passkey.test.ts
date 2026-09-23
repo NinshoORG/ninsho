@@ -3,9 +3,9 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { MemoryStore } from '@ninshorg/server';
 import { VirtualAuthenticator, FLAG_UP, FLAG_UV, FLAG_AT } from '@ninshorg/webauthn/testing';
-import { createApp } from './app.js';
-import { resetUsers } from './users.js';
-import { resetCredentials } from './credentials.js';
+import { createApp } from './app.ts';
+import { resetUsers } from './users.ts';
+import { resetCredentials } from './credentials.ts';
 
 /**
  * Passkeys, end to end over real HTTP.

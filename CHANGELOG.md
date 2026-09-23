@@ -105,6 +105,17 @@ between here and there, and most of it is not code.
 
 ### Fixed
 
+- **The copy-me example did not start.** `npm run dev --workspace
+  @ninshorg/example-express-api` — the command its README gives — crashed on its
+  first import with `ERR_MODULE_NOT_FOUND`. The source imported `./app.js`;
+  Node's type stripping looks for exactly that file, and only vitest quietly
+  maps it to `app.ts`, so all 100 of the example's tests passed while the
+  program could not run. `manualtest/`, whose attacker's-eye tests need that
+  server, could not be run either. The example now uses `.ts` specifiers, as the
+  playground already did, and CI starts both examples with their documented
+  commands on every Node line. Verified by putting the `.js` specifier back: the
+  new step failed on `ERR_MODULE_NOT_FOUND`.
+
 - **The site's nav never marked the current page**, except the home page.
   `app.js` compared the link as written (`./demo.html`) against the path's last
   segment (`demo.html`), so they never matched.

@@ -466,6 +466,21 @@ not a valid certificate" at a rate of roughly 9 in 4,000 — often enough to loo
 like flakiness, rare enough to be dismissed as it. Fixture generation trims
 them; see `x509-fixtures.ts`.
 
+### 8.12 vitest resolves `./x.js` to `x.ts`; Node does not
+
+The examples run their TypeScript directly with `node --experimental-strip-types`.
+Node's type stripping loads exactly the specifier it is given, so an import of
+`./app.js` looks for `app.js`, which does not exist. vitest maps it to `app.ts`
+without comment. `examples/express-api` therefore passed all 100 of its tests
+while `npm run dev` — the command its README gives — crashed on its first
+import with `ERR_MODULE_NOT_FOUND`, and `manualtest/`, which needs that server
+running, could not be run at all.
+
+Code run with type stripping uses `.ts` specifiers and
+`"allowImportingTsExtensions": true`, as both examples now do. CI starts both
+examples with their documented commands on every Node line; a test suite is not
+evidence that the program starts.
+
 ---
 
 ## 9. Do not

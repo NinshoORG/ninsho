@@ -104,6 +104,33 @@ jobs:
         env:
           REDIS_URL: redis://localhost:6379
 
+      # The examples, started the way their READMEs tell people to start them.
+      #
+      # express-api's 100 tests passed while `npm run dev` crashed on its first
+      # import: vitest quietly resolves a `./app.js` specifier to `app.ts`, and
+      # Node's type stripping does not. Tests passing for a program that does
+      # not run is the failure this project was founded on — so the programs
+      # are run, on every Node line, including the floor.
+      - name: The examples start with the commands their READMEs give
+        run: |
+          set -e
+          start() {  # workspace  port  path  logname
+            PORT=$2 npm run dev --workspace "$1" > "/tmp/$4.log" 2>&1 &
+            for i in $(seq 1 60); do
+              if curl -sf "http://localhost:$2$3" > /dev/null; then
+                echo "✓ $1 answered on $3"
+                return 0
+              fi
+              sleep 0.5
+            done
+            echo "::error::$1 did not start with 'npm run dev'"
+            cat "/tmp/$4.log"
+            return 1
+          }
+          start @ninshorg/example-express-api 3000 /health express-api
+          start @ninshorg/playground 4000 / playground
+          kill $(jobs -p) 2>/dev/null || true
+
       # PERFORMANCE.md publishes figures these scripts produce, and nothing was
       # running them. `issue()` gained a required field when step-up auth
       # landed, the benchmark kept calling it the old way, and the script threw
