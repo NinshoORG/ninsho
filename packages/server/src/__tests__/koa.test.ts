@@ -7,6 +7,7 @@ import type { Principal } from '@ninshorg/core';
 import { Ninsho } from '../ninsho.js';
 import { MemoryStore } from '../store/memory.js';
 import { toKoa, getAuth, AUTH_STATE_KEY, type KoaLikeContext } from '../koa.js';
+import { generateDpopKeyPair, createDpopProof } from '../dpop/index.js';
 
 /**
  * The Koa adapter, against real Koa over real HTTP.
@@ -399,3 +400,91 @@ describe('the adapter itself', () => {
     expect(source).not.toMatch(/from '@koa\/router'/);
   });
 });
+
+describe('DPoP over Koa', () => {
+  it('verifies a DPoP-bound POST request with real HTTP method and URL', async () => {
+    const dpopAuth = new Ninsho({ store, binding: 'dpop' });
+    const keyPair = generateDpopKeyPair();
+    const pair = await dpopAuth.createSession(ALICE, { confirmationKey: keyPair.jkt });
+
+    const router = new Router();
+    let ran = false;
+    router.post('/dpop-action', toKoa(dpopAuth.verify()) as Koa.Middleware, (ctx) => {
+      ran = true;
+      ctx.body = { ok: true };
+    });
+
+    const app = new Koa();
+    app.use(router.routes());
+    const s = await new Promise<Server>((resolve) => {
+      const serverInstance = app.listen(0, () => resolve(serverInstance));
+    });
+    const port = (s.address() as AddressInfo).port;
+    const testUrl = `http://127.0.0.1:${port}/dpop-action`;
+
+    try {
+      const proof = createDpopProof(keyPair, {
+        method: 'POST',
+        url: testUrl,
+        accessToken: pair.accessToken,
+      });
+
+      const res = await fetch(testUrl, {
+        method: 'POST',
+        headers: {
+          authorization: `DPoP ${pair.accessToken}`,
+          dpop: proof,
+        },
+      });
+
+      expect(res.status).toBe(200);
+      expect(ran).toBe(true);
+    } finally {
+      await new Promise<void>((resolve) => s.close(() => resolve()));
+    }
+  });
+
+  it('refuses a DPoP proof with mismatched HTTP method on Koa', async () => {
+    const dpopAuth = new Ninsho({ store, binding: 'dpop' });
+    const keyPair = generateDpopKeyPair();
+    const pair = await dpopAuth.createSession(ALICE, { confirmationKey: keyPair.jkt });
+
+    const router = new Router();
+    let ran = false;
+    router.post('/dpop-action', toKoa(dpopAuth.verify()) as Koa.Middleware, (ctx) => {
+      ran = true;
+      ctx.body = { ok: true };
+    });
+
+    const app = new Koa();
+    app.use(router.routes());
+    const s = await new Promise<Server>((resolve) => {
+      const serverInstance = app.listen(0, () => resolve(serverInstance));
+    });
+    const port = (s.address() as AddressInfo).port;
+    const testUrl = `http://127.0.0.1:${port}/dpop-action`;
+
+    try {
+      // Mismatched method: proof signed for GET, requested via POST
+      const proof = createDpopProof(keyPair, {
+        method: 'GET',
+        url: testUrl,
+        accessToken: pair.accessToken,
+      });
+
+      const res = await fetch(testUrl, {
+        method: 'POST',
+        headers: {
+          authorization: `DPoP ${pair.accessToken}`,
+          dpop: proof,
+        },
+      });
+
+      expect(res.status).toBe(401);
+      expect(ran).toBe(false);
+    } finally {
+      await new Promise<void>((resolve) => s.close(() => resolve()));
+    }
+  });
+});
+

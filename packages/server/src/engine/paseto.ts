@@ -259,10 +259,15 @@ export class PasetoEngine implements TokenEngine {
    * the token not work, which is already true.
    */
   async revoke(tokenId: string): Promise<void> {
-    // Without the issue time, assume a full lifetime. Over-retaining a
-    // denylist entry is harmless; under-retaining would let a revoked token
-    // come back to life.
-    await this.#store.set(KEYS.revoked(tokenId), '1', this.#options.accessTokenTtl);
+    // Without the issue time, assume a full lifetime plus clock skew tolerance.
+    // A token is accepted by verify() until (exp + clockToleranceSeconds).
+    // Over-retaining a denylist entry is harmless; under-retaining would let
+    // a revoked token come back to life during the clock tolerance window.
+    await this.#store.set(
+      KEYS.revoked(tokenId),
+      '1',
+      this.#options.accessTokenTtl + this.#options.clockToleranceSeconds + 1,
+    );
   }
 
   async revokeSession(sessionId: string): Promise<void> {

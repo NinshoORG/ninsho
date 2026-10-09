@@ -20,6 +20,12 @@ export interface NinshoClientOptions {
   /** Base URL of the API. Relative request paths resolve against it. */
   readonly baseUrl: string;
   /**
+   * Additional origins permitted to receive credentials and DPoP proofs.
+   * By default, ONLY the origin of baseUrl is permitted.
+   * Requests targeting any other origin throw an error to prevent credential leakage.
+   */
+  readonly allowedOrigins?: readonly string[];
+  /**
    * Where the DPoP key is persisted. Defaults to in-memory, which is correct
    * for tests and non-browser clients; a browser should pass an
    * `IndexedDbKeyStore` so the session survives a reload.
@@ -41,6 +47,7 @@ interface RefreshResponse {
 
 export class NinshoClient {
   readonly #baseUrl: string;
+  readonly #allowedOrigins: ReadonlySet<string>;
   readonly #keyStore: DpopKeyStore;
   readonly #refreshPath: string;
   readonly #fetch: typeof globalThis.fetch;
@@ -83,6 +90,14 @@ export class NinshoClient {
 
   constructor(options: NinshoClientOptions) {
     this.#baseUrl = options.baseUrl.replace(/\/+$/, '');
+    const baseOrigin = new URL(this.#baseUrl).origin;
+    const allowed = new Set<string>([baseOrigin]);
+    if (options.allowedOrigins !== undefined) {
+      for (const origin of options.allowedOrigins) {
+        allowed.add(new URL(origin).origin);
+      }
+    }
+    this.#allowedOrigins = allowed;
     this.#keyStore = options.keyStore ?? new MemoryKeyStore();
     this.#refreshPath = options.refreshPath ?? '/auth/refresh';
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
@@ -139,9 +154,35 @@ export class NinshoClient {
     return this.#accessToken !== null;
   }
 
-  /** Resolves a path against the base URL. Absolute URLs pass through. */
+  /**
+   * Resolves a path against the base URL and verifies destination origin safety.
+   * Refuses untrusted cross-origin destinations to prevent credential and proof leakage.
+   */
   #resolve(path: string): string {
-    return /^https?:\/\//i.test(path) ? path : `${this.#baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+    let resolvedString: string;
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:|\/\//.test(path)) {
+      resolvedString = path.startsWith('//')
+        ? `${new URL(this.#baseUrl).protocol}${path}`
+        : path;
+    } else {
+      resolvedString = `${this.#baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+    }
+
+    let target: URL;
+    try {
+      target = new URL(resolvedString);
+    } catch {
+      throw new Error(`ninsho client: invalid request URL "${path}"`);
+    }
+
+    if (!this.#allowedOrigins.has(target.origin)) {
+      throw new Error(
+        `ninsho client: refusing to send credentials to untrusted origin "${target.origin}". ` +
+          `Allowed origins: ${[...this.#allowedOrigins].join(', ')}`,
+      );
+    }
+
+    return target.toString();
   }
 
   /**

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   RefreshInvalidError,
   RefreshReuseError,
+  RevocationIncompleteError,
   TokenInvalidError,
   TokenRevokedError,
   generateToken,
@@ -836,3 +837,228 @@ describe('regression: revocation racing rotation', () => {
     await expect(sessions.refresh(b.refreshToken)).rejects.toThrow();
   });
 });
+
+describe('regression: access-token issuance racing with logout (F1)', () => {
+  it('prevents an access token from escaping when rotation races logout (opaque)', async () => {
+    const pair = await sessions.create(ALICE);
+
+    const originalIssue = engine.issue.bind(engine);
+    let releaseIssue!: () => void;
+    let enteredIssue!: () => void;
+    const gate = new Promise<void>((r) => {
+      releaseIssue = r;
+    });
+    const atIssue = new Promise<void>((r) => {
+      enteredIssue = r;
+    });
+    let issuedToken: { tokenId: string; token: string } | undefined;
+
+    engine.issue = async (input) => {
+      enteredIssue();
+      await gate;
+      const res = await originalIssue(input);
+      issuedToken = res;
+      return res;
+    };
+
+    const rotating = sessions.refresh(pair.refreshToken);
+    await atIssue;
+    await sessions.revoke(pair.sessionId);
+    releaseIssue();
+
+    await expect(rotating).rejects.toThrow(RefreshInvalidError);
+    expect(issuedToken).toBeDefined();
+    await expect(engine.verify(issuedToken!.token)).rejects.toThrow();
+  });
+
+  it('prevents an access token from escaping when rotation races logout (paseto)', async () => {
+    const key = generateKeyPair('paseto-f1');
+    const pStore = new MemoryStore();
+    const pEngine = new PasetoEngine(pStore, new KeyRing({ active: key }), {
+      accessTokenTtl: 300,
+      clockToleranceSeconds: 5,
+      issuer: 'https://id.test',
+      audience: 'api',
+    });
+    const pAudit = new MemoryAuditSink();
+    const pSessions = new SessionManager(pStore, pEngine, {
+      refreshTokenTtl: 3600,
+      refreshGraceSeconds: 0,
+      clockToleranceSeconds: 5,
+      audit: pAudit,
+    });
+
+    const pair = await pSessions.create(ALICE);
+
+    const originalIssue = pEngine.issue.bind(pEngine);
+    let releaseIssue!: () => void;
+    let enteredIssue!: () => void;
+    const gate = new Promise<void>((r) => {
+      releaseIssue = r;
+    });
+    const atIssue = new Promise<void>((r) => {
+      enteredIssue = r;
+    });
+    let issuedToken: { tokenId: string; token: string } | undefined;
+
+    pEngine.issue = async (input) => {
+      enteredIssue();
+      await gate;
+      const res = await originalIssue(input);
+      issuedToken = res;
+      return res;
+    };
+
+    const rotating = pSessions.refresh(pair.refreshToken);
+    await atIssue;
+    await pSessions.revoke(pair.sessionId);
+    releaseIssue();
+
+    await expect(rotating).rejects.toThrow(RefreshInvalidError);
+    expect(issuedToken).toBeDefined();
+    await expect(pEngine.verify(issuedToken!.token)).rejects.toThrow(TokenRevokedError);
+  });
+
+  it('prevents an access token from escaping when grace adoption races logout (opaque)', async () => {
+    build(30);
+    const first = await sessions.create(ALICE);
+    await sessions.refresh(first.refreshToken);
+
+    const originalIssue = engine.issue.bind(engine);
+    let releaseIssue!: () => void;
+    let enteredIssue!: () => void;
+    const gate = new Promise<void>((r) => {
+      releaseIssue = r;
+    });
+    const atIssue = new Promise<void>((r) => {
+      enteredIssue = r;
+    });
+    let issuedToken: { tokenId: string; token: string } | undefined;
+
+    engine.issue = async (input) => {
+      enteredIssue();
+      await gate;
+      const res = await originalIssue(input);
+      issuedToken = res;
+      return res;
+    };
+
+    const adopting = sessions.refresh(first.refreshToken);
+    await atIssue;
+    await sessions.revoke(first.sessionId);
+    releaseIssue();
+
+    await expect(adopting).rejects.toThrow(RefreshInvalidError);
+    expect(issuedToken).toBeDefined();
+    await expect(engine.verify(issuedToken!.token)).rejects.toThrow();
+  });
+
+  it('prevents an access token from escaping when grace adoption races logout (paseto)', async () => {
+    const key = generateKeyPair('paseto-grace-f1');
+    const pStore = new MemoryStore();
+    const pEngine = new PasetoEngine(pStore, new KeyRing({ active: key }), {
+      accessTokenTtl: 300,
+      clockToleranceSeconds: 5,
+      issuer: 'https://id.test',
+      audience: 'api',
+    });
+    const pAudit = new MemoryAuditSink();
+    const pSessions = new SessionManager(pStore, pEngine, {
+      refreshTokenTtl: 3600,
+      refreshGraceSeconds: 30,
+      clockToleranceSeconds: 5,
+      audit: pAudit,
+    });
+
+    const first = await pSessions.create(ALICE);
+    await pSessions.refresh(first.refreshToken);
+
+    const originalIssue = pEngine.issue.bind(pEngine);
+    let releaseIssue!: () => void;
+    let enteredIssue!: () => void;
+    const gate = new Promise<void>((r) => {
+      releaseIssue = r;
+    });
+    const atIssue = new Promise<void>((r) => {
+      enteredIssue = r;
+    });
+    let issuedToken: { tokenId: string; token: string } | undefined;
+
+    pEngine.issue = async (input) => {
+      enteredIssue();
+      await gate;
+      const res = await originalIssue(input);
+      issuedToken = res;
+      return res;
+    };
+
+    const adopting = pSessions.refresh(first.refreshToken);
+    await atIssue;
+    await pSessions.revoke(first.sessionId);
+    releaseIssue();
+
+    await expect(adopting).rejects.toThrow(RefreshInvalidError);
+    expect(issuedToken).toBeDefined();
+    await expect(pEngine.verify(issuedToken!.token)).rejects.toThrow(TokenRevokedError);
+  });
+});
+
+describe('regression: partial failure in revokeAllForUser (F2)', () => {
+  it('throws RevocationIncompleteError and keeps un-revoked sessions indexed and retryable', async () => {
+    const a = await sessions.create(ALICE);
+    const b = await sessions.create(ALICE);
+
+    const originalSet = store.set.bind(store);
+    store.set = async (key: string, value: string, ttlSeconds?: number) => {
+      if (key === KEYS.sessionRevoked(b.sessionId)) {
+        throw new Error('injected store failure on session b revocation');
+      }
+      return originalSet(key, value, ttlSeconds);
+    };
+
+    let caughtError: unknown;
+    try {
+      await sessions.revokeAllForUser(ALICE.userId);
+    } catch (err) {
+      caughtError = err;
+    }
+
+    expect(caughtError).toBeInstanceOf(RevocationIncompleteError);
+    const incErr = caughtError as RevocationIncompleteError;
+    expect(incErr.failedSessionIds).toEqual([b.sessionId]);
+
+    // Session a was successfully revoked
+    await expect(engine.verify(a.accessToken)).rejects.toThrow();
+
+    // Session b failed to revoke and its token is still accepted
+    await expect(engine.verify(b.accessToken)).resolves.toMatchObject({
+      userId: ALICE.userId,
+    });
+
+    // Session b remains indexed in userSessions so it is discoverable and retryable
+    const indexed = await store.sMembers(KEYS.userSessions(ALICE.userId));
+    expect(indexed).toContain(b.sessionId);
+    expect(indexed).not.toContain(a.sessionId);
+
+    // listSessions still reports session b
+    const listed = await sessions.listSessions(ALICE.userId);
+    expect(listed.map((s) => s.sessionId)).toContain(b.sessionId);
+
+    // Audit verification: failure event emitted for b, revoked_all NOT emitted
+    const failedAudit = audit.ofType('session.revoked').filter((e) => e.reason === 'revocation_failed');
+    expect(failedAudit).toHaveLength(1);
+    expect(failedAudit[0]?.sessionId).toBe(b.sessionId);
+    expect(audit.ofType('session.revoked_all')).toHaveLength(0);
+
+    // Now restore store.set and retry revokeAllForUser: should succeed completely
+    store.set = originalSet;
+    await expect(sessions.revokeAllForUser(ALICE.userId)).resolves.toBeUndefined();
+
+    // Now session b is also revoked
+    await expect(engine.verify(b.accessToken)).rejects.toThrow();
+    const remaining = await store.sMembers(KEYS.userSessions(ALICE.userId));
+    expect(remaining).toHaveLength(0);
+    expect(audit.ofType('session.revoked_all')).toHaveLength(1);
+  });
+});
+

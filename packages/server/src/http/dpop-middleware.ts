@@ -82,7 +82,11 @@ export function defaultRequestUrl(req: HttpRequest): string {
   let pathAndQuery = '/';
   try {
     const parsed = new URL(target, 'http://request-target.invalid');
-    pathAndQuery = `${parsed.pathname}${parsed.search}`;
+    // Ensure the path never begins with multiple slashes or backslashes
+    // (e.g. `//evil.com/path`), which `new URL(path, base)` would interpret
+    // as a protocol-relative URL and use to replace the base authority.
+    const cleanPath = `/${parsed.pathname.replace(/^[/\\]+/, '')}`;
+    pathAndQuery = `${cleanPath}${parsed.search}`;
   } catch {
     // An unparseable target reads as the root rather than as an error: this
     // value is compared, not trusted, and a throw here would escape as a 500

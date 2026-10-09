@@ -75,7 +75,29 @@ export class IndexedDbKeyStore implements DpopKeyStore {
   ): Promise<T> {
     const db = await this.#open();
     try {
-      return await promisify(run(db.transaction(STORE_NAME, mode).objectStore(STORE_NAME)));
+      const tx = db.transaction(STORE_NAME, mode);
+      return await new Promise<T>((resolve, reject) => {
+        let result: T;
+        const request = run(tx.objectStore(STORE_NAME));
+        request.onsuccess = (): void => {
+          result = request.result;
+          if (mode === 'readonly') {
+            resolve(result);
+          }
+        };
+        request.onerror = (): void => {
+          reject(request.error ?? new Error('IndexedDB request failed'));
+        };
+        tx.oncomplete = (): void => {
+          resolve(result);
+        };
+        tx.onerror = (): void => {
+          reject(tx.error ?? new Error('IndexedDB transaction failed'));
+        };
+        tx.onabort = (): void => {
+          reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+        };
+      });
     } finally {
       db.close();
     }

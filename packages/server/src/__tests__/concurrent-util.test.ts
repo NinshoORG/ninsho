@@ -5,7 +5,7 @@ import { SessionManager } from '../session/manager.js';
 import { MemoryAuditSink } from '../audit.js';
 import { mapConcurrent, DEFAULT_CONCURRENCY } from '../internal/concurrent.js';
 import type { NinshoStore } from '../store/types.js';
-import type { Principal } from '@ninshorg/core';
+import { RevocationIncompleteError, type Principal } from '@ninshorg/core';
 
 describe('mapConcurrent', () => {
   it('returns results in input order regardless of completion order', async () => {
@@ -271,7 +271,11 @@ describe('session operations at scale', () => {
       return originalSMembers(key);
     };
 
-    await expect(sessions.revokeAllForUser(ALICE.userId)).resolves.toBeUndefined();
+    // F2: revokeAllForUser must not report complete success when a session fails to revoke.
+    // It completes the sweep (so other sessions are revoked) and rejects with RevocationIncompleteError.
+    await expect(sessions.revokeAllForUser(ALICE.userId)).rejects.toThrow(
+      RevocationIncompleteError,
+    );
 
     inner.sMembers = originalSMembers;
 

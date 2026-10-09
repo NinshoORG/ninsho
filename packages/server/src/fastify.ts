@@ -44,12 +44,20 @@ export interface FastifyLikeRequest {
    * is still visible — Node's HTTP server keeps the first and discards the
    * rest before `headers` is built.
    */
-  readonly raw?: { readonly rawHeaders?: readonly string[] };
+  readonly raw?: {
+    readonly rawHeaders?: readonly string[];
+    readonly socket?: { readonly remoteAddress?: string | undefined };
+  };
   /** Copied from `raw` by this adapter, so `extractBearer` can see it. */
   rawHeaders?: readonly string[];
   readonly params?: unknown;
   readonly query?: unknown;
   readonly body?: unknown;
+  readonly method?: string | undefined;
+  readonly url?: string | undefined;
+  readonly originalUrl?: string | undefined;
+  readonly ip?: string | undefined;
+  socket?: { readonly remoteAddress?: string | undefined } | undefined;
   /** Populated by `verify()`. Read it with `getAuth()`. */
   auth?: AuthContext;
 }
@@ -97,6 +105,9 @@ export function toFastify(middleware: Middleware): FastifyPreHandler {
     // would not survive to the next preHandler in the chain.
     if (request.rawHeaders === undefined && request.raw?.rawHeaders !== undefined) {
       request.rawHeaders = request.raw.rawHeaders;
+    }
+    if (request.socket === undefined && request.raw?.socket !== undefined) {
+      request.socket = request.raw.socket;
     }
 
     // Bridges the two response surfaces. `status`/`json` are what Ninsho's

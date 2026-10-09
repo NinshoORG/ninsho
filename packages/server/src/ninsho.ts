@@ -112,9 +112,12 @@ export class Ninsho {
               this.#config.store,
               this.#config.onStoreError,
               // Remembered for at least as long as a proof stays acceptable.
+              // A proof with allowable future skew (iat up to now + clockTolerance)
+              // remains acceptable until (now - iat > maxAge + clockTolerance).
+              // Total observation-to-expiry window is maxAge + 2 * clockTolerance.
               // A shorter retention would forget a proof that would still be
               // accepted, reopening the replay it exists to close.
-              this.#config.dpopProofMaxAgeSeconds + this.#config.clockToleranceSeconds + 1,
+              this.#config.dpopProofMaxAgeSeconds + 2 * this.#config.clockToleranceSeconds + 1,
             ),
             maxAgeSeconds: this.#config.dpopProofMaxAgeSeconds,
             clockToleranceSeconds: this.#config.clockToleranceSeconds,

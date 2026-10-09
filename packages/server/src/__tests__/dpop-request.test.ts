@@ -59,6 +59,8 @@ describe('defaultRequestUrl', () => {
     ['a plaintext absolute target', 'http://evil.example/orders'],
     ['a protocol-relative target', '//evil.example/orders'],
     ['a protocol-relative target with credentials', '//user:pw@evil.example/orders'],
+    ['an absolute-form target with double slash path', 'https://ignored.example//orders'],
+    ['a protocol-relative target with double slash path', '//foo//orders'],
   ])('does not let %s replace the authority', (_label, url) => {
     // REGRESSION. `new URL(target, base)` discards the base entirely for any
     // of these, so the reconstruction became whatever origin the client named

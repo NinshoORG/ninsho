@@ -1,6 +1,7 @@
 import {
   RefreshInvalidError,
   RefreshReuseError,
+  RevocationIncompleteError,
   type AuditSink,
   type ClientSignals,
   type Principal,
@@ -318,30 +319,57 @@ export class SessionManager {
     // store. This is the operation invoked during an incident, so it needs to
     // finish.
     //
-    // Failures are swallowed per session rather than propagated: one corrupt
-    // record must not abandon the remaining sessions half-revoked, which would
-    // leave the caller believing they had signed out everywhere when they had
-    // not. Each failure is still recorded.
-    const failures = await mapConcurrent(sessionIds, async (sessionId) => {
+    // F2: Failures are collected, not swallowed. One corrupt record must not
+    // abandon the remaining sessions half-revoked, but the caller MUST learn
+    // that not everything succeeded. Failed sessions are re-added to the user
+    // index so they remain discoverable and retryable. session.revoked_all is
+    // emitted only when every session was successfully revoked.
+    const results = await mapConcurrent(sessionIds, async (sessionId) => {
       try {
         await this.#revokeFamily(sessionId, reason, { skipUserIndex: true });
-        return null;
+        return { sessionId, succeeded: true as const };
       } catch (error) {
-        return { sessionId, error };
+        return { sessionId, succeeded: false as const, error };
       }
     });
 
-    await this.#store.delete(KEYS.userSessions(userId));
+    const failedSessionIds: string[] = [];
+    for (const result of results) {
+      if (!result.succeeded) {
+        failedSessionIds.push(result.sessionId);
+      }
+    }
 
-    for (const failure of failures) {
-      if (failure === null) continue;
-      this.#options.audit.emit({
-        type: 'session.revoked',
-        at: nowIso(),
-        userId,
-        sessionId: failure.sessionId,
-        reason: 'revocation_failed',
-      });
+    // F2: Remove only the sessions that succeeded from the user's index.
+    // Any session whose revocation failed remains indexed, so it stays
+    // discoverable via listSessions and retryable via revokeAllForUser.
+    // Using sRemove also avoids wiping out any session added concurrently.
+    const succeededSessionIds = results
+      .filter((r) => r.succeeded)
+      .map((r) => r.sessionId);
+    if (succeededSessionIds.length > 0) {
+      await this.#store.sRemove(KEYS.userSessions(userId), ...succeededSessionIds);
+    }
+
+    for (const result of results) {
+      if (!result.succeeded) {
+        this.#options.audit.emit({
+          type: 'session.revoked',
+          at: nowIso(),
+          userId,
+          sessionId: result.sessionId,
+          reason: 'revocation_failed',
+        });
+      }
+    }
+
+    if (failedSessionIds.length > 0) {
+      // F2: Do NOT emit session.revoked_all — that would misleadingly signal
+      // complete success. Throw so the caller knows to retry.
+      throw new RevocationIncompleteError(
+        failedSessionIds,
+        `${failedSessionIds.length} of ${sessionIds.length} sessions failed to revoke`,
+      );
     }
 
     this.#options.audit.emit({
@@ -564,6 +592,24 @@ export class SessionManager {
       }),
     });
 
+    // F1 POST-ISSUANCE CHECK: a revocation that completed while
+    // engine.issue() was running has by now written its marker. Without this
+    // check the access token escapes: the earlier pre-issuance check passed,
+    // but revocation enumerated the session-token index before the new
+    // access token was added to it, so engine.revokeSession() missed it.
+    // Revoking the token here is the only way to guarantee that no usable
+    // access credential survives a completed logout.
+    if (await this.#store.exists(KEYS.sessionRevoked(sessionId))) {
+      await this.#engine.revoke(access.tokenId);
+      await this.#store.delete(
+        KEYS.refreshToken(hashToken(newToken)),
+        KEYS.refreshGrace(oldHash),
+      );
+      throw new RefreshInvalidError(
+        `session ${sessionId} was revoked during rotation (post-issuance)`,
+      );
+    }
+
     this.#options.audit.emit({
       type: 'session.refreshed',
       at: now,
@@ -609,7 +655,7 @@ export class SessionManager {
     if (graceRaw !== null) {
       const grace = this.#parseGrace(graceRaw);
       if (grace !== null) {
-        return this.#adoptReplacement(consumed, grace, presentedKey);
+        return this.#adoptReplacement(consumed, grace, presentedKey, hash);
       }
     }
 
@@ -697,6 +743,7 @@ export class SessionManager {
     consumed: ConsumedRefreshRecord,
     grace: GraceRecord,
     presentedKey: string | undefined,
+    oldHash?: string,
   ): Promise<TokenPair> {
     // The grace path hands back a live credential, so it must enforce the same
     // binding the rotation path does. Otherwise replaying a bound token inside
@@ -722,6 +769,19 @@ export class SessionManager {
         confirmationKey: consumed.confirmationKey,
       }),
     });
+
+    // F1 POST-ISSUANCE CHECK (grace path): same race as #rotate(). A
+    // revocation that completed during engine.issue() must not leave this
+    // access token live. See the corresponding check in #rotate().
+    if (await this.#store.exists(KEYS.sessionRevoked(consumed.sessionId))) {
+      await this.#engine.revoke(access.tokenId);
+      if (oldHash !== undefined) {
+        await this.#store.delete(KEYS.refreshGrace(oldHash));
+      }
+      throw new RefreshInvalidError(
+        `session ${consumed.sessionId} was revoked during grace adoption (post-issuance)`,
+      );
+    }
 
     this.#options.audit.emit({
       type: 'session.refreshed',

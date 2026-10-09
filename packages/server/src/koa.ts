@@ -28,7 +28,10 @@ import type { HttpRequest, HttpResponse, Middleware } from './http/types.js';
 /** The parts of a Koa context this adapter uses. */
 export interface KoaLikeContext {
   /** Node's own request object, which is where `rawHeaders` lives. */
-  readonly req?: { readonly rawHeaders?: readonly string[] };
+  readonly req?: {
+    readonly rawHeaders?: readonly string[];
+    readonly socket?: { readonly remoteAddress?: string };
+  };
   readonly request: {
     /** Incoming headers, lowercased by Node. */
     readonly headers: Record<string, string | string[] | undefined>;
@@ -36,7 +39,19 @@ export interface KoaLikeContext {
     readonly query: Record<string, string | string[] | undefined>;
     /** Present only when a body parser ran. Koa ships none. */
     readonly body?: unknown;
+    readonly method?: string;
+    readonly url?: string;
+    readonly originalUrl?: string;
+    readonly ip?: string;
+    readonly protocol?: string;
+    readonly socket?: { readonly remoteAddress?: string };
   };
+  readonly method?: string;
+  readonly url?: string;
+  readonly originalUrl?: string;
+  readonly ip?: string;
+  readonly protocol?: string;
+  readonly socket?: { readonly remoteAddress?: string };
   /** Route parameters, when a router put them here. `@koa/router` does. */
   readonly params?: Record<string, string>;
   status: number;
@@ -89,6 +104,13 @@ function toHttpRequest(ctx: KoaLikeContext): HttpRequest {
   // 500. The Hono adapter needed the same seeding, for the same reason.
   const established = ctx.state[AUTH_STATE_KEY];
 
+  const method = ctx.request.method ?? ctx.method;
+  const url = ctx.request.url ?? ctx.url;
+  const originalUrl = ctx.request.originalUrl ?? ctx.originalUrl ?? url;
+  const ip = ctx.request.ip ?? ctx.ip;
+  const protocol = ctx.request.protocol ?? ctx.protocol;
+  const socket = ctx.request.socket ?? ctx.socket ?? ctx.req?.socket;
+
   return {
     // Koa's headers and query are already the shapes `HttpRequest` declares —
     // Node lowercases header names, and the middleware reads duplicates as
@@ -101,6 +123,12 @@ function toHttpRequest(ctx: KoaLikeContext): HttpRequest {
     params: ctx.params ?? {},
     query: ctx.request.query,
     ...(body !== undefined && { body }),
+    ...(method !== undefined && { method }),
+    ...(url !== undefined && { url }),
+    ...(originalUrl !== undefined && { originalUrl }),
+    ...(protocol !== undefined && { protocol }),
+    ...(ip !== undefined && { ip }),
+    ...(socket !== undefined && { socket }),
     ...(established !== undefined && established !== null
       ? { auth: established as AuthContext }
       : {}),

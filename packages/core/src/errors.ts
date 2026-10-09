@@ -222,6 +222,29 @@ export class KeyError extends NinshoError {
   }
 }
 
+/**
+ * A bulk revocation completed partially.
+ *
+ * F2: `revokeAllForUser()` must not silently swallow per-session failures.
+ * This error carries the session ids that remain live so the caller can retry
+ * or alert. Failed sessions are re-added to the user-session index before this
+ * is thrown, so they are still discoverable via `listSessions` and retryable
+ * via a subsequent `revokeAllForUser()`.
+ *
+ * Maps to 500 rather than 4xx because the client's request was valid — the
+ * server's own store operation failed.
+ */
+export class RevocationIncompleteError extends NinshoError {
+  readonly code = 'REVOCATION_INCOMPLETE';
+  readonly status = 500;
+  /** Sessions that could not be revoked. */
+  readonly failedSessionIds: readonly string[];
+  constructor(failedSessionIds: readonly string[], detail?: string) {
+    super('Not all sessions could be revoked', detail);
+    this.failedSessionIds = failedSessionIds;
+  }
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /** Narrows an unknown caught value to a Ninsho error. */

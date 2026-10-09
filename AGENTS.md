@@ -141,7 +141,7 @@ Test counts differ depending on whether Redis is present. Both are correct:
 | | Tests |
 | --- | --- |
 | Without `REDIS_URL` | 1,992 passing, 5 skipped |
-| With `REDIS_URL` (what CI runs) | **2,056 passing, 0 skipped** |
+| With `REDIS_URL` (what CI runs) | **2,087 passing, 0 skipped** |
 
 Run one package, or one test:
 

@@ -4,6 +4,7 @@ import type { Principal } from '@ninshorg/core';
 import { Ninsho } from '../ninsho.js';
 import { MemoryStore } from '../store/memory.js';
 import { toHono, getAuth, AUTH_CONTEXT_KEY, type HonoLikeContext } from '../hono.js';
+import { generateDpopKeyPair, createDpopProof } from '../dpop/index.js';
 
 /**
  * The Hono adapter, against real Hono.
@@ -393,3 +394,70 @@ describe('adapter contract', () => {
     expect(res.status).toBe(500);
   });
 });
+
+describe('DPoP over Hono', () => {
+  it('verifies a DPoP-bound POST request with correct method and URL', async () => {
+    const dpopAuth = new Ninsho({ store, binding: 'dpop' });
+    const keyPair = generateDpopKeyPair();
+    const pair = await dpopAuth.createSession(ALICE, { confirmationKey: keyPair.jkt });
+
+    const local = new Hono();
+    let ran = false;
+    local.use('/dpop-action', toHono(dpopAuth.verify()));
+    local.post('/dpop-action', (c) => {
+      ran = true;
+      return c.json({ ok: true });
+    });
+
+    const url = 'http://localhost/dpop-action';
+    const proof = createDpopProof(keyPair, {
+      method: 'POST',
+      url,
+      accessToken: pair.accessToken,
+    });
+
+    const res = await local.request('/dpop-action', {
+      method: 'POST',
+      headers: {
+        authorization: `DPoP ${pair.accessToken}`,
+        dpop: proof,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(ran).toBe(true);
+  });
+
+  it('refuses a DPoP proof minted with mismatched HTTP method', async () => {
+    const dpopAuth = new Ninsho({ store, binding: 'dpop' });
+    const keyPair = generateDpopKeyPair();
+    const pair = await dpopAuth.createSession(ALICE, { confirmationKey: keyPair.jkt });
+
+    const local = new Hono();
+    let ran = false;
+    local.use('/dpop-action', toHono(dpopAuth.verify()));
+    local.post('/dpop-action', (c) => {
+      ran = true;
+      return c.json({ ok: true });
+    });
+
+    // Mismatched method: proof signed for GET, but request is POST
+    const proof = createDpopProof(keyPair, {
+      method: 'GET',
+      url: 'http://localhost/dpop-action',
+      accessToken: pair.accessToken,
+    });
+
+    const res = await local.request('/dpop-action', {
+      method: 'POST',
+      headers: {
+        authorization: `DPoP ${pair.accessToken}`,
+        dpop: proof,
+      },
+    });
+
+    expect(res.status).toBe(401);
+    expect(ran).toBe(false);
+  });
+});
+

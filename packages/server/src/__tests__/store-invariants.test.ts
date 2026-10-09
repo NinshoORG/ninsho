@@ -16,6 +16,7 @@ import { RateLimiter } from '../ratelimit/limiter.js';
 import { DpopReplayGuard } from '../dpop/replay.js';
 import { OneTimeTokenManager } from '../tokens/one-time.js';
 import { MemoryAuditSink } from '../audit.js';
+import { KEYS } from '../keys.js';
 import type { NinshoStore } from '../store/types.js';
 
 /**
@@ -459,6 +460,78 @@ for (const candidate of candidates) {
         expect(await sessions.listSessions(alice.userId)).toHaveLength(2);
         expect(await sessions.listSessions(bob.userId)).toHaveLength(1);
       });
+
+      it('does not wipe concurrently created sessions when logout-all races a new login', async () => {
+        const { sessions, engine } = build(candidate);
+        const user = principal();
+        const initial = await Promise.all([
+          sessions.create(user),
+          sessions.create(user),
+        ]);
+
+        // Launch logout-all and a concurrent new login
+        const [, newPair] = await Promise.all([
+          sessions.revokeAllForUser(user.userId, 'logout_all'),
+          sessions.create(user),
+        ]);
+
+        // Initial sessions must be dead
+        const initialSurvivors = await Promise.all(
+          initial.map((p) => engine.verify(p.accessToken).then(() => true, () => false)),
+        );
+        expect(initialSurvivors.filter(Boolean)).toHaveLength(0);
+
+        // The concurrently created session's access token must still be valid
+        await expect(engine.verify(newPair.accessToken)).resolves.toBeDefined();
+
+        // The user index must accurately reflect remaining sessions
+        const remaining = await sessions.listSessions(user.userId);
+        expect(remaining.map((s) => s.sessionId)).toContain(newPair.sessionId);
+      });
+
+      it('handles multiple simultaneous logout-all calls idempotently without error', async () => {
+        const { sessions, engine } = build(candidate);
+        const user = principal();
+        const pairs = await Promise.all(
+          Array.from({ length: 10 }, () => sessions.create(user)),
+        );
+
+        // Run 3 simultaneous logout-all requests
+        await expect(
+          Promise.all([
+            sessions.revokeAllForUser(user.userId, 'logout_all'),
+            sessions.revokeAllForUser(user.userId, 'logout_all'),
+            sessions.revokeAllForUser(user.userId, 'logout_all'),
+          ]),
+        ).resolves.toBeDefined();
+
+        const survivors = await Promise.all(
+          pairs.map((p) => engine.verify(p.accessToken).then(() => true, () => false)),
+        );
+        expect(survivors.filter(Boolean)).toHaveLength(0);
+        expect(await sessions.listSessions(user.userId)).toHaveLength(0);
+      });
+
+      it('handles concurrent listSessions while a session is being revoked without corrupting list', async () => {
+        const { sessions } = build(candidate);
+        const user = principal();
+        const pairs = await Promise.all(
+          Array.from({ length: 6 }, () => sessions.create(user)),
+        );
+
+        // Revoke first 2 sessions while concurrently listing
+        const [, list] = await Promise.all([
+          Promise.all([
+            sessions.revoke(pairs[0]!.sessionId),
+            sessions.revoke(pairs[1]!.sessionId),
+          ]),
+          sessions.listSessions(user.userId),
+        ]);
+
+        // list should complete cleanly and only contain valid session objects
+        expect(list.length).toBeGreaterThanOrEqual(4);
+        expect(list.length).toBeLessThanOrEqual(6);
+      });
     });
   });
 }
@@ -506,3 +579,52 @@ describe.runIf(REDIS_URL !== undefined && REDIS_URL.length > 0)(
     });
   },
 );
+
+describe.runIf(REDIS_URL !== undefined && REDIS_URL.length > 0)(
+  'Redis MULTI/EXEC command error propagation',
+  () => {
+    it('propagates Redis command errors from increment on conflicting key types rather than returning 0', async () => {
+      const store = new RedisStore(REDIS_URL!);
+      openStores.push(store);
+      const key = `test:${generateId()}:wrongtype-incr`;
+
+      // Set key as a set
+      await store.sAdd(key, 'member', 60);
+
+      // INCR on a set must reject with WRONGTYPE, not silently return 0
+      await expect(store.increment(key, 60)).rejects.toThrow();
+    });
+
+    it('fails closed when RateLimiter encounters a Redis command error during increment', async () => {
+      const store = new RedisStore(REDIS_URL!);
+      openStores.push(store);
+      const audit = new MemoryAuditSink();
+      const limiter = new RateLimiter({ store, onStoreError: 'closed', audit });
+
+      // Put a conflicting data type at the rate limit key
+      const now = Date.now();
+      const windowIndex = Math.floor(now / 60_000);
+      const bucket = `test:${generateId()}`;
+      const conflictKey = KEYS.rateLimit(bucket, windowIndex);
+      await store.sAdd(conflictKey, 'conflict-member', 180);
+
+      // Must fail closed with StoreUnavailableError, never return allowed: true
+      await expect(limiter.consume(bucket, 5, 60_000)).rejects.toBeInstanceOf(
+        StoreUnavailableError,
+      );
+    });
+
+    it('propagates Redis command errors from sAdd on conflicting key types rather than silently resolving', async () => {
+      const store = new RedisStore(REDIS_URL!);
+      openStores.push(store);
+      const key = `test:${generateId()}:wrongtype-sadd`;
+
+      // Set key as a string
+      await store.set(key, 'plain-string-value', 60);
+
+      // SADD on a string key must reject with WRONGTYPE, not silently succeed
+      await expect(store.sAdd(key, 'member', 60)).rejects.toThrow();
+    });
+  },
+);
+

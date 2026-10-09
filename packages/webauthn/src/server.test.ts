@@ -4,7 +4,7 @@ import { WebAuthnServer } from './server.js';
 import { ChallengeError } from './challenge.js';
 import { WebAuthnError } from './ceremony.js';
 import { ES256, EdDSA, RS256, SUPPORTED_ALGORITHMS } from './cose.js';
-import { VirtualAuthenticator, FLAG_UP, FLAG_UV } from './testing.js';
+import { VirtualAuthenticator, FLAG_UP, FLAG_UV, FLAG_AT } from './testing.js';
 import { createChain } from './x509-fixtures.js';
 import type { StoredCredential } from './ceremony.js';
 
@@ -685,3 +685,86 @@ describe('assertions that identify nobody', () => {
     expect(result.principal.userId).toBe('user-1');
   });
 });
+
+describe('regression: per-ceremony userVerification policy (F6)', () => {
+  it('enforces per-ceremony required user verification on registration', async () => {
+    // Server is configured with default userVerification ('preferred')
+    const server = makeServer();
+    const authenticator = await VirtualAuthenticator.create();
+
+    const options = await server.startRegistration({
+      userId: 'user-uv-reg',
+      userName: 'uv-reg@example.com',
+      userVerification: 'required',
+    });
+    expect(options.authenticatorSelection.userVerification).toBe('required');
+
+    // Authenticator produces UP + AT without UV (flags: 0x41)
+    const noUvResponse = await authenticator.register({
+      challenge: fromB64u(options.challenge),
+      origin: ORIGIN,
+      rpId: RP_ID,
+      flags: FLAG_UP | FLAG_AT,
+    });
+
+    const error = await rejection(server.finishRegistration(noUvResponse, 'user-uv-reg'));
+    expect(error.detail).toMatch(/user verification was required/);
+
+    // When UV is provided, registration succeeds
+    const options2 = await server.startRegistration({
+      userId: 'user-uv-reg',
+      userName: 'uv-reg@example.com',
+      userVerification: 'required',
+    });
+    const withUvResponse = await authenticator.register({
+      challenge: fromB64u(options2.challenge),
+      origin: ORIGIN,
+      rpId: RP_ID,
+      flags: FLAG_UP | FLAG_UV | FLAG_AT,
+    });
+
+    const verified = await server.finishRegistration(withUvResponse, 'user-uv-reg');
+    expect(verified.userVerified).toBe(true);
+  });
+
+  it('enforces per-ceremony required user verification on authentication', async () => {
+    // Server is configured with default userVerification ('preferred')
+    const server = makeServer();
+    const authenticator = await VirtualAuthenticator.create();
+    const credential = await enrol(server, authenticator, 'user-uv-auth');
+
+    // Start authentication with per-ceremony 'required' override
+    const options = await server.startAuthentication({
+      userId: 'user-uv-auth',
+      userVerification: 'required',
+    });
+    expect(options.userVerification).toBe('required');
+
+    // Authenticator produces assertion with UP only (no UV)
+    const noUvAssertion = await authenticator.authenticate({
+      challenge: fromB64u(options.challenge),
+      origin: ORIGIN,
+      rpId: RP_ID,
+      flags: FLAG_UP,
+    });
+
+    const error = await rejection(server.finishAuthentication(noUvAssertion, credential));
+    expect(error.detail).toMatch(/user verification was required/);
+
+    // When UV is present, authentication succeeds and verifies UV
+    const options2 = await server.startAuthentication({
+      userId: 'user-uv-auth',
+      userVerification: 'required',
+    });
+    const withUvAssertion = await authenticator.authenticate({
+      challenge: fromB64u(options2.challenge),
+      origin: ORIGIN,
+      rpId: RP_ID,
+      flags: FLAG_UP | FLAG_UV,
+    });
+
+    const result = await server.finishAuthentication(withUvAssertion, credential);
+    expect(result.userVerified).toBe(true);
+  });
+});
+

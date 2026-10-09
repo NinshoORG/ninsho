@@ -138,7 +138,11 @@ export class WebAuthnServer {
   }
 
   async startRegistration(input: StartRegistrationInput): Promise<RegistrationOptionsJSON> {
-    const { challenge } = await this.#challenges.issue('registration', input.userId);
+    // F6: Compute the effective UV policy once so it is both sent to the
+    // browser and persisted in the challenge context for enforcement.
+    const effectiveUv =
+      input.userVerification ?? this.#options.userVerification ?? 'preferred';
+    const { challenge } = await this.#challenges.issue('registration', input.userId, effectiveUv);
 
     // Asking for attestation only makes sense when it will be checked, so the
     // conveyance follows the policy rather than being configured separately —
@@ -165,8 +169,7 @@ export class WebAuthnServer {
       ...(this.#options.authenticatorAttachment
         ? { authenticatorAttachment: this.#options.authenticatorAttachment }
         : {}),
-      userVerification:
-        input.userVerification ?? this.#options.userVerification ?? 'preferred',
+      userVerification: effectiveUv,
       attestation: wantsAttestation ? 'direct' : 'none',
     });
   }
@@ -174,15 +177,17 @@ export class WebAuthnServer {
   async startAuthentication(
     input: StartAuthenticationInput = {},
   ): Promise<AuthenticationOptionsJSON> {
-    const { challenge } = await this.#challenges.issue('authentication', input.userId);
+    // F6: Same as startRegistration — persist the effective UV policy.
+    const effectiveUv =
+      input.userVerification ?? this.#options.userVerification ?? 'preferred';
+    const { challenge } = await this.#challenges.issue('authentication', input.userId, effectiveUv);
 
     return buildAuthenticationOptions({
       rpId: this.#options.rpId,
       challenge,
       timeoutMs: this.#timeoutMs,
       ...(input.allowCredentials ? { allowCredentials: input.allowCredentials } : {}),
-      userVerification:
-        input.userVerification ?? this.#options.userVerification ?? 'preferred',
+      userVerification: effectiveUv,
     });
   }
 
@@ -227,7 +232,12 @@ export class WebAuthnServer {
         ? { allowCrossOrigin: this.#options.allowCrossOrigin }
         : {}),
       ...(this.#options.attestation ? { attestation: this.#options.attestation } : {}),
-      userVerification: this.#options.userVerification ?? 'preferred',
+      // F6: Use the UV policy persisted with the challenge rather than the
+      // server-level default. This is the fix: without it, a per-ceremony
+      // override (e.g. step-up requiring 'required') was sent to the browser
+      // but never enforced by the server.
+      userVerification:
+        context.userVerification ?? this.#options.userVerification ?? 'preferred',
     });
 
     return { ...verified, userId: context.userId };
@@ -270,7 +280,9 @@ export class WebAuthnServer {
       ...(this.#options.onCounterRegression
         ? { onCounterRegression: this.#options.onCounterRegression }
         : {}),
-      userVerification: this.#options.userVerification ?? 'preferred',
+      // F6: Same as finishRegistration — enforce the per-ceremony UV policy.
+      userVerification:
+        context.userVerification ?? this.#options.userVerification ?? 'preferred',
     });
 
     const userId = credential.userId ?? context.userId ?? verified.userHandle;

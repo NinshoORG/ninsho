@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@ninshorg/server"><img src="https://img.shields.io/npm/v/@ninshorg/server?label=%40ninshorg%2Fserver&color=0071F0" alt="npm version" /></a>
   <a href="https://github.com/NinshoORG/ninsho/actions/workflows/ci.yml"><img src="https://github.com/NinshoORG/ninsho/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
-  <a href="./README.md#what-works-today"><img src="https://img.shields.io/badge/tests-2%2C056%20passing-3DDC97" alt="2,056 tests passing" /></a>
+  <a href="./README.md#what-works-today"><img src="https://img.shields.io/badge/tests-2%2C087%20passing-3DDC97" alt="2,087 tests passing" /></a>
   <a href="./package.json"><img src="https://img.shields.io/badge/node-%3E%3D20-informational" alt="Node >= 20" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-informational" alt="MIT" /></a>
 </p>
@@ -142,7 +142,7 @@ npm run dev --workspace @ninshorg/playground   # → localhost:4000
 
 > **Status: v0.1.0 — published, and not yet independently audited.**
 >
-> The engineering is complete and verified: 2,056 tests against real Redis, CI
+> The engineering is complete and verified: 2,087 tests against real Redis, CI
 > green on Node 20 and 22, verified from a clean checkout. What has *not*
 > happened is an external security review, so this is a considered choice
 > rather than a safe default. `0.1.0` says so on purpose — the predecessor
@@ -308,7 +308,7 @@ Every claim below links to executable proof.
 | Adding a passkey requires an existing session | `auth.verify()` on both register routes | `passkey.test.ts` › *registration requires a session* |
 
 ```
-2,056 tests passing (`npm run test`) · typecheck clean · verified from a fresh clone
+2,087 tests passing (`npm run test`) · typecheck clean · verified from a fresh clone
 core 4.9 KB, zero dependencies · server 119 KB, ioredis only — no framework dependency
 webauthn 93 KB, zero dependencies · client 12 KB, browser-only
 ```

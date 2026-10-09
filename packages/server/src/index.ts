@@ -196,6 +196,7 @@ export {
   StoreUnavailableError,
   ConfigurationError,
   KeyError,
+  RevocationIncompleteError,
   isNinshoError,
   toErrorResponse,
 } from '@ninshorg/core';

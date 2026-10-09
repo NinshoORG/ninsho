@@ -24,6 +24,19 @@ export interface RedisStoreOptions {
 /** How long to wait for the first connection before failing. */
 const INITIAL_CONNECT_TIMEOUT_MS = 10_000;
 
+function assertExecResults(
+  results: [Error | null, unknown][] | null,
+  operation: string,
+): [Error | null, unknown][] {
+  if (results === null) {
+    throw new Error(`Redis transaction aborted during ${operation}`);
+  }
+  for (const [err] of results) {
+    if (err) throw err;
+  }
+  return results;
+}
+
 /**
  * Redis-backed store. The production implementation.
  *
@@ -173,14 +186,18 @@ export class RedisStore implements NinshoStore {
       // boundary lives in the key name, so a refreshed TTL cannot extend a
       // window — it only delays cleanup. INCR itself is atomic, which is the
       // property the limiter actually depends on.
-      const result = await c
+      const results = await c
         .multi()
         .incr(key)
         .expire(key, Math.ceil(ttlSeconds))
         .exec();
 
-      const count = result?.[0]?.[1];
-      return typeof count === 'number' ? count : 0;
+      assertExecResults(results, 'increment');
+      const count = results![0]?.[1];
+      if (typeof count !== 'number') {
+        throw new Error('Redis increment did not return a numeric counter');
+      }
+      return count;
     });
   }
 
@@ -207,11 +224,13 @@ export class RedisStore implements NinshoStore {
       // briefly lacks an expiry, corrected by the next sAdd. The inverse
       // ordering — EXPIRE before SADD — would be wrong, since EXPIRE on a
       // missing key is a no-op and the set would then never expire.
-      await c
+      const results = await c
         .multi()
         .sadd(key, member)
         .expire(key, Math.ceil(ttlSeconds))
         .exec();
+
+      assertExecResults(results, 'sAdd');
     });
   }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConfigurationError, type Principal } from '@ninshorg/core';
 import { Ninsho } from '../ninsho.js';
 import { MemoryStore } from '../store/memory.js';
@@ -568,4 +568,36 @@ describe('regression: a rejected proof must not consume the refresh token', () =
     // legitimate use, which is the worst possible false positive.
     expect(audit.ofType('refresh.reuse_detected')).toHaveLength(0);
   });
+
+  it('refuses replay of a future-skewed proof throughout its entire acceptance window', async () => {
+    // REGRESSION (F3). A proof issued with permissible future clock skew (+5s)
+    // is acceptable until: now - iat > maxAge (60s) + tolerance (5s).
+    // Thus from initial presentation at T0, it is valid for 60 + 2*5 = 70s.
+    // If replay guard retention is only maxAge + tolerance + 1 = 66s,
+    // the store forgets the proof after 66s while the proof is still acceptable (age 62s <= 65s),
+    // reopening replay at T0 + 67s.
+    const now = 1_700_000_000_000;
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    try {
+      const futureProof = createDpopProof(key, {
+        method: 'POST',
+        url: `${ORIGIN}/auth/login`,
+        issuedAtMs: now + 5000,
+      });
+
+      const req1 = request({ proof: futureProof, method: 'POST', path: '/auth/login' });
+      await expect(auth.confirmProofOfPossession(req1)).resolves.toBe(key.jkt);
+
+      // Advance by 67s: replay guard must NOT have forgotten the proof
+      vi.advanceTimersByTime(67_000);
+
+      const req2 = request({ proof: futureProof, method: 'POST', path: '/auth/login' });
+      await expect(auth.confirmProofOfPossession(req2)).rejects.toThrow();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
+

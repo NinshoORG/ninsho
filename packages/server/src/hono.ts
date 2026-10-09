@@ -39,6 +39,12 @@ import type { HttpRequest, HttpResponse, Middleware } from './http/types.js';
  */
 export interface HonoLikeContext {
   readonly req: {
+    /** HTTP method, e.g. GET or POST */
+    readonly method?: string;
+    /** Full request URL */
+    readonly url?: string;
+    /** Route path */
+    readonly path?: string;
     /** All request headers, lowercased, when called with no argument. */
     header(): Record<string, string | undefined>;
     /** All matched route parameters. */
@@ -47,11 +53,17 @@ export interface HonoLikeContext {
     query(): Record<string, string>;
     /** Parsed JSON body. Hono caches this, so reading it here is not destructive. */
     json(): Promise<unknown>;
+    /** Underlying standard Web Request, if available */
+    readonly raw?: {
+      readonly method?: string;
+      readonly url?: string;
+    };
   };
   json(body: unknown, status?: number): Response;
   header(name: string, value: string): void;
   set(key: string, value: unknown): void;
   get(key: string): unknown;
+  readonly env?: unknown;
 }
 
 /** A Hono middleware handler. */
@@ -129,12 +141,21 @@ async function toHttpRequest(
   // 500. Fastify does not need the equivalent because there the framework's
   // own request object *is* the `HttpRequest`, and `auth` persists on it.
   const established = c.get(AUTH_CONTEXT_KEY);
+  const method = c.req.method ?? c.req.raw?.method;
+  const url = c.req.url ?? c.req.raw?.url ?? c.req.path;
+  const incoming = (c.env as { incoming?: { socket?: { remoteAddress?: string }; ip?: string } } | undefined)?.incoming;
+  const ip = incoming?.ip;
+  const socket = incoming?.socket;
 
   return {
     headers: c.req.header(),
     params: c.req.param(),
     query: c.req.query(),
     ...(body !== undefined && { body }),
+    ...(method !== undefined && { method }),
+    ...(url !== undefined && { url, originalUrl: url }),
+    ...(ip !== undefined && { ip }),
+    ...(socket !== undefined && { socket }),
     ...(established !== undefined && established !== null
       ? { auth: established as AuthContext }
       : {}),

@@ -57,6 +57,18 @@ export interface HttpRequest {
   readonly params?: Readonly<Record<string, string | readonly string[] | undefined>>;
   readonly query?: Readonly<Record<string, unknown>>;
   readonly body?: unknown;
+  /** HTTP method: GET, POST, etc. */
+  readonly method?: string | undefined;
+  /** Request URL or target */
+  readonly url?: string | undefined;
+  /** Pre-routing URL when rewritten by routers */
+  readonly originalUrl?: string | undefined;
+  /** Scheme: http or https */
+  readonly protocol?: string | undefined;
+  /** Client IP address resolved by framework */
+  readonly ip?: string | undefined;
+  /** Low-level socket connection, for remote peer address resolution */
+  readonly socket?: { readonly remoteAddress?: string | undefined } | undefined;
   /**
    * Populated by `verify()`. Prefer {@link getAuth} for type-safe access —
    * reading this directly gives you `AuthContext | undefined` and invites a

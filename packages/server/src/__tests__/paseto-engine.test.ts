@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   KeyError,
   TokenExpiredError,
@@ -425,19 +425,61 @@ describe('revocation', () => {
   });
 
   /**
-   * The denylist entry expires when the token would have anyway, which is what
-   * keeps it bounded without a cleanup job.
+   * The denylist entry expires when the token would have anyway (including clock
+   * tolerance), which is what keeps it bounded without a cleanup job.
    */
   it('does not retain denylist entries beyond the token lifetime', async () => {
-    const shortLived = build(new KeyRing({ active: KEY_2026_08 }), { ttl: 1 });
-    const issued = await shortLived.issue({ principal: PRINCIPAL, sessionId: SESSION , authenticatedAt: new Date().toISOString() });
-    await shortLived.revoke(issued.tokenId);
+    const now = 1_700_000_000_000;
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
 
-    const before = store.size();
-    await new Promise((r) => {
-      setTimeout(r, 1200);
-    });
-    expect(store.size()).toBeLessThan(before);
+    try {
+      const shortLived = build(new KeyRing({ active: KEY_2026_08 }), { ttl: 1 });
+      const issued = await shortLived.issue({
+        principal: PRINCIPAL,
+        sessionId: SESSION,
+        authenticatedAt: new Date(now).toISOString(),
+      });
+      await shortLived.revoke(issued.tokenId);
+
+      const before = store.size();
+      // TTL is 1 (accessTokenTtl) + 5 (clockToleranceSeconds) + 1 = 7 seconds.
+      vi.advanceTimersByTime(8000);
+      expect(store.size()).toBeLessThan(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps denylist entries active throughout the clock tolerance window', async () => {
+    // REGRESSION (F4). When a token is revoked, the denylist key must not
+    // expire while the token is still acceptable under clock skew tolerance.
+    // If accessTokenTtl is 300s and clockToleranceSeconds is 5s, the token
+    // is accepted by isExpired until T0 + 305s.
+    // If the denylist entry expires at T0 + 300s, the revoked token will be
+    // accepted again between T0 + 300s and T0 + 305s.
+    const now = 1_700_000_000_000;
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    try {
+      const issued = await engine.issue({
+        principal: PRINCIPAL,
+        sessionId: SESSION,
+        authenticatedAt: new Date(now).toISOString(),
+      });
+
+      await engine.revoke(issued.tokenId);
+      await expect(engine.verify(issued.token)).rejects.toThrow(TokenRevokedError);
+
+      // Advance time to 301 seconds (past accessTokenTtl = 300s, but within clockToleranceSeconds = 5s)
+      vi.advanceTimersByTime(301_000);
+
+      // The token must still be rejected as revoked, never accepted!
+      await expect(engine.verify(issued.token)).rejects.toThrow(TokenRevokedError);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

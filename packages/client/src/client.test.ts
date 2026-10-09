@@ -205,9 +205,14 @@ describe('request handling', () => {
     expect(calls[0]!.init.credentials).toBe('include');
   });
 
-  it('resolves relative paths and passes absolute URLs through', async () => {
+  it('resolves relative paths and passes allowed absolute URLs through', async () => {
     const { fetch, calls } = recorder(() => json(200, {}));
-    const client = new NinshoClient({ baseUrl: `${ORIGIN}/`, keyStore, fetch });
+    const client = new NinshoClient({
+      baseUrl: `${ORIGIN}/`,
+      allowedOrigins: ['https://other.test'],
+      keyStore,
+      fetch,
+    });
 
     await client.fetch('orders');
     await client.fetch('/orders');
@@ -496,3 +501,83 @@ describe('key persistence', () => {
     expect(thumbprints.size).toBe(1);
   });
 });
+
+describe('credential destination safety', () => {
+  it('permits same-origin relative paths', async () => {
+    const keyStore = new MemoryKeyStore();
+    const { fetch, calls } = recorder(() => json(200, { ok: true }));
+    const client = new NinshoClient({ baseUrl: ORIGIN, keyStore, fetch });
+
+    await client.fetch('/api/v1/orders');
+    expect(calls[0]?.url).toBe(`${ORIGIN}/api/v1/orders`);
+  });
+
+  it('permits absolute URLs matching the base origin', async () => {
+    const keyStore = new MemoryKeyStore();
+    const { fetch, calls } = recorder(() => json(200, { ok: true }));
+    const client = new NinshoClient({ baseUrl: ORIGIN, keyStore, fetch });
+
+    await client.fetch(`${ORIGIN}/api/v1/orders`);
+    expect(calls[0]?.url).toBe(`${ORIGIN}/api/v1/orders`);
+  });
+
+  it('refuses to send credentials to untrusted third-party origins', async () => {
+    const keyStore = new MemoryKeyStore();
+    const { fetch, calls } = recorder(() => json(200, { ok: true }));
+    const client = new NinshoClient({ baseUrl: ORIGIN, keyStore, fetch });
+    client.setAccessToken('secret-token');
+
+    await expect(client.fetch('https://attacker.example.com/leak')).rejects.toThrow(
+      /refusing to send credentials to untrusted origin/,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses protocol-relative URLs that would target a different origin', async () => {
+    const keyStore = new MemoryKeyStore();
+    const { fetch, calls } = recorder(() => json(200, { ok: true }));
+    const client = new NinshoClient({ baseUrl: ORIGIN, keyStore, fetch });
+    client.setAccessToken('secret-token');
+
+    await expect(client.fetch('//attacker.example.com/leak')).rejects.toThrow(
+      /refusing to send credentials to untrusted origin/,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses protocol downgrades from https to plaintext http', async () => {
+    const keyStore = new MemoryKeyStore();
+    const { fetch, calls } = recorder(() => json(200, { ok: true }));
+    const client = new NinshoClient({ baseUrl: 'https://api.example.test', keyStore, fetch });
+    client.setAccessToken('secret-token');
+
+    await expect(client.fetch('http://api.example.test/orders')).rejects.toThrow(
+      /refusing to send credentials to untrusted origin/,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it('permits explicitly allowed cross-origin destinations', async () => {
+    const keyStore = new MemoryKeyStore();
+    const { fetch, calls } = recorder(() => json(200, { ok: true }));
+    const client = new NinshoClient({
+      baseUrl: ORIGIN,
+      allowedOrigins: ['https://auth.example.test'],
+      keyStore,
+      fetch,
+    });
+
+    await client.fetch('https://auth.example.test/token');
+    expect(calls[0]?.url).toBe('https://auth.example.test/token');
+  });
+
+  it('refuses malformed or invalid destination URLs', async () => {
+    const keyStore = new MemoryKeyStore();
+    const { fetch, calls } = recorder(() => json(200, { ok: true }));
+    const client = new NinshoClient({ baseUrl: ORIGIN, keyStore, fetch });
+
+    await expect(client.fetch('https://')).rejects.toThrow(/invalid request URL/);
+    expect(calls).toHaveLength(0);
+  });
+});
+

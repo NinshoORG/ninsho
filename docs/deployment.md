@@ -91,8 +91,17 @@ provides that. What to watch:
   allkeys-lru`.** Session records are not cache entries; evicting one signs a
   user out, and evicting a one-time token generation counter fails closed but
   confusingly.
-- **Persistence is your call.** Losing the store signs everyone out. That is a
-  safe failure, and for some deployments an acceptable one.
+- **Data-loss and failure behavior is strategy-dependent:**
+  There are four distinct failure scenarios to plan for:
+
+  | Failure Scenario | `strategy: 'opaque'` (Default) | `strategy: 'paseto'` |
+  | :--- | :--- | :--- |
+  | **1. Store temporarily unreachable** | Under `onStoreError: 'closed'` (default), all verification fails closed with HTTP 503 (`STORE_UNAVAILABLE`). | Fails closed with 503 by default. Under `onStoreError: 'open'`, cryptographically valid tokens pass without checking the denylist (emits `store.unavailable`). |
+  | **2. Store reachable, record absent** (e.g. key eviction / LRU) | Opaque tokens map to `TOKEN_INVALID` (401); user is forced to re-authenticate. | Token is assumed not revoked; valid signatures and non-expired claims continue to pass. |
+  | **3. Store restart with persistence loss** (crash without AOF/RDB) | All active session records are lost; every user is logged out (**fails closed** on authorization). | The revocation denylist is wiped. Unrevoked tokens continue working, but **previously revoked tokens become valid again** until their natural `exp` lapses (**fails open on revocation**). |
+  | **4. Recovery from an old snapshot** (RDB/AOF rollback) | Sessions created after the snapshot disappear (forced re-login); sessions revoked after the snapshot may temporarily resurrect until natural expiry or refresh. | Revocations issued after the snapshot timestamp are lost from the denylist, resurrecting those specific revoked tokens until expiry. |
+
+  Deployments using PASETO with revocation must configure Redis persistence (AOF with `appendfsync everysec` or continuous replication) to avoid resurrecting revoked credentials after an incident. Deployments accepting total session loss over token resurrection should stay on `strategy: 'opaque'`.
 - **Give it its own database or key prefix if it is shared.** Every key is
   already namespaced `ninsho:v1:`, so a collision needs deliberate effort — but
   a `FLUSHDB` from a neighbouring service does not care about namespaces.

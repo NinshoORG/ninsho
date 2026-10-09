@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { MemoryStore } from '@ninshorg/server';
-import { createApp } from './app.js';
-import { lastResetLink, resetUsers } from './users.js';
-import { resetCredentials } from './credentials.js';
+import { createApp } from './app.ts';
+import { lastResetLink, resetUsers } from './users.ts';
+import { resetCredentials } from './credentials.ts';
 
 /**
  * Password reset, end to end over real HTTP.

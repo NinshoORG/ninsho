@@ -109,7 +109,7 @@ async function main(): Promise<void> {
   console.log(`Express E2E benchmark — Node ${process.version}, ${iterations} iterations`);
 
   const store = new MemoryStore();
-  const { app } = createApp({ store, secureCookies: false });
+  const { app } = createApp({ store, secureCookies: false, trustProxy: 1 });
   const server = http.createServer(app);
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -121,10 +121,28 @@ async function main(): Promise<void> {
   // --- Register a user for authenticated tests ---
   const email = `bench-${Date.now()}@test.com`;
   const password = 'benchmarkpassword123';
-  await httpRequest(baseUrl, 'POST', '/auth/register', {}, JSON.stringify({ email, password }));
+  const baselineReg = await httpRequest(
+    baseUrl,
+    'POST',
+    '/auth/register',
+    { 'x-forwarded-for': '198.51.100.1' },
+    JSON.stringify({ email, password }),
+  );
+  if (baselineReg.status !== 201) {
+    throw new Error(`Baseline registration failed with status ${baselineReg.status}: ${baselineReg.body}`);
+  }
 
   // --- Login to get an access token ---
-  const loginRes = await httpRequest(baseUrl, 'POST', '/auth/login', {}, JSON.stringify({ email, password }));
+  const loginRes = await httpRequest(
+    baseUrl,
+    'POST',
+    '/auth/login',
+    { 'x-forwarded-for': '198.51.100.1' },
+    JSON.stringify({ email, password }),
+  );
+  if (loginRes.status !== 200) {
+    throw new Error(`Baseline login failed with status ${loginRes.status}: ${loginRes.body}`);
+  }
   const loginData = JSON.parse(loginRes.body);
   const accessToken: string = loginData.accessToken;
 
@@ -142,16 +160,26 @@ async function main(): Promise<void> {
     )
   );
 
-  // 3. Login flow (register + login, excluding password hashing since it re-uses existing)
-  // Actually, measure just login (credential verification + session creation)
-  // Need unique emails to avoid rate limiting
+  // 3. Login flow (credential verification + session creation)
+  // Each request uses a distinct account and client IP under trustProxy
+  // to avoid hitting the 20/15m per-IP and 5/15m per-account rate limits,
+  // and asserts HTTP 200 to measure genuine successful logins rather than 429s.
   let loginCounter = 0;
-  // Pre-register accounts
   const loginCount = Math.min(iterations, 200);
   const loginEmails: string[] = [];
   for (let i = 0; i < loginCount + 40; i++) {
     const e = `benchlogin-${Date.now()}-${i}@test.com`;
-    await httpRequest(baseUrl, 'POST', '/auth/register', {}, JSON.stringify({ email: e, password }));
+    const ip = `198.51.${Math.floor(i / 250) + 100}.${(i % 250) + 1}`;
+    const regRes = await httpRequest(
+      baseUrl,
+      'POST',
+      '/auth/register',
+      { 'x-forwarded-for': ip },
+      JSON.stringify({ email: e, password }),
+    );
+    if (regRes.status !== 201) {
+      throw new Error(`Pre-registration ${i} failed with status ${regRes.status}: ${regRes.body}`);
+    }
     loginEmails.push(e);
   }
 
@@ -159,8 +187,19 @@ async function main(): Promise<void> {
     await measure(
       'POST /auth/login (full)',
       async () => {
-        const e = loginEmails[loginCounter++ % loginEmails.length]!;
-        await httpRequest(baseUrl, 'POST', '/auth/login', {}, JSON.stringify({ email: e, password }));
+        const idx = loginCounter++;
+        const e = loginEmails[idx % loginEmails.length]!;
+        const ip = `198.51.${Math.floor(idx / 250) + 100}.${(idx % 250) + 1}`;
+        const res = await httpRequest(
+          baseUrl,
+          'POST',
+          '/auth/login',
+          { 'x-forwarded-for': ip },
+          JSON.stringify({ email: e, password }),
+        );
+        if (res.status !== 200) {
+          throw new Error(`Login ${idx} failed with status ${res.status}: ${res.body}`);
+        }
       },
       loginCount,
     )

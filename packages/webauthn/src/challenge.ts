@@ -102,6 +102,13 @@ export interface ChallengeContext {
   readonly userId: string | undefined;
   readonly issuedAt: string;
   readonly expiresAt: string;
+  /**
+   * F6: The user-verification policy that was in effect when this challenge
+   * was issued. Persisted so `finish*` can enforce the same policy the browser
+   * was asked to satisfy, rather than falling back to a server-level default
+   * that may differ from the per-ceremony override.
+   */
+  readonly userVerification?: 'required' | 'preferred' | 'discouraged';
 }
 
 const DEFAULT_TTL_SECONDS = 300;
@@ -172,8 +179,15 @@ export class ChallengeManager {
    *
    * @param userId the user this ceremony is for, when known. Omit for a
    *   usernameless authentication flow.
+   * @param userVerification F6: the effective UV policy to persist alongside
+   *   the challenge, so finish* enforces the same policy the browser was asked
+   *   to satisfy.
    */
-  async issue(type: CeremonyType, userId?: string): Promise<IssuedChallenge> {
+  async issue(
+    type: CeremonyType,
+    userId?: string,
+    userVerification?: 'required' | 'preferred' | 'discouraged',
+  ): Promise<IssuedChallenge> {
     const challenge = generateToken(this.#challengeBytes);
 
     // One clock reading for both timestamps, so the recorded lifetime is
@@ -184,6 +198,7 @@ export class ChallengeManager {
       userId,
       issuedAt: isoFrom(now),
       expiresAt: isoFrom(now, this.#ttlSeconds),
+      ...(userVerification !== undefined && { userVerification }),
     };
 
     const stored = await this.#store.setIfAbsent(

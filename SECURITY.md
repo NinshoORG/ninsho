@@ -2,22 +2,16 @@
 
 ## Reporting a vulnerability
 
-> **⚠️ MAINTAINER: fill this in before the first public release.**
->
-> This section is deliberately blank rather than filled with a plausible-looking
-> address. The predecessor's security policy pointed at a GitHub advisory URL
-> for an organisation the repository had moved away from, and listed two
-> different contact addresses. A researcher who found a real bug had no working
-> way to report it privately, which is worse than having no policy at all.
->
-> Before publishing, replace this block with:
-> - a private reporting channel that has been tested end to end (GitHub private
->   security advisories are the low-effort option, and they work)
-> - a response-time commitment you can actually keep
-> - a `.well-known/security.txt` per RFC 9116, with an `Expires` date you will
->   renew
+Ninsho uses **GitHub Private Vulnerability Reporting** for coordinated vulnerability disclosure.
 
-**Please do not open a public issue for a security vulnerability.**
+### How to report a security issue
+
+1. **GitHub Security Advisory (Preferred):** Navigate to the repository's [Security Advisories](https://github.com/NinshoORG/ninsho/security/advisories) tab and click **"Report a vulnerability"** to submit an advisory draft privately to the maintainers.
+2. **Repository Administrator Setup:** If Private Vulnerability Reporting is not yet active in your fork or environment, the repository administrator must enable it under:
+   `Settings` → `Code security and analysis` → `Private vulnerability reporting` → `Enable`.
+3. **Do not open public issues:** **Please do not open a public GitHub issue, discussion, or pull request for a security vulnerability.** Public disclosure before a patch exposes downstream consumers to exploit.
+4. **Response-Time Commitment:** Maintainers commit to acknowledging and initiating triage for verified reports within **48 hours** of receipt, with coordinated release planning and CVE assignment where appropriate.
+5. **Production RFC 9116 Guidance:** Deployments integrating Ninsho in production must publish an RFC 9116 `.well-known/security.txt` pointing to their organization's verified security contact and disclosure policy.
 
 ---
 
@@ -183,6 +177,74 @@ dominates the response, so there the leak would be obvious rather than marginal.
 
 If you copy this example and remove the rate limiter, you have removed the
 defence rather than an inconvenience.
+
+### Account enumeration on immediate-login registration routes
+
+In `examples/express-api`, `/auth/register` creates and returns an active session
+immediately upon successful registration (`201 Created` with access/refresh tokens
+and user profile). If the submitted email already exists, it catches the conflict
+and returns `202 Accepted` with a generic message and **no session tokens**.
+
+This response difference (201 with credentials vs 202 without credentials) is
+an inherent observable side-channel for any endpoint that issues sessions immediately
+upon sign-up: the endpoint cannot safely mint a session for an existing account without
+validating credentials, as doing so would constitute an immediate account takeover.
+
+**Mitigation for production applications:**
+Where account enumeration is a threat model concern, applications should not issue
+sessions immediately on registration. Instead:
+1. Respond with `202 Accepted` for all registration submissions without credentials.
+2. Require email verification before session issuance by minting a single-use token
+   (`auth.createOneTimeToken({ purpose: 'verify_email', ... })`).
+3. Only create the session upon redemption of the email verification link.
+
+### Error distinguishability vs diagnostic secrecy
+
+Ninsho's client-facing error bodies are structured via `toResponse()`:
+
+```json
+{
+  "error": {
+    "code": "TOKEN_EXPIRED",
+    "message": "Authentication credentials have expired"
+  }
+}
+```
+
+Authentication errors deliberately provide distinct, stable machine-readable `code`
+values (`TOKEN_MISSING`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `TOKEN_REVOKED`). This
+distinction is required by client applications (including `@ninshorg/client`) to
+initiate automatic refresh rotation on `TOKEN_EXPIRED` without inappropriately
+re-prompting the user or triggering infinite retry loops on `TOKEN_INVALID`.
+
+What is **never** disclosed to clients is internal diagnostic detail:
+- The `detail` property on `NinshoError` is read by server logs and audit sinks only.
+  `toResponse()` structurally discards it.
+- Token lookup errors, signature parsing errors, and key ID mismatches never leak
+  the internal reason to the caller.
+- **Strategy differences in revocation visibility:**
+  - In `strategy: 'opaque'`, revoking a session deletes the token and index records
+    from the store. A subsequently presented token is absent and returns `TOKEN_INVALID`
+    (401) — indistinguishable from a token that was never issued or expired and evicted.
+  - In `strategy: 'paseto'`, tokens carry their own expiry. A token whose timestamp
+    has passed returns `TOKEN_EXPIRED` (401), while a token found in the active revocation
+    denylist returns `TOKEN_REVOKED` (401).
+
+### Redis data loss and persistence recovery
+
+Data loss guarantees differ critically between strategies:
+- **Store temporarily unreachable:** Under default `onStoreError: 'closed'`, all
+  token verification operations fail closed with HTTP 503 (`STORE_UNAVAILABLE`).
+- **Store restart with persistence loss (no AOF/RDB):** Under `strategy: 'opaque'`,
+  all sessions and tokens are wiped, logging all users out (**fails closed**).
+  Under `strategy: 'paseto'`, the revocation denylist is lost. Unrevoked tokens continue
+  to verify cryptographically, but **previously revoked tokens become valid again**
+  until their natural expiry (`exp`) elapses (**fails open on revocation**).
+- **Snapshot recovery / rollback:** Restoring Redis from an older snapshot restores
+  sessions active at snapshot time while discarding subsequent revocations in PASETO mode.
+
+Deployments requiring that revoked PASETO tokens remain permanently revoked across
+restarts must configure continuous Redis persistence (AOF) or use `strategy: 'opaque'`.
 
 ### A repeated Authorization header is not caught on Hono
 
