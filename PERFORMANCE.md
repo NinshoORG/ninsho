@@ -1,5 +1,11 @@
 # Performance
 
+> **Historical measurements, not results for the current commit.** These tables
+> describe earlier local runs. Re-run the commands below to measure your checkout.
+> They compare Ninsho opaque and PASETO modes, not JWT versus Ninsho. No direct
+> JWT comparison harness is checked in; any previously circulated JWT comparison
+> is an unverified historical local result, not a supported performance claim.
+
 ```bash
 npm run build
 npm run bench --workspace @ninshorg/server
@@ -23,8 +29,8 @@ Node v24.11.1.** 2000 iterations, `MemoryStore`. These measure **library
 overhead only** — serialization, hashing, signing, claim validation — with
 store latency near zero. They are not throughput figures for a deployed system.
 
-Reproduce with `npm run bench --workspace @ninshorg/server`. Absolute figures will
-track your hardware; the *relationships* between rows are the durable part.
+Reproduce with `npm run bench --workspace @ninshorg/server`. Absolute figures and relative ratios depend on hardware, configuration, store
+latency, load, and the checked-out commit.
 
 | Operation | ops/sec | mean | p95 | p99 |
 | :--- | ---: | ---: | ---: | ---: |

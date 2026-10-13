@@ -1,0 +1,19 @@
+Ninsho three-demo rehearsal
+Node: 24.19.0; Redis: 7.4.11; loopback HTTP
+Upstream baseline: c7e6539607d075249235d8c3b033da675015a823
+Includes lifecycle fix d8895b0 and the demo follow-up in this patch.
+
+Demo 1: default opaque bearer tokens and shared-store logout
+Device A bearer: expected 200, actual 200
+Copied bearer on Device B (expected to work): expected 200, actual 200
+Logout on Device A: expected 204, actual 204
+Reuse on Device B after completed logout: expected 401, actual 401
+Demo 2: opt-in proof of possession
+Missing DPoP proof: expected 401, actual 401
+Different client key: expected 401, actual 401
+Valid DPoP proof: expected 200, actual 200
+Replayed DPoP proof: expected 401, actual 401
+Demo 3: resource ownership
+Alice reads Alice: expected 200, actual 200
+Alice reads Bob: expected 403, actual 403
+Cleanup complete: HTTP servers, Redis connections, and demo keys removed.

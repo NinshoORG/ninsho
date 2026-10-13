@@ -18,10 +18,11 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && node --test manualtest/three-demos.test.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p manualtest/tsconfig.json && tsc --noEmit -p benchmarks/tsconfig.json",
     "lint:lockfile": "npm install --package-lock-only && git diff --exit-code package-lock.json",
-    "clean": "rimraf --glob \"packages/*/dist\" \"packages/*/*.tsbuildinfo\""
+    "clean": "rimraf --glob \"packages/*/dist\" \"packages/*/*.tsbuildinfo\"",
+    "demo:viva": "node manualtest/three-demos.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

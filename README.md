@@ -26,6 +26,9 @@ npm i @ninshorg/server
 
 ---
 
+**Preparing a demo?** See the [reproducible three-demo viva guide](docs/viva-guide.md)
+and run `REDIS_URL=redis://127.0.0.1:6379 npm run demo:viva` after building.
+
 ## Install
 
 | Package | Install when you need | Size |

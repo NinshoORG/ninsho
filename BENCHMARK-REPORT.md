@@ -1,5 +1,10 @@
 # Ninsho v0.1.0 — Performance Benchmark Report
 
+> **Historical report for the commit identified below.** These are not fresh
+> measurements of the current checkout. The suites compare Ninsho modes and
+> components; they do not establish a JWT-versus-Ninsho speed advantage. See
+> [the viva guide](docs/viva-guide.md) for reproduction and claim boundaries.
+
 **Date:** September 8, 2026  
 **Measured by:** Yash Jadhav  
 **Repository:** `ninsho` (version `0.1.0`)  

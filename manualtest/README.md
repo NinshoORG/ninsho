@@ -1,5 +1,10 @@
 # Ninsho v0.1.0 Manual Security Testing Workspace
 
+For a clean-start, self-contained rehearsal use `npm run demo:viva` with
+`REDIS_URL` set after `npm run build`. It starts its own loopback servers,
+asserts statuses, and cleans up its random Redis namespace. The maintained
+script is `three-demos.mjs`; see [the viva guide](../docs/viva-guide.md).
+
 > **WARNING:**
 > Never run these attack procedures against systems without authorization. All scripts, procedures, and payloads in this directory are designed solely for controlled security experiments against a local, isolated instance of the Ninsho reference applications (`localhost`).
 
