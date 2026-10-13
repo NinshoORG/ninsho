@@ -25,7 +25,7 @@
     "demo:viva": "node manualtest/three-demos.mjs"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.6.5",
     "fake-indexeddb": "^6.2.5",
     "rimraf": "^6.0.1",
     "tsup": "^8.5.1",
