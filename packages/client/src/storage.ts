@@ -18,6 +18,11 @@ import { describeKey, type DpopKey } from './keys.js';
 export interface DpopKeyStore {
   /** Returns the stored key, or `null` if there is none. */
   load(): Promise<DpopKey | null>;
+  /** Atomically retain an existing key or insert the candidate; return the winner.
+   * Persistent custom stores should implement this across all their clients.
+   * Without it, clients coordinate only when sharing the same store object.
+   */
+  getOrCreate?(candidate: DpopKey): Promise<DpopKey>;
   /** Persists a key, replacing any existing one. */
   save(key: DpopKey): Promise<void>;
   /** Removes the stored key. Called on sign-out. */
@@ -126,6 +131,34 @@ export class IndexedDbKeyStore implements DpopKeyStore {
     return describeKey(privateKey, publicKey);
   }
 
+  async getOrCreate(candidate: DpopKey): Promise<DpopKey> {
+    const db = await this.#open();
+    try {
+      // No crypto awaits inside this transaction: IndexedDB would auto-commit.
+      // Readwrite transactions serialize across connections/tabs on this store.
+      const record = await new Promise<{ privateKey: CryptoKey; publicKey: CryptoKey }>((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        let winner = { privateKey: candidate.privateKey, publicKey: candidate.publicKey };
+        const read = store.get(RECORD_ID);
+        read.onsuccess = (): void => {
+          const existing = read.result as { privateKey?: CryptoKey; publicKey?: CryptoKey } | undefined;
+          if (existing?.privateKey !== undefined && existing.publicKey !== undefined &&
+              existing.privateKey.extractable === false) {
+            winner = { privateKey: existing.privateKey, publicKey: existing.publicKey };
+          } else {
+            store.put(winner, RECORD_ID);
+          }
+        };
+        tx.oncomplete = (): void => resolve(winner);
+        tx.onabort = tx.onerror = (): void => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+      });
+      return describeKey(record.privateKey, record.publicKey);
+    } finally {
+      db.close();
+    }
+  }
+
   async save(key: DpopKey): Promise<void> {
     await this.#transaction('readwrite', (store) =>
       store.put({ privateKey: key.privateKey, publicKey: key.publicKey }, RECORD_ID),
@@ -148,6 +181,11 @@ export class MemoryKeyStore implements DpopKeyStore {
   #key: DpopKey | null = null;
 
   async load(): Promise<DpopKey | null> {
+    return this.#key;
+  }
+
+  async getOrCreate(candidate: DpopKey): Promise<DpopKey> {
+    this.#key ??= candidate;
     return this.#key;
   }
 

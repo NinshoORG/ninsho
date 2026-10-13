@@ -219,6 +219,16 @@ export class SessionManager {
       }),
     });
 
+    // A session can be enumerated and revoked while initial issuance is in
+    // flight, just as during refresh. Do not return a credential that escaped
+    // revocation's token-index snapshot. The marker precedes all revocation
+    // reads, so either revocation finds the token or this check finds it.
+    if (await this.#store.exists(KEYS.sessionRevoked(sessionId))) {
+      await this.#engine.revoke(access.tokenId);
+      await this.#revokeFamily(sessionId, 'logout', { silent: true });
+      throw new RefreshInvalidError('session revoked during initial issuance');
+    }
+
     this.#options.audit.emit({
       type: 'session.created',
       at: now,
@@ -649,6 +659,12 @@ export class SessionManager {
     const consumed = this.#parseConsumed(consumedRaw);
     if (consumed === null) {
       throw new RefreshInvalidError('consumed refresh record is malformed');
+    }
+
+    // A stolen, consumed token is not authority to destroy a bound session.
+    // Apply sender binding before both grace adoption and the reuse response.
+    if (consumed.confirmationKey !== undefined && presentedKey !== consumed.confirmationKey) {
+      throw new RefreshInvalidError('consumed refresh token is bound to a different key');
     }
 
     const graceRaw = await this.#store.get(KEYS.refreshGrace(hash));

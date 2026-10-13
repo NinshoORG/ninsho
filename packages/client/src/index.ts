@@ -1,7 +1,7 @@
 /**
  * @ninshorg/client — browser client for Ninsho.
  *
- * Manages a DPoP session: a non-extractable key that no script can read, a
+ * Manages a DPoP session: a non-extractable key whose raw bytes cannot be exported, a
  * fresh proof on every request, an access token held only in memory, and
  * automatic single-flight refresh.
  *

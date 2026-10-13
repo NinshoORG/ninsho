@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { MemoryStore } from '@ninshorg/server';
+import { MemoryStore, StoreUnavailableError } from '@ninshorg/server';
 import { createApp } from './app.ts';
 import { createUser, resetUsers } from './users.ts';
 
@@ -654,5 +654,20 @@ describe('a malformed refresh cookie', () => {
     });
 
     expect(res.status).toBe(200);
+  });
+});
+
+// REGRESSION: temporary store errors must not delete a still-live refresh cookie.
+describe('refresh outage recovery', () => {
+  it('preserves the cookie on a pre-consumption outage and recovers with the same token', async () => {
+    const signedIn = await register('outage@example.test');
+    const failure = vi.spyOn(store, 'get').mockRejectedValueOnce(new StoreUnavailableError('test outage'));
+    const unavailable = await call('/auth/refresh', { method: 'POST', cookie: signedIn.cookie });
+    expect(unavailable.status).toBe(503);
+    expect(unavailable.headers.getSetCookie()).toHaveLength(0);
+    failure.mockRestore();
+    const recovered = await call('/auth/refresh', { method: 'POST', cookie: signedIn.cookie });
+    expect(recovered.status).toBe(200);
+    expect(recovered.body['accessToken']).toBeTypeOf('string');
   });
 });

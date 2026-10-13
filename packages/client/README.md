@@ -47,20 +47,41 @@ script can read, an XSS can read. Losing it on reload is the intended trade —
 the refresh token is in an httpOnly cookie the browser replays itself, so a
 reload costs one round trip rather than a sign-in.
 
-**Refreshes are single-flight.** A page firing six requests when a token expires
+**Refreshes are single-flight within one client instance.** A page firing six requests when a token expires
 gets six 401s. Six refreshes would be worse than wasteful: under rotation, five
 of them present a token another has already rotated, and the server correctly
 reads that as theft and ends the session. Collapsing them into one is what keeps
 a normal page load from looking like an attack.
 
-**Key initialisation is single-flight too**, for the same reason — concurrent
-first requests would otherwise each generate a key, last write wins, and a
-session bound to a discarded key is broken with nothing in the logs.
+**Key initialization uses an atomic winner.** Built-in stores implement
+`getOrCreate(candidate)`; independent IndexedDB connections serialize the
+read/insert transaction and return the existing winner. See `storage.test.ts`
+and `manualtest/browser-key-store.mjs` for concurrent initialization regressions.
+
+Custom persistent stores should implement the optional `getOrCreate` operation
+atomically across all connections. Without it, the compatibility path only
+coordinates clients sharing the same store object in one JavaScript realm.
+
+Refresh and logout are not broadcast between tabs. A tab with an already cached
+key can retain it after another tab clears IndexedDB. Server-side revocation is
+the authority; applications needing synchronized tab UI should coordinate it.
+Use distinct database names for independent authentication contexts on one origin.
+
+**Logout invalidates pending client operations.** Late refresh/sign-in completions
+cannot restore the previous identity. Sign-in waits for pending local logout
+cleanup. See `lifecycle.test.ts`. A network failure still cannot establish that
+remote logout succeeded; inspect the returned response/null.
+
+**Transient refresh failures preserve recovery state.** HTTP 429/5xx does not
+clear the access token; 401/403 does. Callers should back off before retrying and
+honor Retry-After. A failed refresh returns false. Applications must not interpret
+that boolean alone as proof the session was revoked. See `lifecycle.test.ts`.
 
 ## Key storage
 
-`IndexedDbKeyStore` is the browser default, because IndexedDB is the only
-browser storage that can hold a `CryptoKey` handle. `localStorage` takes
+`MemoryKeyStore` is the default. Pass `IndexedDbKeyStore` explicitly for reload
+persistence. IndexedDB can hold a non-extractable `CryptoKey` handle;
+`localStorage` takes
 strings, so using it would force `extractable: true` and hand any XSS the
 private key.
 

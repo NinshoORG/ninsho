@@ -10,9 +10,9 @@ import { MemoryKeyStore, type DpopKeyStore } from './storage.js';
  * persist it somewhere that can hold one, mint a fresh proof for every
  * request with the right method and URI and token hash, notice a 401, refresh
  * without stampeding, retry the original request, and never once put the
- * access token somewhere a script can read it.
+ * access token in persistent string storage.
  *
- * Getting any of those wrong is silent. This does all of them.
+ * Same-context hostile scripts can still invoke signing; DPoP is not an XSS defense.
  * ──────────────────────────────────────────────────────────────────────────
  */
 
@@ -43,6 +43,27 @@ export interface NinshoClientOptions {
 /** What a refresh endpoint is expected to return. */
 interface RefreshResponse {
   readonly accessToken?: unknown;
+}
+
+// Compatibility for custom stores predating atomic getOrCreate. This covers
+// separate clients sharing one object, not separate tabs or store instances.
+const keyFlights = new WeakMap<DpopKeyStore, Promise<DpopKey>>();
+function storedKey(store: DpopKeyStore): Promise<DpopKey> {
+  const existing = keyFlights.get(store);
+  if (existing !== undefined) return existing;
+  const pending = (async () => {
+    const stored = await store.load();
+    if (stored !== null) return stored;
+    const candidate = await generateDpopKey();
+    if (store.getOrCreate !== undefined) return store.getOrCreate(candidate);
+    await store.save(candidate);
+    return candidate;
+  })();
+  keyFlights.set(store, pending);
+  void pending.finally(() => {
+    if (keyFlights.get(store) === pending) keyFlights.delete(store);
+  }).catch(() => undefined);
+  return pending;
 }
 
 export class NinshoClient {
@@ -87,6 +108,11 @@ export class NinshoClient {
    * the logs to explain it.
    */
   #keyInFlight: Promise<DpopKey> | null = null;
+  // A response belongs to the identity that started it, not the identity that
+  // happens to be current when the network finishes.
+  #generation = 0;
+  #keyGeneration = 0;
+  #logoutInFlight: Promise<Response | null> | null = null;
 
   constructor(options: NinshoClientOptions) {
     this.#baseUrl = options.baseUrl.replace(/\/+$/, '');
@@ -110,28 +136,22 @@ export class NinshoClient {
    * token stay bound across refreshes.
    */
   async getKey(): Promise<DpopKey> {
+    if (this.#logoutInFlight !== null) throw new Error('ninsho: sign-out is in progress');
     if (this.#key !== null) return this.#key;
     if (this.#keyInFlight !== null) return this.#keyInFlight;
-
-    const initialise = (async (): Promise<DpopKey> => {
-      try {
-        const stored = await this.#keyStore.load();
-        if (stored !== null) {
-          this.#key = stored;
-          return stored;
-        }
-
-        const fresh = await generateDpopKey();
-        await this.#keyStore.save(fresh);
-        this.#key = fresh;
-        return fresh;
-      } finally {
-        this.#keyInFlight = null;
-      }
+    const generation = this.#keyGeneration;
+    const pending = (async () => {
+      const key = await storedKey(this.#keyStore);
+      if (generation !== this.#keyGeneration) throw new Error('ninsho: key initialization cancelled by sign-out');
+      this.#key = key;
+      return key;
     })();
-
-    this.#keyInFlight = initialise;
-    return initialise;
+    this.#keyInFlight = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.#keyInFlight === pending) this.#keyInFlight = null;
+    }
   }
 
   /** The RFC 7638 thumbprint the server binds sessions to. */
@@ -146,6 +166,9 @@ export class NinshoClient {
 
   /** Records the access token returned by a sign-in or refresh. */
   setAccessToken(token: string | null): void {
+    if (this.#logoutInFlight !== null) throw new Error('ninsho: sign-out is in progress');
+    this.#generation += 1;
+    this.#refreshInFlight = null;
     this.#accessToken = token;
   }
 
@@ -193,22 +216,25 @@ export class NinshoClient {
    * ever handling the refresh token itself.
    */
   async fetch(path: string, init: RequestInit = {}): Promise<Response> {
+    const generation = this.#generation;
     const response = await this.#send(path, init);
 
     // A 401 on a request that carried a token usually means the token expired.
     // Refresh once and retry; a second 401 is a real refusal, not a stale token.
-    if (response.status !== 401 || this.#accessToken === null) {
+    if (generation !== this.#generation || response.status !== 401 || this.#accessToken === null) {
       return response;
     }
 
     const refreshed = await this.#refreshOnce();
-    if (!refreshed) return response;
+    if (!refreshed || generation !== this.#generation) return response;
 
     return this.#send(path, init);
   }
 
   /** One attempt, with a proof minted for exactly this method and URI. */
-  async #send(path: string, init: RequestInit): Promise<Response> {
+  async #send(
+    path: string, init: RequestInit, token = this.#accessToken, generation = this.#generation,
+  ): Promise<Response> {
     const url = this.#resolve(path);
     const method = (init.method ?? 'GET').toUpperCase();
 
@@ -216,16 +242,17 @@ export class NinshoClient {
     const proof = await createProof(key, {
       method,
       url,
-      ...(this.#accessToken !== null && { accessToken: this.#accessToken }),
+      ...(token !== null && { accessToken: token }),
     });
 
     const headers = new Headers(init.headers);
     headers.set('DPoP', proof);
-    if (this.#accessToken !== null) {
+    if (token !== null) {
       // RFC 9449 §7.1: a DPoP-bound token is presented with the DPoP scheme.
-      headers.set('Authorization', `DPoP ${this.#accessToken}`);
+      headers.set('Authorization', `DPoP ${token}`);
     }
 
+    if (generation !== this.#generation) throw new Error('ninsho: request cancelled by identity change');
     return this.#fetch(url, { ...init, method, headers, credentials: 'include' });
   }
 
@@ -237,7 +264,9 @@ export class NinshoClient {
    * efficiency.
    */
   async #refreshOnce(): Promise<boolean> {
+    if (this.#logoutInFlight !== null) return false;
     if (this.#refreshInFlight !== null) return this.#refreshInFlight;
+    const generation = this.#generation;
 
     const attempt = (async (): Promise<boolean> => {
       try {
@@ -248,21 +277,23 @@ export class NinshoClient {
         // refresh token travels in the cookie.
         const proof = await createProof(key, { method: 'POST', url });
 
+        if (generation !== this.#generation) return false;
         const response = await this.#fetch(url, {
           method: 'POST',
           headers: { DPoP: proof },
           credentials: 'include',
         });
 
+        if (generation !== this.#generation) return false;
         if (!response.ok) {
-          // The session is over — expired, revoked, or reuse was detected.
-          // Clearing the token stops every later request from retrying against
-          // a session that no longer exists.
-          this.#accessToken = null;
+          // Only an authentication refusal ends the local session. An outage
+          // or rate limit is retryable; callers control backoff/Retry-After.
+          if (response.status === 401 || response.status === 403) this.#accessToken = null;
           return false;
         }
 
         const body = (await response.json()) as RefreshResponse;
+        if (generation !== this.#generation) return false;
         if (typeof body.accessToken !== 'string' || body.accessToken.length === 0) {
           this.#accessToken = null;
           return false;
@@ -275,7 +306,7 @@ export class NinshoClient {
         // token is left alone for the next attempt.
         return false;
       } finally {
-        this.#refreshInFlight = null;
+        if (generation === this.#generation) this.#refreshInFlight = null;
       }
     })();
 
@@ -296,17 +327,20 @@ export class NinshoClient {
    * every later request must come from this browser.
    */
   async signIn(path: string, body: unknown): Promise<Response> {
+    if (this.#logoutInFlight !== null) await this.#logoutInFlight;
+    const generation = ++this.#generation;
+    this.#refreshInFlight = null;
     const response = await this.#send(path, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
 
-    if (response.ok) {
+    if (response.ok && generation === this.#generation) {
       const cloned = response.clone();
       try {
         const parsed = (await cloned.json()) as RefreshResponse;
-        if (typeof parsed.accessToken === 'string') {
+        if (generation === this.#generation && typeof parsed.accessToken === 'string') {
           this.#accessToken = parsed.accessToken;
         }
       } catch {
@@ -324,20 +358,32 @@ export class NinshoClient {
    * to — and a shared machine is exactly where sign-out has to be thorough.
    */
   async signOut(path = '/auth/logout'): Promise<Response | null> {
-    let response: Response | null = null;
-    try {
-      if (this.#accessToken !== null) {
-        response = await this.#send(path, { method: 'POST' });
+    if (this.#logoutInFlight !== null) return this.#logoutInFlight;
+    const token = this.#accessToken;
+    this.#generation += 1;
+    this.#keyGeneration += 1;
+    this.#refreshInFlight = null;
+    this.#accessToken = null;
+    const pendingKey = this.#keyInFlight;
+    const attempt = (async (): Promise<Response | null> => {
+      try {
+        return token === null ? null : await this.#send(path, { method: 'POST' }, token);
+      } catch {
+        return null;
+      } finally {
+        // A key write begun before logout must finish before deletion, or it
+        // could restore persisted key material after clear() has completed.
+        await pendingKey?.catch(() => undefined);
+        this.#key = null;
+        this.#keyInFlight = null;
+        await this.#keyStore.clear();
       }
-    } catch {
-      // Local state is cleared regardless: a network failure must not leave a
-      // browser believing it is still signed in.
+    })();
+    this.#logoutInFlight = attempt;
+    try {
+      return await attempt;
     } finally {
-      this.#accessToken = null;
-      this.#key = null;
-      this.#keyInFlight = null;
-      await this.#keyStore.clear();
+      if (this.#logoutInFlight === attempt) this.#logoutInFlight = null;
     }
-    return response;
   }
 }

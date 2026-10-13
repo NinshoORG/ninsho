@@ -140,8 +140,8 @@ Test counts differ depending on whether Redis is present. Both are correct:
 
 | | Tests |
 | --- | --- |
-| Without `REDIS_URL` | 1,992 passing, 5 skipped |
-| With `REDIS_URL` (what CI runs) | **2,087 passing, 0 skipped** |
+| Without `REDIS_URL` | Redis-specific tests are skipped; read the current run |
+| With `REDIS_URL` (what CI runs) | Includes real-store contracts and revocation races; read the current run |
 
 Run one package, or one test:
 
@@ -408,7 +408,7 @@ them; see `x509-fixtures.ts`.
 ## 9. Do not
 
 - **Do not publish to npm.** Nothing in this repository publishes, and release
-  is the maintainer's decision. The `@ninshorg` scope is not claimed.
+  is the maintainer's decision. Repository HEAD is not necessarily the npm release.
 - **Do not weaken a default** without updating `config.test.ts` › *secure
   defaults* and saying why in the PR body. Defaults are security decisions.
 - **Do not add a mock Redis.** The absence is deliberate.
@@ -446,13 +446,12 @@ that answer:
 
 - **Version** `0.1.0`, published to npm under the `@ninshorg` scope. Not
   audited by anyone independent.
-- **CI** green on Node 20 and 22 against real Redis; verified from a fresh
-  clone rather than a working directory.
-- **Not yet done, and none of it is code:** an external security review, a
-  security disclosure contact in `SECURITY.md`, a hosted demonstration, and the
+- **CI** targets Node 20 and 22 against real Redis. Check the run associated
+  with the exact commit; do not infer success from an earlier run.
+- **Not yet done, and none of it is code:** an external security review, verification that private vulnerability reporting is enabled, a hosted demonstration, and the
   version decision. See the checklist at the end of `CONTRIBUTING.md`.
 
-If you are an agent picking this up: the engineering is complete and verified.
+If you are an agent picking this up: passing regressions are not a complete security proof.
 The most valuable thing you can do is not to add features — it is to find code
 that is only ever reached through a happy path, exercise it directly, and
 measure what happens. That method produced roughly a dozen real defects here,

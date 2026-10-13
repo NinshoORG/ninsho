@@ -6,9 +6,8 @@
  * refresh-token rotation and reuse detection, configuration validation, and
  * audit sinks.
  *
- * What does not exist yet: a browser client package. DPoP proofs can be
- * generated in Node with `createDpopProof`; a browser should use WebCrypto
- * with a non-extractable key, which no helper here can provide.
+ * The browser client is available separately as @ninshorg/client. It uses
+ * WebCrypto and can persist a non-extractable DPoP key in IndexedDB.
  * ──────────────────────────────────────────────────────────────────────────
  *
  * @example The whole setup

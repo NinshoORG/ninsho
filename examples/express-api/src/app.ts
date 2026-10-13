@@ -7,6 +7,7 @@ import {
   getAuth,
   isNinshoError,
   RefreshReuseError,
+  RefreshInvalidError,
   toErrorResponse,
   type NinshoStore,
 } from '@ninshorg/server';
@@ -319,10 +320,13 @@ export function createApp(options: AppOptions = {}): { app: Express; auth: Ninsh
       setRefreshCookie(res, pair.refreshToken, pair.refreshExpiresAt);
       res.json({ accessToken: pair.accessToken, expiresAt: pair.accessExpiresAt });
     } catch (error) {
-      // Always clear the cookie on failure. Leaving a dead token in the
-      // browser means the next refresh replays it, which — after a genuine
-      // rotation — looks exactly like theft.
-      clearRefreshCookie(res);
+      // An unavailable store does not prove the credential is dead. Preserve
+      // it on transient failures so a pre-consumption outage can recover.
+      // A failure after consumption may still require reauthentication; do
+      // not automatically retry rotation indefinitely.
+      if (error instanceof RefreshInvalidError || error instanceof RefreshReuseError) {
+        clearRefreshCookie(res);
+      }
 
       if (error instanceof RefreshReuseError) {
         // The session has already been revoked by the time this is thrown.
