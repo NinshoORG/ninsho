@@ -73,9 +73,11 @@ not a general authorization policy.
   can accept cryptographically valid tokens without a revocation check during an
   outage; opaque verification still needs its stored record. Replay/limiter
   policies also depend on configuration. See `docs/configuration.md`,
-  `store-invariants.test.ts`, `opaque-engine.test.ts`, and `paseto-engine.test.ts`.
-  A reachable but wiped PASETO denylist is a distinct failure, documented in
-  `SECURITY.md`.
+  `store-invariants.test.ts`, `opaque-engine.test.ts`, `paseto-engine.test.ts`,
+  and `redis-persistence.test.ts`. A wiped or rolled-back PASETO denylist resurrects
+  previously revoked tokens because tokens verify cryptographically without the
+  lost records; under opaque mode all tokens fail closed. See `SECURITY.md` and
+  `docs/redis-operations.md`.
 - **Partial writes:** session creation, rotation and revocation are multi-operation
   workflows, not one ACID transaction. A failed rotation can consume the old
   refresh token; a retry is not guaranteed to recover it. Partial logout-all

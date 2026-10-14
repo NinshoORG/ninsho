@@ -1,6 +1,7 @@
 import { generateDpopKey, type DpopKey } from './keys.js';
 import { createProof } from './proof.js';
 import { MemoryKeyStore, type DpopKeyStore } from './storage.js';
+import { SessionSync } from './session-sync.js';
 
 /**
  * The browser client.
@@ -36,6 +37,12 @@ export interface NinshoClientOptions {
    * Default `/auth/refresh`.
    */
   readonly refreshPath?: string;
+  /**
+   * Opt-in local invalidation across participating tabs. Use a distinct,
+   * non-secret context for each independent authentication/cookie context.
+   * Shared keys are retained on logout in this mode; see the client README.
+   */
+  readonly sessionSync?: { readonly context: string };
   /** Injected for tests. Defaults to the global `fetch`. */
   readonly fetch?: typeof globalThis.fetch;
 }
@@ -113,6 +120,9 @@ export class NinshoClient {
   #generation = 0;
   #keyGeneration = 0;
   #logoutInFlight: Promise<Response | null> | null = null;
+  readonly #sessionSync: SessionSync | null;
+  #identityInvalidated = false;
+  #disposed = false;
 
   constructor(options: NinshoClientOptions) {
     this.#baseUrl = options.baseUrl.replace(/\/+$/, '');
@@ -127,6 +137,35 @@ export class NinshoClient {
     this.#keyStore = options.keyStore ?? new MemoryKeyStore();
     this.#refreshPath = options.refreshPath ?? '/auth/refresh';
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+    this.#sessionSync = options.sessionSync === undefined ? null :
+      new SessionSync(options.sessionSync.context, () => {
+        if (!this.#disposed) this.#invalidateIdentity();
+      });
+  }
+
+  #assertActive(): void {
+    if (this.#disposed) throw new Error('ninsho: client is disposed');
+  }
+
+  // Receiving a notice does not revoke anything server-side. It invalidates
+  // pending client work and requires explicit identity establishment before
+  // cookie-based refresh can resume. See session-sync.test.ts.
+  #invalidateIdentity(): void {
+    this.#generation += 1;
+    this.#refreshInFlight = null;
+    this.#accessToken = null;
+    this.#identityInvalidated = true;
+  }
+
+  /** Terminal local cleanup, not logout. Call signOut first to request revocation. */
+  dispose(): void {
+    if (this.#disposed) return;
+    this.#disposed = true;
+    this.#invalidateIdentity();
+    this.#keyGeneration += 1;
+    this.#key = null;
+    this.#keyInFlight = null;
+    this.#sessionSync?.close();
   }
 
   /**
@@ -136,6 +175,7 @@ export class NinshoClient {
    * token stay bound across refreshes.
    */
   async getKey(): Promise<DpopKey> {
+    this.#assertActive();
     if (this.#logoutInFlight !== null) throw new Error('ninsho: sign-out is in progress');
     if (this.#key !== null) return this.#key;
     if (this.#keyInFlight !== null) return this.#keyInFlight;
@@ -164,12 +204,19 @@ export class NinshoClient {
     return this.#accessToken;
   }
 
-  /** Records the access token returned by a sign-in or refresh. */
+  /**
+   * Explicitly establishes/replaces local identity. With sessionSync enabled,
+   * changed values invalidate peers; use refresh() for routine token rotation.
+   */
   setAccessToken(token: string | null): void {
+    this.#assertActive();
     if (this.#logoutInFlight !== null) throw new Error('ninsho: sign-out is in progress');
+    const changed = token !== this.#accessToken;
     this.#generation += 1;
     this.#refreshInFlight = null;
     this.#accessToken = token;
+    this.#identityInvalidated = this.#sessionSync !== null && token === null;
+    if (changed) this.#sessionSync?.publish('identity-change');
   }
 
   /** Whether a session appears to be established. */
@@ -216,6 +263,8 @@ export class NinshoClient {
    * ever handling the refresh token itself.
    */
   async fetch(path: string, init: RequestInit = {}): Promise<Response> {
+    this.#assertActive();
+    if (this.#identityInvalidated) throw new Error('ninsho: identity invalidated; establish identity explicitly');
     const generation = this.#generation;
     const response = await this.#send(path, init);
 
@@ -264,6 +313,7 @@ export class NinshoClient {
    * efficiency.
    */
   async #refreshOnce(): Promise<boolean> {
+    if (this.#disposed || this.#identityInvalidated) return false;
     if (this.#logoutInFlight !== null) return false;
     if (this.#refreshInFlight !== null) return this.#refreshInFlight;
     const generation = this.#generation;
@@ -327,7 +377,11 @@ export class NinshoClient {
    * every later request must come from this browser.
    */
   async signIn(path: string, body: unknown): Promise<Response> {
+    this.#assertActive();
+    const started = this.#generation;
     if (this.#logoutInFlight !== null) await this.#logoutInFlight;
+    this.#assertActive();
+    if (started !== this.#generation) throw new Error('ninsho: sign-in cancelled by identity change');
     const generation = ++this.#generation;
     this.#refreshInFlight = null;
     const response = await this.#send(path, {
@@ -340,8 +394,10 @@ export class NinshoClient {
       const cloned = response.clone();
       try {
         const parsed = (await cloned.json()) as RefreshResponse;
-        if (generation === this.#generation && typeof parsed.accessToken === 'string') {
+        if (generation === this.#generation && typeof parsed.accessToken === 'string' && parsed.accessToken.length > 0) {
           this.#accessToken = parsed.accessToken;
+          this.#identityInvalidated = false;
+          this.#sessionSync?.publish('identity-change');
         }
       } catch {
         // A sign-in that returns no JSON body is the application's business.
@@ -351,23 +407,31 @@ export class NinshoClient {
   }
 
   /**
-   * Signs out: tells the server, forgets the token, and discards the key.
+   * Signs out: tells the server and forgets the token. Without sessionSync,
+   * also discards the key. Synchronized clients retain shared key storage so
+   * cleanup cannot erase a concurrently established tab's key.
    *
-   * Discarding the key matters. Leaving it behind would mean the next person to
-   * use the browser inherits a key that a still-live session elsewhere is bound
-   * to — and a shared machine is exactly where sign-out has to be thorough.
+   * In the default mode, discarding the key means the next person to
+   * use the browser does not inherit the stored key. In synchronized mode,
+   * revoke sessions server-side before application-coordinated key deletion.
+   * The shared-key regression is in session-sync.test.ts.
    */
   async signOut(path = '/auth/logout'): Promise<Response | null> {
+    this.#assertActive();
     if (this.#logoutInFlight !== null) return this.#logoutInFlight;
     const token = this.#accessToken;
     this.#generation += 1;
-    this.#keyGeneration += 1;
+    const generation = this.#generation;
+    if (this.#sessionSync === null) this.#keyGeneration += 1;
     this.#refreshInFlight = null;
     this.#accessToken = null;
+    if (this.#sessionSync !== null) this.#identityInvalidated = true;
     const pendingKey = this.#keyInFlight;
     const attempt = (async (): Promise<Response | null> => {
       try {
-        return token === null ? null : await this.#send(path, { method: 'POST' }, token);
+        const response = token === null ? null : await this.#send(path, { method: 'POST' }, token);
+        if (response?.ok && generation === this.#generation) this.#sessionSync?.publish('logout');
+        return response;
       } catch {
         return null;
       } finally {
@@ -376,7 +440,7 @@ export class NinshoClient {
         await pendingKey?.catch(() => undefined);
         this.#key = null;
         this.#keyInFlight = null;
-        await this.#keyStore.clear();
+        if (this.#sessionSync === null) await this.#keyStore.clear();
       }
     })();
     this.#logoutInFlight = attempt;

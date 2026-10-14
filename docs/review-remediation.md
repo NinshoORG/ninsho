@@ -39,18 +39,11 @@ npm run typecheck
 REDIS_URL=redis://127.0.0.1:6379 npm run test
 ```
 
-For the optional real-browser regression, install Playwright locally without
-changing the manifest/lockfile, then install its Chromium binary:
-
-```bash
-npm install --no-save --package-lock=false playwright
-npx playwright install chromium
-node manualtest/browser-key-store.mjs
-```
-
-`CHROMIUM_PATH` can select an existing Chromium executable. The browser test
-uses two pages in the same browser context and an ephemeral localhost server;
-it never sends credentials to an external service.
+Browser regressions now share a Chromium/Firefox/WebKit harness and a dedicated
+CI matrix. See [browser regression setup and measured results](browser-regressions.md)
+for pinned Playwright tooling, exact commands, scenarios and known gaps.
+`CHROMIUM_PATH` still supports an existing Chromium executable; the default
+matrix uses Playwright's pinned binaries in fresh browser contexts.
 
 ## Boundaries that remain deliberate
 
@@ -59,8 +52,10 @@ it never sends credentials to an external service.
   session already in the snapshot cannot issue usable credentials afterward.
   Applications must coordinate credential changes and fresh login issuance if
   they need an account-wide cutoff.
-- Same-instance logout ignores stale client responses. Refresh/logout UI state
-  is not broadcast across tabs. Server revocation is authoritative.
+- Same-instance logout ignores stale client responses. Cross-tab invalidation is
+  now available through opt-in `sessionSync: { context }`; refresh tokens and
+  credentials are never broadcast. See [cross-tab synchronization](cross-tab-session-sync.md)
+  for regression evidence and delivery limitations. Server revocation is authoritative.
 - Custom persistent key stores should implement atomic `getOrCreate` across
   connections. The legacy fallback synchronizes only a shared object in one
   JavaScript realm. Give unrelated auth contexts different IndexedDB names.

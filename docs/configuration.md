@@ -120,7 +120,9 @@ It also has no meaning under the `opaque` strategy, where the store *is* the
 token's meaning rather than a denylist beside it; configuring it there is
 refused rather than silently ignored.
 
-*Evidence: `store-invariants.test.ts` › *fail-closed when Redis is unreachable*.*
+*Evidence: `store-invariants.test.ts` › *fail-closed when Redis is unreachable*,
+`redis-persistence.test.ts` › *temporary Redis unavailability and recovery*.
+See [`docs/redis-operations.md`](redis-operations.md) for full persistence and recovery guarantees.*
 
 ### Rotation
 

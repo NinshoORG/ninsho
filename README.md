@@ -35,13 +35,20 @@ and run `REDIS_URL=redis://127.0.0.1:6379 npm run demo:viva` after building.
 | :--- | :--- | ---: |
 | **[`@ninshorg/server`](https://www.npmjs.com/package/@ninshorg/server)** | Sessions, authorization, rate limiting, DPoP. **Start here** | 119 KB |
 | **[`@ninshorg/webauthn`](https://www.npmjs.com/package/@ninshorg/webauthn)** | Passkeys — registration and sign-in ceremonies, attestation | 93 KB |
-| **[`@ninshorg/client`](https://www.npmjs.com/package/@ninshorg/client)** | The browser half of DPoP, if you enable it | 12 KB |
+| **[`@ninshorg/client`](https://www.npmjs.com/package/@ninshorg/client)** | The browser half of DPoP, if you enable it | 22.5 KB |
 | **[`@ninshorg/core`](https://www.npmjs.com/package/@ninshorg/core)** | Types and errors. Comes in with `server`; install directly only to type your own store | 4.9 KB |
 
 `server` pulls in `core` and `ioredis`. Nothing else has a runtime dependency at
 all, and CI fails the build if that stops being true.
 
 ## Quick start
+
+The browser client also supports opt-in
+[`sessionSync: { context: 'shop-auth' }`](packages/client/README.md#cross-tab-session-synchronization-opt-in).
+Confirmed logout and explicit identity replacement invalidate participating tabs
+without transferring credentials (`packages/client/src/session-sync.test.ts`).
+This is local state synchronization, not server revocation; read the shared-key,
+browser compatibility and concurrent-login limitations before enabling it.
 
 ```ts
 import express from 'express';
@@ -193,6 +200,8 @@ Every claim below links to executable proof.
 | Store implementations cannot drift apart | one contract suite, both stores | `store.contract.test.ts` |
 | Engine invariants hold against a real database, not just a Map | 16 invariants × every store | `store-invariants.test.ts` |
 | An unreachable store rejects rather than admits | fail-closed, verified against a dead Redis | `store-invariants.test.ts` › *fail-closed when Redis is unreachable* |
+| Redis restart preserves sessions and revocations under RDB | graceful restart with RDB persistence | `redis-persistence.test.ts` › *preserves active opaque sessions and their revocation state across a graceful restart* |
+| Complete store wipe fails closed under opaque strategy | store is the token | `redis-persistence.test.ts` › *opaque: all sessions fail closed — the store IS the token* |
 | Single-use consumption is race-free | `take()` / `setIfAbsent()` | `store.contract.test.ts` — 25 concurrent callers, exactly one wins |
 | In-memory store cannot reach production | `MemoryStore` constructor | `memory-store.test.ts` › *production guard* |
 | Defaults are fail-closed and short-lived | `config.ts` | `config.test.ts` › *secure defaults* |

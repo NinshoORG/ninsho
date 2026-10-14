@@ -25,7 +25,7 @@ export interface DpopKeyStore {
   getOrCreate?(candidate: DpopKey): Promise<DpopKey>;
   /** Persists a key, replacing any existing one. */
   save(key: DpopKey): Promise<void>;
-  /** Removes the stored key. Called on sign-out. */
+  /** Removes the stored key. Called on sign-out unless sessionSync retains shared storage. */
   clear(): Promise<void>;
 }
 

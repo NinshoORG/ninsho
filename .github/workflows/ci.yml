@@ -12,6 +12,41 @@ permissions:
   contents: read
 
 jobs:
+  browsers:
+    name: Browser regressions (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # Preserve optional, test-only tooling without changing workspace manifests.
+      # The harness checks this exact version; Playwright pins its browser builds.
+      - name: Install pinned browser tooling and selected engine
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ninsho-browser-tools" --no-package-lock --no-audit --no-fund playwright@1.64.1
+          node "$RUNNER_TEMP/ninsho-browser-tools/node_modules/playwright/cli.js" install --with-deps "${{ matrix.browser }}"
+      - id: build
+        run: npm run build
+      - name: Concurrent key initialization and reload persistence
+        run: node manualtest/browser-key-store.mjs
+        env:
+          BROWSER: ${{ matrix.browser }}
+          NODE_PATH: ${{ runner.temp }}/ninsho-browser-tools/node_modules
+      - name: Cross-tab logout and stale-response rejection
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node manualtest/browser-session-sync.mjs
+        env:
+          BROWSER: ${{ matrix.browser }}
+          NODE_PATH: ${{ runner.temp }}/ninsho-browser-tools/node_modules
+
   verify:
     name: Verify
     runs-on: ubuntu-latest
@@ -103,6 +138,10 @@ jobs:
             | tee /tmp/test-output.txt
           if ! grep -q "RedisStore" /tmp/test-output.txt; then
             echo "::error::The RedisStore contract suite did not run."
+            exit 1
+          fi
+          if ! grep -q "Redis persistence and recovery" /tmp/test-output.txt; then
+            echo "::error::The Redis persistence and recovery suite did not run."
             exit 1
           fi
         env:

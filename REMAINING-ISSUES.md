@@ -12,9 +12,10 @@ This document replaces the earlier blanket “all invariants verified” conclus
 3. Late refresh/sign-in completion restoring a logged-out client identity.
 4. Transient refresh errors clearing client recovery state and the example cookie.
 5. Concurrent key creation across independent IndexedDB connections.
+6. Redis persistence, outage recovery, and data loss guarantees verified across opaque and PASETO strategies (`packages/server/src/__tests__/redis-persistence.test.ts`).
 
-Each fix names its regression in the remediation document. Local runs on Node 20, 22, and 24
-with real Redis each passed 2,116 tests with no skips. Test counts are
+Each fix names its regression in the remediation document or operations guide. Local runs on Node 20, 22, and 24
+with real Redis each passed 2,116 tests with no skips (plus 7 Docker persistence tests). Test counts are
 configuration-specific; inspect CI for the exact commit and Node version.
 
 ## Corrections to the earlier report
@@ -39,10 +40,10 @@ configuration-specific; inspect CI for the exact commit and Node version.
 | Area | Remaining work |
 |---|---|
 | Independent assurance | External security review; no certification is claimed |
-| Browser coverage | Expand beyond the tested Chromium flow to Firefox/WebKit and multi-tab refresh/logout UX |
+| Browser coverage | Chromium/Firefox/WebKit share key-store and cross-tab regression scenarios in a dedicated CI matrix; see [measured results and limits](docs/browser-regressions.md). Deployment-specific cookie ordering, suspended tabs and physical-device coverage remain open |
 | Device coverage | Real TPM, Android, and hardware-authenticator interoperability matrix |
 | Parser assurance | Continue and expand automated fuzzing of attacker-controlled structures |
-| Operations | Verify Redis persistence/recovery and document deployment-specific fail-open choices |
+| Operations | Redis persistence, graceful restart, and recovery verified across opaque and PASETO strategies with Docker-backed tests; see [measured results and limits](docs/redis-operations.md). AOF write-ahead durability, abrupt process crash (kill -9/power loss), and cluster/Sentinel failover remain deployment-specific |
 | Account lifecycle | Applications coordinate password changes with concurrent new logins |
 | Integration UX | Pilot with unfamiliar developers; measure completion time and configuration errors |
 | Disclosure | Administrator verifies private reporting availability and response process |

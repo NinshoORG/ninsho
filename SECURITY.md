@@ -95,7 +95,7 @@ authorization data inside a `Principal`.
 | Signature tampering, footer swapping | **Mitigated** | PAE covers header, payload and footer. Official spec vectors reproduced byte for byte |
 | Forged `kid` selecting an attacker's key | **Mitigated** | Key lookup precedes signature verification, which then fails. `paseto-engine.test.ts` |
 | Cross-service token reuse | **Mitigated** | `iss` and `aud` required and validated in paseto mode |
-| Use of a revoked token | **Mitigated** | Fail-closed by default; fail-open rejected where it could not take effect |
+| Use of a revoked token | **Mitigated** | Fail-closed by default; fail-open rejected where it could not take effect; `store-invariants.test.ts`, `redis-persistence.test.ts` |
 | Refresh token theft | **Detected** | Reuse revokes the whole family and emits `refresh.reuse_detected` (RFC 9700 §4.14.2), classified by whether the replay came from the same client |
 | Device fingerprinting presented as a control | **Structurally impossible** | Signals are recorded hashed and never branched on; `signals.test.ts` › *signals are never a control* |
 | Session extended indefinitely by rotation | **Mitigated** | `familyExpiresAt` is fixed at creation and never extended |
@@ -235,16 +235,22 @@ What is **never** disclosed to clients is internal diagnostic detail:
 Data loss guarantees differ critically between strategies:
 - **Store temporarily unreachable:** Under default `onStoreError: 'closed'`, all
   token verification operations fail closed with HTTP 503 (`STORE_UNAVAILABLE`).
+  *Evidence: `store-invariants.test.ts` › fail-closed when Redis is unreachable,
+  `redis-persistence.test.ts` › temporary Redis unavailability and recovery.*
 - **Store restart with persistence loss (no AOF/RDB):** Under `strategy: 'opaque'`,
   all sessions and tokens are wiped, logging all users out (**fails closed**).
   Under `strategy: 'paseto'`, the revocation denylist is lost. Unrevoked tokens continue
   to verify cryptographically, but **previously revoked tokens become valid again**
   until their natural expiry (`exp`) elapses (**fails open on revocation**).
+  *Evidence: `redis-persistence.test.ts` › complete data loss.*
 - **Snapshot recovery / rollback:** Restoring Redis from an older snapshot restores
   sessions active at snapshot time while discarding subsequent revocations in PASETO mode.
+  *Evidence: `redis-persistence.test.ts` › snapshot rollback.*
 
 Deployments requiring that revoked PASETO tokens remain permanently revoked across
 restarts must configure continuous Redis persistence (AOF) or use `strategy: 'opaque'`.
+See [`docs/redis-operations.md`](docs/redis-operations.md) for detailed operational
+guidelines and measured failure modes.
 
 ### A repeated Authorization header is not caught on Hono
 
