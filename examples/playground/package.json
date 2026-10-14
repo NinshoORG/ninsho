@@ -1,6 +1,6 @@
 {
   "name": "@ninshorg/playground",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Interactive protocol explorer for Ninsho — shows the real bytes, and the real attacks failing.",
   "type": "module",
@@ -11,9 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ninshorg/client": "0.1.0",
-    "@ninshorg/server": "0.1.0",
-    "@ninshorg/webauthn": "0.1.0",
+    "@ninshorg/client": "0.1.1",
+    "@ninshorg/server": "0.1.1",
+    "@ninshorg/webauthn": "0.1.1",
     "express": "^5.2.1"
   },
   "devDependencies": {
