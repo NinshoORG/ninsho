@@ -128,9 +128,7 @@ temporary container was stopped afterward with
 
 For the original feature validation recorded here, no fresh Node 20/24 matrix,
 Firefox/WebKit run, GitHub CI run, npm audit,
-published-tarball check or benchmark was performed for this change. No packages
-were published, no branch was pushed or merged, and the pre-existing untracked
-`Ninsho_Complete_Fixes.patch` was left untouched.
+published-tarball check or benchmark was performed for this change.
 
 ## Files changed
 
