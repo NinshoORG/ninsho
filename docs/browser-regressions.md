@@ -161,11 +161,9 @@ git diff --exit-code -- package.json package-lock.json packages/client/package.j
 Full test output was redirected to `$env:TEMP\ninsho-browser-full-tests.log`
 with the test process exit code preserved. The temporary Redis container was
 removed after validation. Diff checks passed; manifests and lockfile have no
-changes. The pre-existing `Ninsho_Complete_Fixes.patch` SHA-256 remained
-`160A4DA0C64E50A8A21B7320EF0CC696296D4EC42D4C0ABC4BCE20492D0FDDA2`.
+changes.
 
 Reviewed follow-up files: the CI workflow, shared harness, both browser scripts,
 this verification guide, `docs/cross-tab-session-sync.md`,
-`docs/review-remediation.md`, and `REMAINING-ISSUES.md`. Existing feature changes
-remain uncommitted on the same branch. No push, merge or package publication
-was performed. No new Node-version matrix or physical-device coverage is claimed.
+`docs/review-remediation.md`, and `REMAINING-ISSUES.md`. No new Node-version
+matrix or physical-device coverage is claimed.

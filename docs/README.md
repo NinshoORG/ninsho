@@ -15,6 +15,17 @@ it was read from the source rather than remembered.
 | **[Architecture](./architecture.md)** | How the pieces fit: engines, stores, the request path, and the one read per request. |
 | **[Deployment](./deployment.md)** | The checklist for putting this in front of real users. |
 
+## Operations and evidence
+
+| | |
+| --- | --- |
+| [Redis operations](./redis-operations.md) | Persistence, restart and outage behaviour, verified across both token strategies — and what stays deployment-specific. |
+| [Cross-tab session sync](./cross-tab-session-sync.md) | The opt-in `BroadcastChannel` sign-out, its message validation, and its limits. |
+| [Browser regressions](./browser-regressions.md) | The Chromium / Firefox / WebKit matrix for key storage and cross-tab sync. |
+| [Cryptographic review](./CRYPTOGRAPHIC-AUDIT.md) | A contributor's line-by-line check of the PASETO v4.public implementation. Not an external audit. |
+| [Review remediation](./review-remediation.md) | Five defects reproduced in an October 2026 review, each fix and the regression that pins it. |
+| [`REMAINING-ISSUES.md`](../REMAINING-ISSUES.md) | What is still open, stated as plainly as what is done. |
+
 ## Elsewhere in the repository
 
 | | |
@@ -41,6 +52,8 @@ it was read from the source rather than remembered.
 | --- | --- |
 | [`examples/express-api`](../examples/express-api) | A complete integration meant to be copied |
 | [`examples/playground`](../examples/playground) | The interactive demonstration — ten panels, running the real library |
+| [`demo/viva-showcase`](../demo/viva-showcase) | SecureShop: stateless JWT beside Ninsho opaque and DPoP sessions, against the published packages and a real Redis |
+| [Viva guide](./viva-guide.md) · [`manualtest/`](../manualtest) | A reproducible rehearsal script and the manual attack workspace behind it |
 
 ## A note on how to read this
 

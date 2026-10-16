@@ -504,3 +504,38 @@ jobs:
             echo "::error::@ninshorg/core must depend only on node:crypto."
             exit 1
           fi
+
+  # The viva showcase is not a workspace: it installs the *published*
+  # @ninshorg packages from npm, so this job checks the demo against what a
+  # user would actually get, with its own lockfile and a real Redis. Without
+  # it the demo's typecheck, tests and audit ran nowhere.
+  demo:
+    name: Viva showcase
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demo/viva-showcase
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: demo/viva-showcase/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          REDIS_URL: redis://localhost:6379
+      - name: Audit the demo's dependencies
+        run: npm audit --audit-level=moderate
