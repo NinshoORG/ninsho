@@ -230,7 +230,10 @@ export class NinshoClient {
    */
   #resolve(path: string): string {
     let resolvedString: string;
-    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:|\/\//.test(path)) {
+    // Both alternatives are anchored. Unanchored, `//` matched anywhere, so a
+    // relative path carrying a URL in its query (`/items?ref=https://x`) or a
+    // doubled slash (`/files//a`) was treated as absolute and refused.
+    if (/^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|\/\/)/.test(path)) {
       resolvedString = path.startsWith('//')
         ? `${new URL(this.#baseUrl).protocol}${path}`
         : path;
