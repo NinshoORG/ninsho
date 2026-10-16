@@ -3,6 +3,27 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **`@ninshorg/client` refused ordinary relative paths that contained `//`.**
+  The absolute-URL check in request resolution was unanchored, so
+  `/items?ref=https://shop.example/x` or `/files//nested` was treated as an
+  absolute URL and rejected as invalid. It failed closed — nothing was sent to
+  a wrong origin — but it broke legitimate requests. Regression:
+  `client.test.ts` › *resolves relative paths containing // against the base
+  URL, not as absolute*.
+- **Per-account rate-limit buckets now fold Unicode compatibility forms.**
+  Identifiers were trimmed and lower-cased but not normalised, so a fullwidth
+  `ａ@x.test` or `a＠x.test` drew a fresh allowance even where the
+  application's account lookup resolves it to `a@x.test`. Identifiers are now
+  NFKC-normalised before case folding. Regression: `ratelimit.test.ts` ›
+  *treats Unicode compatibility variants as one account*. This does not fold
+  accents or strip zero-width characters; if your account lookup is looser
+  than NFKC plus lower-casing, return the canonical account ID from
+  `identify` instead of the raw field.
+
 ## [0.1.0] — 2026-09-08
 
 **First published release.** `@ninshorg/core`, `@ninshorg/webauthn`,

@@ -57,11 +57,13 @@ export interface RateLimitOptions {
   readonly trustProxy: TrustProxy;
 }
 
-/** Lower-cases and truncates an identifier so it cannot bloat a key. */
+/** Folds and truncates an identifier so it cannot bloat a key. */
 function normaliseIdentifier(value: string): string {
   // Case folding means `Alice@x.com` and `alice@x.com` share one bucket rather
-  // than granting an attacker a fresh allowance per capitalisation.
-  const folded = value.trim().toLowerCase();
+  // than granting an attacker a fresh allowance per capitalisation. NFKC does
+  // the same for compatibility forms: fullwidth `ａ` or `＠` would otherwise be
+  // a fresh bucket that a lenient account lookup still resolves to `a` or `@`.
+  const folded = value.normalize('NFKC').trim().toLowerCase();
   return folded.length <= 128 ? folded : folded.slice(0, 128);
 }
 

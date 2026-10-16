@@ -469,6 +469,19 @@ describe('rateLimit middleware', () => {
     expect(result.res.statusCode).toBe(429);
   });
 
+  it('treats Unicode compatibility variants as one account', async () => {
+    const limit = mw();
+    // Fullwidth letters and a fullwidth at-sign, each from a different address
+    // so only the per-account bucket can refuse. NFKC folds all three to
+    // `a@x.test`; without it each would be a fresh allowance.
+    const variants = ['ａ@x.test', 'Ａ@x.test', 'a＠x.test'];
+    for (const [i, email] of variants.entries()) {
+      await run(limit, loginRequest(`10.1.0.${i}`, email));
+    }
+    const result = await run(limit, loginRequest('10.1.0.99', 'a@x.test'));
+    expect(result.res.statusCode).toBe(429);
+  });
+
   it('still applies the per-IP limit when no identifier is supplied', async () => {
     const limit = createRateLimit(limiter, audit, {
       action: 'anon',
