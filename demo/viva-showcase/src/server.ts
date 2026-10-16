@@ -1,6 +1,5 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
-import cors from 'cors';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { getAuth, isNinshoError, toErrorResponse } from '@ninshorg/server';
@@ -40,9 +39,11 @@ export function createShowcaseApp(redisUrl = process.env.REDIS_URL || 'redis://1
   close(): Promise<void>;
 } {
   const app = express();
-  app.use(express.json());
+  // A size limit on bodies, and no CORS middleware: the UI is served from
+  // this same origin, so no cross-origin caller needs to reach the API. A
+  // wildcard `cors()` here would let any page on the internet drive it.
+  app.use(express.json({ limit: '16kb' }));
   app.use(cookieParser());
-  app.use(cors());
 
   // Serve client distribution from installed node_modules
   const clientDist = join(__dirname, '../node_modules/@ninshorg/client/dist');
@@ -77,10 +78,10 @@ export function createShowcaseApp(redisUrl = process.env.REDIS_URL || 'redis://1
         },
       });
     } catch (err) {
-      res.status(503).json({
-        status: 'degraded',
-        error: err instanceof Error ? err.message : String(err),
-      });
+      // The cause goes to the server log. Driver errors carry hosts and ports,
+      // which a health endpoint has no reason to publish.
+      console.error('health check failed:', err);
+      res.status(503).json({ status: 'degraded', error: 'Redis unavailable' });
     }
   });
 
@@ -363,8 +364,10 @@ export function createShowcaseApp(redisUrl = process.env.REDIS_URL || 'redis://1
       const { status, body } = toErrorResponse(err);
       return res.status(status).json(body);
     }
-    const message = err instanceof Error ? err.message : 'Internal Server Error';
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message } });
+    // Same rule as toErrorResponse: an unexpected error's message is for the
+    // log, not the client.
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal Server Error' } });
   });
 
   return {
@@ -377,14 +380,28 @@ export function createShowcaseApp(redisUrl = process.env.REDIS_URL || 'redis://1
   };
 }
 
+/** A Redis URL with its password masked, for logs that get screenshotted. */
+function redactUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    if (url.password) url.password = '***';
+    return url.toString();
+  } catch {
+    return '(unparseable REDIS_URL)';
+  }
+}
+
 // Direct execution entrypoint
 if (process.env.NODE_ENV !== 'test' && (!process.env.VITEST || process.env.VITEST !== 'true')) {
   const PORT = Number(process.env.PORT) || 3000;
+  // Loopback by default: the demo ships with known passwords. Set HOST=0.0.0.0
+  // deliberately to show it to another device on the network.
+  const HOST = process.env.HOST || '127.0.0.1';
   const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
   const showcase = createShowcaseApp(REDIS_URL);
-  const server = showcase.app.listen(PORT, '0.0.0.0', () => {
+  const server = showcase.app.listen(PORT, HOST, () => {
     console.log(`\n🛡️  SecureShop Viva Showcase running at http://localhost:${PORT}`);
-    console.log(`   Connected to Redis: ${REDIS_URL}\n`);
+    console.log(`   Connected to Redis: ${redactUrl(REDIS_URL)}\n`);
   });
 
   const shutdown = async () => {

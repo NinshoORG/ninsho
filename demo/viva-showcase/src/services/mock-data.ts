@@ -5,6 +5,8 @@
  * are hardcoded fixtures with zero security value outside this local demo.
  */
 
+import { createHash, timingSafeEqual } from 'node:crypto';
+
 export interface DemoUser {
   readonly id: string;
   readonly email: string;
@@ -37,7 +39,7 @@ export interface DemoOrder {
   readonly placedAt: string;
 }
 
-export const DEMO_USERS: Record<string, { user: DemoUser; passwordHash: string }> = {
+export const DEMO_USERS: Record<string, { user: DemoUser; demoPassword: string }> = {
   'alice@example.com': {
     user: {
       id: 'usr_alice_secureshop',
@@ -46,8 +48,9 @@ export const DEMO_USERS: Record<string, { user: DemoUser; passwordHash: string }
       role: 'admin',
       avatar: '👩‍💼',
     },
-    // Plain comparison for demo simplicity; password is "password123"
-    passwordHash: 'password123',
+    // A fixture, not a hash: the demo never stores a real credential. The
+    // comparison below is still constant-time so the demo models the habit.
+    demoPassword: 'password123',
   },
   'bob@example.com': {
     user: {
@@ -58,7 +61,7 @@ export const DEMO_USERS: Record<string, { user: DemoUser; passwordHash: string }
       avatar: '👨‍💼',
     },
     // Password is "password123"
-    passwordHash: 'password123',
+    demoPassword: 'password123',
   },
 };
 
@@ -148,17 +151,36 @@ export const DEMO_ORDERS: DemoOrder[] = [
   },
 ];
 
-export function findUserByEmail(email: string): DemoUser | null {
-  const record = DEMO_USERS[email.toLowerCase().trim()];
-  return record ? record.user : null;
+/**
+ * Own-property lookup only. A plain index would resolve `__proto__` or
+ * `constructor` to something on Object.prototype.
+ */
+function lookup(email: unknown): (typeof DEMO_USERS)[string] | undefined {
+  if (typeof email !== 'string') return undefined;
+  const key = email.toLowerCase().trim();
+  return Object.hasOwn(DEMO_USERS, key) ? DEMO_USERS[key] : undefined;
 }
 
-export function verifyUserPassword(email: string, password: string): DemoUser | null {
-  const record = DEMO_USERS[email.toLowerCase().trim()];
-  if (!record || record.passwordHash !== password) {
-    return null;
-  }
-  return record.user;
+function digest(value: string): Buffer {
+  return createHash('sha256').update(value, 'utf8').digest();
+}
+
+export function findUserByEmail(email: unknown): DemoUser | null {
+  return lookup(email)?.user ?? null;
+}
+
+/**
+ * Request bodies are untyped, so both arguments are checked rather than
+ * trusted: a JSON array or object for `email` must be a 401, not a 500.
+ * Fixed-length digests make the comparison take the same time whatever the
+ * guess, and an unknown email is compared against an empty string so it does
+ * not return measurably earlier than a wrong password.
+ */
+export function verifyUserPassword(email: unknown, password: unknown): DemoUser | null {
+  if (typeof password !== 'string') return null;
+  const record = lookup(email);
+  const matches = timingSafeEqual(digest(password), digest(record?.demoPassword ?? ''));
+  return record !== undefined && matches ? record.user : null;
 }
 
 export function getOrdersForUser(userId: string): DemoOrder[] {
