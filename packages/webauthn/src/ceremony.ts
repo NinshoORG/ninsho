@@ -446,7 +446,14 @@ export interface StoredCredential {
   readonly publicKey: Uint8Array;
   /** The counter as of the last successful authentication. */
   readonly signCount: number;
-  /** The user this credential belongs to, for the user-handle check. */
+  /**
+   * The user this credential belongs to, for the user-handle check.
+   *
+   * Optional for the low-level `verifyAuthentication`, which only verifies the
+   * assertion. **Required by `WebAuthnServer.finishAuthentication`**, which
+   * refuses without it: the principal it returns must come from the stored
+   * owner, never from the challenge or the unsigned user handle.
+   */
   readonly userId?: string;
 }
 

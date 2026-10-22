@@ -481,6 +481,42 @@ describe('revocation', () => {
       vi.useRealTimers();
     }
   });
+
+  it('still reaches a token through its session while clock tolerance keeps it acceptable', async () => {
+    // REGRESSION. The sibling of F4, found by the final assessment (probe P4 in
+    // research/validation). The session index was kept for accessTokenTtl + 60s
+    // while verify() accepts a token until accessTokenTtl + clockToleranceSeconds.
+    // Config permits a tolerance up to accessTokenTtl, so with tolerance > 60s
+    // the index expired first: revokeSession() found nothing to denylist and
+    // the revoked session's token kept verifying. Reproduced against real Redis
+    // through the Ninsho facade before this fix.
+    const now = 1_700_000_000_000;
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    try {
+      const tolerant = new PasetoEngine(store, new KeyRing({ active: KEY_2026_08 }), {
+        accessTokenTtl: 300,
+        clockToleranceSeconds: 120,
+        issuer: ISSUER,
+        audience: AUDIENCE,
+      });
+      const issued = await tolerant.issue({
+        principal: PRINCIPAL,
+        sessionId: SESSION,
+        authenticatedAt: new Date(now).toISOString(),
+      });
+
+      // Past exp + 60s, still inside exp + 120s: the token is acceptable.
+      vi.advanceTimersByTime(370_000);
+      await expect(tolerant.verify(issued.token)).resolves.toBeDefined();
+
+      await tolerant.revokeSession(SESSION);
+      await expect(tolerant.verify(issued.token)).rejects.toThrow(TokenRevokedError);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 /**

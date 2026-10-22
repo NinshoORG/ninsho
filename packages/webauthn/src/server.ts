@@ -257,14 +257,24 @@ export class WebAuthnServer {
   ): Promise<FinishAuthenticationResult> {
     const context = await this.#consume('authentication', response.clientDataJSON);
 
+    // The stored owner is the only trustworthy answer to "who signed in". The
+    // challenge's user says who was *expected*, and the user handle is not
+    // covered by the assertion signature, so taking the principal from either
+    // let anyone holding a passkey on this site sign in as another account
+    // whenever the application omitted `userId`. Refused after the challenge is
+    // consumed, so a refusal still spends it. See server.test.ts › *refuses to
+    // take the principal from an unsigned user handle*.
+    if (credential.userId === undefined) {
+      throw new WebAuthnError(
+        'the stored credential has no owner, so the assertion did not identify a user; ' +
+          'supply StoredCredential.userId',
+      );
+    }
+
     // When the challenge was issued for a known user, the credential presented
     // must be that user's. Without this, a challenge issued for one account
     // could be completed with another account's credential.
-    if (
-      context.userId !== undefined &&
-      credential.userId !== undefined &&
-      context.userId !== credential.userId
-    ) {
+    if (context.userId !== undefined && context.userId !== credential.userId) {
       throw new WebAuthnError('the credential does not belong to the user the challenge was for');
     }
 
@@ -285,12 +295,8 @@ export class WebAuthnServer {
         context.userVerification ?? this.#options.userVerification ?? 'preferred',
     });
 
-    const userId = credential.userId ?? context.userId ?? verified.userHandle;
-    if (userId === undefined) {
-      // Nothing identified the user: no stored owner, no challenge context, no
-      // user handle. Guessing would be worse than refusing.
-      throw new WebAuthnError('the assertion did not identify a user');
-    }
+    // Established above; never the challenge context or the user handle.
+    const userId = credential.userId;
 
     return {
       ...verified,

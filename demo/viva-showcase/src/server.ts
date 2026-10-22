@@ -339,23 +339,40 @@ export function createShowcaseApp(redisUrl = process.env.REDIS_URL || 'redis://1
     });
   });
 
-  app.post('/api/dpop/logout', async (req: Request, res: Response) => {
-    const rawRefresh = (req.cookies?.ninsho_dpop_rt as string) || '';
-    res.clearCookie('ninsho_dpop_rt', { path: '/api/dpop' });
-
-    if (rawRefresh) {
+  // Logout is authenticated: the session to revoke is the one the verified
+  // access token belongs to. This previously passed the raw refresh cookie to
+  // revokeSession(), which takes a session id, so nothing was revoked while the
+  // response claimed otherwise. See server.test.ts › *revokes the server session
+  // on logout*. The cookie is cleared first so even a refused logout (expired
+  // token) leaves no refresh credential in this browser.
+  app.post(
+    '/api/dpop/logout',
+    (_req: Request, res: Response, next: NextFunction) => {
+      res.clearCookie('ninsho_dpop_rt', { path: '/api/dpop' });
+      next();
+    },
+    dpop.auth.verify(),
+    async (req: Request, res: Response) => {
+      const { sessionId } = getAuth(req);
       try {
-        await dpop.auth.revokeSession(rawRefresh, 'logout');
-      } catch {
-        // Best effort
+        await dpop.auth.revokeSession(sessionId, 'logout');
+      } catch (err) {
+        // Report the failure rather than claim a revocation that did not happen.
+        if (isNinshoError(err)) {
+          const { status, body } = toErrorResponse(err);
+          return res.status(status).json(body);
+        }
+        return res.status(503).json({
+          error: { code: 'REVOCATION_FAILED', message: 'Session could not be revoked; try again' },
+        });
       }
-    }
-
-    res.json({
-      ok: true,
-      message: 'Logged out. Cookie removed and server session revoked.',
-    });
-  });
+      res.json({
+        ok: true,
+        sessionId,
+        message: 'Logged out. Cookie removed and server session revoked.',
+      });
+    },
+  );
 
   // Global Error Handler
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

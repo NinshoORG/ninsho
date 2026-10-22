@@ -1,0 +1,1070 @@
+{
+  "checks": {
+    "ninsho-opaque": "SHA-256 of token → Redis GET of the access record (presence IS non-revocation) → record shape → expiry → DPoP binding (none here). Fail-closed 503 on store error.",
+    "ninsho-paseto": "kid from footer → Ed25519 signature (PASETO v4.public, PAE) → claim shape → iss, aud, nbf, iat, exp ± tolerance → cnf (none here) → Redis EXISTS on jti denylist. Fail-closed 503 on store error.",
+    "jwt-redis": "jose jwtVerify: header parse, alg allowlist [EdDSA], Ed25519 signature, iss, aud, nbf, iat, exp ± tolerance, required claims → claim shape (roles/scopes/sid) → Redis EXISTS on jti denylist via ioredis. Fail-closed 503 on Redis error.",
+    "jwt-stateless": "Identical to jwt-redis but WITHOUT the denylist lookup. Reference only: a revoked token is accepted until exp. Not a like-for-like comparison.",
+    "no-auth": "No authentication. Floor for Express + loopback HTTP + JSON response cost on this machine. Reference only."
+  },
+  "expected": {
+    "ninsho-opaque": {
+      "valid": 200,
+      "missing": 401,
+      "tampered": 401,
+      "revoked": 401,
+      "wrongAudience": null
+    },
+    "ninsho-paseto": {
+      "valid": 200,
+      "missing": 401,
+      "tampered": 401,
+      "revoked": 401,
+      "wrongAudience": 401
+    },
+    "jwt-redis": {
+      "valid": 200,
+      "missing": 401,
+      "tampered": 401,
+      "revoked": 401,
+      "wrongAudience": 401
+    },
+    "jwt-stateless": {
+      "valid": 200,
+      "missing": 401,
+      "tampered": 401,
+      "revoked": 200,
+      "wrongAudience": 401
+    },
+    "no-auth": {
+      "valid": 200,
+      "missing": 200,
+      "tampered": null,
+      "revoked": null,
+      "wrongAudience": null
+    }
+  },
+  "preflights": [
+    {
+      "trial": 1,
+      "config": "jwt-stateless",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 1,
+      "config": "no-auth",
+      "answers": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 1,
+      "config": "ninsho-opaque",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 1,
+      "config": "ninsho-paseto",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 1,
+      "config": "jwt-redis",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "jwt-stateless",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "ninsho-opaque",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "no-auth",
+      "answers": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "ninsho-paseto",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "jwt-redis",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "no-auth",
+      "answers": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "ninsho-opaque",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "jwt-stateless",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "ninsho-paseto",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "jwt-redis",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    }
+  ],
+  "rows": [
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "jwt-stateless",
+      "concurrency": 1,
+      "durationSeconds": 5.001553700000004,
+      "warmupSeconds": 2,
+      "requests": 2312,
+      "ok": 2312,
+      "nonOk": 0,
+      "statuses": {
+        "200": 2312
+      },
+      "throughputRps": 462.256358459172,
+      "meanBytes": 1271,
+      "n": 2312,
+      "meanMs": 2.0552538494809722,
+      "stdevMs": 1.3884649926871298,
+      "minMs": 0.9225,
+      "p50Ms": 1.9431,
+      "p95Ms": 3.9375,
+      "p99Ms": 7.1634,
+      "maxMs": 31.7517
+    },
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "jwt-stateless",
+      "concurrency": 16,
+      "durationSeconds": 5.008657599999991,
+      "warmupSeconds": 2,
+      "requests": 4825,
+      "ok": 4825,
+      "nonOk": 0,
+      "statuses": {
+        "200": 4825
+      },
+      "throughputRps": 963.3319714248402,
+      "meanBytes": 1271,
+      "n": 4825,
+      "meanMs": 16.536029471502605,
+      "stdevMs": 8.898768193136402,
+      "minMs": 6.4334,
+      "p50Ms": 14.1062,
+      "p95Ms": 34.9564,
+      "p99Ms": 51.1969,
+      "maxMs": 92.6364
+    },
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "no-auth",
+      "concurrency": 1,
+      "durationSeconds": 5.0004504999999915,
+      "warmupSeconds": 2,
+      "requests": 5704,
+      "ok": 5704,
+      "nonOk": 0,
+      "statuses": {
+        "200": 5704
+      },
+      "throughputRps": 1140.6972231801933,
+      "meanBytes": 1271,
+      "n": 5704,
+      "meanMs": 0.822157556100981,
+      "stdevMs": 0.5841464212068669,
+      "minMs": 0.3336,
+      "p50Ms": 0.8083,
+      "p95Ms": 1.3462,
+      "p99Ms": 2.5881,
+      "maxMs": 19.229
+    },
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "no-auth",
+      "concurrency": 16,
+      "durationSeconds": 5.010963900000003,
+      "warmupSeconds": 2,
+      "requests": 6563,
+      "ok": 6563,
+      "nonOk": 0,
+      "statuses": {
+        "200": 6563
+      },
+      "throughputRps": 1309.7280545166163,
+      "meanBytes": 1271,
+      "n": 6563,
+      "meanMs": 12.150102117933876,
+      "stdevMs": 9.55838976641938,
+      "minMs": 0.56,
+      "p50Ms": 10.5403,
+      "p95Ms": 29.7718,
+      "p99Ms": 52.3945,
+      "maxMs": 130.3253
+    },
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "ninsho-opaque",
+      "concurrency": 1,
+      "durationSeconds": 5.0021783,
+      "warmupSeconds": 2,
+      "requests": 1510,
+      "ok": 1510,
+      "nonOk": 0,
+      "statuses": {
+        "200": 1510
+      },
+      "throughputRps": 301.86848797452905,
+      "meanBytes": 1271,
+      "n": 1510,
+      "meanMs": 3.2354811920529816,
+      "stdevMs": 1.3769949596460258,
+      "minMs": 1.9712,
+      "p50Ms": 3.0519,
+      "p95Ms": 5.2716,
+      "p99Ms": 9.2161,
+      "maxMs": 23.1879
+    },
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "ninsho-opaque",
+      "concurrency": 16,
+      "durationSeconds": 5.009850099999996,
+      "warmupSeconds": 2,
+      "requests": 4675,
+      "ok": 4675,
+      "nonOk": 0,
+      "statuses": {
+        "200": 4675
+      },
+      "throughputRps": 933.1616528805929,
+      "meanBytes": 1271,
+      "n": 4675,
+      "meanMs": 17.085600941176462,
+      "stdevMs": 6.879059034684742,
+      "minMs": 6.2362,
+      "p50Ms": 14.9325,
+      "p95Ms": 30.9687,
+      "p99Ms": 45.7233,
+      "maxMs": 68.533
+    },
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "ninsho-paseto",
+      "concurrency": 1,
+      "durationSeconds": 5.001910899999988,
+      "warmupSeconds": 2,
+      "requests": 1227,
+      "ok": 1227,
+      "nonOk": 0,
+      "statuses": {
+        "200": 1227
+      },
+      "throughputRps": 245.3062488578121,
+      "meanBytes": 1271,
+      "n": 1227,
+      "meanMs": 3.9889194784026056,
+      "stdevMs": 1.7253491407371633,
+      "minMs": 2.3875,
+      "p50Ms": 3.6885,
+      "p95Ms": 6.3954,
+      "p99Ms": 11.7283,
+      "maxMs": 23.0643
+    },
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "ninsho-paseto",
+      "concurrency": 16,
+      "durationSeconds": 5.02541859999999,
+      "warmupSeconds": 2,
+      "requests": 2832,
+      "ok": 2832,
+      "nonOk": 0,
+      "statuses": {
+        "200": 2832
+      },
+      "throughputRps": 563.5351451120919,
+      "meanBytes": 1271,
+      "n": 2832,
+      "meanMs": 28.299551235875683,
+      "stdevMs": 13.551756473523838,
+      "minMs": 7.7484,
+      "p50Ms": 24.1344,
+      "p95Ms": 49.4727,
+      "p99Ms": 97.1664,
+      "maxMs": 118.9239
+    },
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "jwt-redis",
+      "concurrency": 1,
+      "durationSeconds": 5.001584499999997,
+      "warmupSeconds": 2,
+      "requests": 1257,
+      "ok": 1257,
+      "nonOk": 0,
+      "statuses": {
+        "200": 1257
+      },
+      "throughputRps": 251.32035657900025,
+      "meanBytes": 1271,
+      "n": 1257,
+      "meanMs": 3.89652219570406,
+      "stdevMs": 1.2655305331909172,
+      "minMs": 2.4198,
+      "p50Ms": 3.7446,
+      "p95Ms": 5.8524,
+      "p99Ms": 8.3677,
+      "maxMs": 16.8762
+    },
+    {
+      "comparison": "http",
+      "trial": 1,
+      "config": "jwt-redis",
+      "concurrency": 16,
+      "durationSeconds": 5.014685999999987,
+      "warmupSeconds": 2,
+      "requests": 4017,
+      "ok": 4017,
+      "nonOk": 0,
+      "statuses": {
+        "200": 4017
+      },
+      "throughputRps": 801.0471642691109,
+      "meanBytes": 1271,
+      "n": 4017,
+      "meanMs": 19.89993634553149,
+      "stdevMs": 7.9422817413368865,
+      "minMs": 7.0285,
+      "p50Ms": 17.6107,
+      "p95Ms": 35.576,
+      "p99Ms": 50.1368,
+      "maxMs": 74.6738
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "jwt-stateless",
+      "concurrency": 1,
+      "durationSeconds": 5.0011277999999875,
+      "warmupSeconds": 2,
+      "requests": 2797,
+      "ok": 2797,
+      "nonOk": 0,
+      "statuses": {
+        "200": 2797
+      },
+      "throughputRps": 559.2738501903525,
+      "meanBytes": 1271,
+      "n": 2797,
+      "meanMs": 1.7165670003575226,
+      "stdevMs": 0.8550061916725112,
+      "minMs": 0.8122,
+      "p50Ms": 1.7465,
+      "p95Ms": 2.713,
+      "p99Ms": 4.9029,
+      "maxMs": 15.979
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "jwt-stateless",
+      "concurrency": 16,
+      "durationSeconds": 5.03343280000001,
+      "warmupSeconds": 2,
+      "requests": 2609,
+      "ok": 2609,
+      "nonOk": 0,
+      "statuses": {
+        "200": 2609
+      },
+      "throughputRps": 518.3341277547194,
+      "meanBytes": 1271,
+      "n": 2609,
+      "meanMs": 30.70888888463009,
+      "stdevMs": 23.479071776414333,
+      "minMs": 7.6568,
+      "p50Ms": 23.4279,
+      "p95Ms": 74.6114,
+      "p99Ms": 131.8917,
+      "maxMs": 212.1456
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "ninsho-opaque",
+      "concurrency": 1,
+      "durationSeconds": 5.002393599999981,
+      "warmupSeconds": 2,
+      "requests": 826,
+      "ok": 826,
+      "nonOk": 0,
+      "statuses": {
+        "200": 826
+      },
+      "throughputRps": 165.12095329723817,
+      "meanBytes": 1271,
+      "n": 826,
+      "meanMs": 5.935903147699759,
+      "stdevMs": 3.2659247330806105,
+      "minMs": 2.627,
+      "p50Ms": 4.9303,
+      "p95Ms": 12.0671,
+      "p99Ms": 21.4251,
+      "maxMs": 27.5303
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "ninsho-opaque",
+      "concurrency": 16,
+      "durationSeconds": 5.011670999999973,
+      "warmupSeconds": 2,
+      "requests": 4768,
+      "ok": 4768,
+      "nonOk": 0,
+      "statuses": {
+        "200": 4768
+      },
+      "throughputRps": 951.3792904602129,
+      "meanBytes": 1271,
+      "n": 4768,
+      "meanMs": 16.74551984060404,
+      "stdevMs": 6.058223664740758,
+      "minMs": 6.4525,
+      "p50Ms": 14.9769,
+      "p95Ms": 30.3226,
+      "p99Ms": 39.1629,
+      "maxMs": 48.6168
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "no-auth",
+      "concurrency": 1,
+      "durationSeconds": 5.000289499999984,
+      "warmupSeconds": 2,
+      "requests": 5680,
+      "ok": 5680,
+      "nonOk": 0,
+      "statuses": {
+        "200": 5680
+      },
+      "throughputRps": 1135.934229408121,
+      "meanBytes": 1271,
+      "n": 5680,
+      "meanMs": 0.8231250880281669,
+      "stdevMs": 0.5103038978481341,
+      "minMs": 0.345,
+      "p50Ms": 0.8265,
+      "p95Ms": 1.3846,
+      "p99Ms": 2.6844,
+      "maxMs": 14.3596
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "no-auth",
+      "concurrency": 16,
+      "durationSeconds": 5.00442260000002,
+      "warmupSeconds": 2,
+      "requests": 6813,
+      "ok": 6813,
+      "nonOk": 0,
+      "statuses": {
+        "200": 6813
+      },
+      "throughputRps": 1361.3958181709058,
+      "meanBytes": 1271,
+      "n": 6813,
+      "meanMs": 11.691011624834845,
+      "stdevMs": 8.82462320800507,
+      "minMs": 0.3981,
+      "p50Ms": 10.6514,
+      "p95Ms": 22.5094,
+      "p99Ms": 50.839,
+      "maxMs": 115.9108
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "ninsho-paseto",
+      "concurrency": 1,
+      "durationSeconds": 5.000966799999994,
+      "warmupSeconds": 2,
+      "requests": 1132,
+      "ok": 1132,
+      "nonOk": 0,
+      "statuses": {
+        "200": 1132
+      },
+      "throughputRps": 226.35623175902734,
+      "meanBytes": 1271,
+      "n": 1132,
+      "meanMs": 4.324351501766784,
+      "stdevMs": 1.3540653462178187,
+      "minMs": 2.6487,
+      "p50Ms": 3.9258,
+      "p95Ms": 6.5838,
+      "p99Ms": 9.6706,
+      "maxMs": 20.1031
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "ninsho-paseto",
+      "concurrency": 16,
+      "durationSeconds": 5.006856599999999,
+      "warmupSeconds": 2,
+      "requests": 2838,
+      "ok": 2838,
+      "nonOk": 0,
+      "statuses": {
+        "200": 2838
+      },
+      "throughputRps": 566.8227046886066,
+      "meanBytes": 1271,
+      "n": 2838,
+      "meanMs": 28.14549954193094,
+      "stdevMs": 9.548625606648836,
+      "minMs": 8.5971,
+      "p50Ms": 24.9423,
+      "p95Ms": 47.2825,
+      "p99Ms": 65.0541,
+      "maxMs": 84.3774
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "jwt-redis",
+      "concurrency": 1,
+      "durationSeconds": 5.000803600000014,
+      "warmupSeconds": 2,
+      "requests": 1304,
+      "ok": 1304,
+      "nonOk": 0,
+      "statuses": {
+        "200": 1304
+      },
+      "throughputRps": 260.7580909596203,
+      "meanBytes": 1271,
+      "n": 1304,
+      "meanMs": 3.748540950920246,
+      "stdevMs": 1.2031334559310851,
+      "minMs": 2.4191,
+      "p50Ms": 3.6651,
+      "p95Ms": 5.6107,
+      "p99Ms": 7.8856,
+      "maxMs": 20.9686
+    },
+    {
+      "comparison": "http",
+      "trial": 2,
+      "config": "jwt-redis",
+      "concurrency": 16,
+      "durationSeconds": 5.006806500000006,
+      "warmupSeconds": 2,
+      "requests": 4026,
+      "ok": 4026,
+      "nonOk": 0,
+      "statuses": {
+        "200": 4026
+      },
+      "throughputRps": 804.1053713579695,
+      "meanBytes": 1271,
+      "n": 4026,
+      "meanMs": 19.819929706905135,
+      "stdevMs": 8.64965578458202,
+      "minMs": 7.4265,
+      "p50Ms": 17.0263,
+      "p95Ms": 37.9663,
+      "p99Ms": 54.3477,
+      "maxMs": 84.1266
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "no-auth",
+      "concurrency": 1,
+      "durationSeconds": 5.000300099999993,
+      "warmupSeconds": 2,
+      "requests": 5216,
+      "ok": 5216,
+      "nonOk": 0,
+      "statuses": {
+        "200": 5216
+      },
+      "throughputRps": 1043.1373908937999,
+      "meanBytes": 1271,
+      "n": 5216,
+      "meanMs": 0.8965313458588976,
+      "stdevMs": 0.5250103065682304,
+      "minMs": 0.3448,
+      "p50Ms": 0.9115,
+      "p95Ms": 1.468,
+      "p99Ms": 2.9058,
+      "maxMs": 9.6288
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "no-auth",
+      "concurrency": 16,
+      "durationSeconds": 5.014700199999992,
+      "warmupSeconds": 2,
+      "requests": 6126,
+      "ok": 6126,
+      "nonOk": 0,
+      "statuses": {
+        "200": 6126
+      },
+      "throughputRps": 1221.6084223738858,
+      "meanBytes": 1271,
+      "n": 6126,
+      "meanMs": 13.016603428011777,
+      "stdevMs": 7.879421990648895,
+      "minMs": 0.7296,
+      "p50Ms": 11.2869,
+      "p95Ms": 27.4896,
+      "p99Ms": 46.4801,
+      "maxMs": 70.4237
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "ninsho-opaque",
+      "concurrency": 1,
+      "durationSeconds": 5.0014669,
+      "warmupSeconds": 2,
+      "requests": 1433,
+      "ok": 1433,
+      "nonOk": 0,
+      "statuses": {
+        "200": 1433
+      },
+      "throughputRps": 286.51594195294985,
+      "meanBytes": 1271,
+      "n": 1433,
+      "meanMs": 3.3954586182833233,
+      "stdevMs": 1.1657325855456038,
+      "minMs": 2.0177,
+      "p50Ms": 3.1885,
+      "p95Ms": 5.3593,
+      "p99Ms": 7.4927,
+      "maxMs": 16.8835
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "ninsho-opaque",
+      "concurrency": 16,
+      "durationSeconds": 5.014525500000018,
+      "warmupSeconds": 2,
+      "requests": 4904,
+      "ok": 4904,
+      "nonOk": 0,
+      "statuses": {
+        "200": 4904
+      },
+      "throughputRps": 977.9589315080724,
+      "meanBytes": 1271,
+      "n": 4904,
+      "meanMs": 16.26732542822191,
+      "stdevMs": 6.5634280888293555,
+      "minMs": 6.3617,
+      "p50Ms": 14.0829,
+      "p95Ms": 29.9035,
+      "p99Ms": 40.7522,
+      "maxMs": 56.0542
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "jwt-stateless",
+      "concurrency": 1,
+      "durationSeconds": 5.000156200000027,
+      "warmupSeconds": 2,
+      "requests": 2438,
+      "ok": 2438,
+      "nonOk": 0,
+      "statuses": {
+        "200": 2438
+      },
+      "throughputRps": 487.5847678518497,
+      "meanBytes": 1271,
+      "n": 2438,
+      "meanMs": 1.9721709187858865,
+      "stdevMs": 1.0272783054038686,
+      "minMs": 0.8534,
+      "p50Ms": 1.8867,
+      "p95Ms": 3.2441,
+      "p99Ms": 5.8298,
+      "maxMs": 26.2833
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "jwt-stateless",
+      "concurrency": 16,
+      "durationSeconds": 5.015040100000042,
+      "warmupSeconds": 2,
+      "requests": 5312,
+      "ok": 5312,
+      "nonOk": 0,
+      "statuses": {
+        "200": 5312
+      },
+      "throughputRps": 1059.213863514263,
+      "meanBytes": 1271,
+      "n": 5312,
+      "meanMs": 15.0331233621988,
+      "stdevMs": 8.47785745363995,
+      "minMs": 6.541,
+      "p50Ms": 13.1488,
+      "p95Ms": 33.3066,
+      "p99Ms": 47.9381,
+      "maxMs": 70.7025
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "ninsho-paseto",
+      "concurrency": 1,
+      "durationSeconds": 5.001583099999989,
+      "warmupSeconds": 2,
+      "requests": 1376,
+      "ok": 1376,
+      "nonOk": 0,
+      "statuses": {
+        "200": 1376
+      },
+      "throughputRps": 275.1128937555797,
+      "meanBytes": 1271,
+      "n": 1376,
+      "meanMs": 3.5570024709302306,
+      "stdevMs": 1.0484213802237408,
+      "minMs": 2.2824,
+      "p50Ms": 3.5088,
+      "p95Ms": 5.3287,
+      "p99Ms": 7.5157,
+      "maxMs": 13.0663
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "ninsho-paseto",
+      "concurrency": 16,
+      "durationSeconds": 5.017260500000033,
+      "warmupSeconds": 2,
+      "requests": 2108,
+      "ok": 2108,
+      "nonOk": 0,
+      "statuses": {
+        "200": 2108
+      },
+      "throughputRps": 420.14960156045044,
+      "meanBytes": 1271,
+      "n": 2108,
+      "meanMs": 37.926864943074044,
+      "stdevMs": 19.01562466731355,
+      "minMs": 11.0146,
+      "p50Ms": 29.7308,
+      "p95Ms": 82.7736,
+      "p99Ms": 99.3499,
+      "maxMs": 125.0973
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "jwt-redis",
+      "concurrency": 1,
+      "durationSeconds": 5.000974799999967,
+      "warmupSeconds": 2,
+      "requests": 1067,
+      "ok": 1067,
+      "nonOk": 0,
+      "statuses": {
+        "200": 1067
+      },
+      "throughputRps": 213.35840364562665,
+      "meanBytes": 1271,
+      "n": 1067,
+      "meanMs": 4.595913589503282,
+      "stdevMs": 2.676772506443239,
+      "minMs": 2.3619,
+      "p50Ms": 3.9568,
+      "p95Ms": 8.7034,
+      "p99Ms": 17.0933,
+      "maxMs": 29.7931
+    },
+    {
+      "comparison": "http",
+      "trial": 3,
+      "config": "jwt-redis",
+      "concurrency": 16,
+      "durationSeconds": 5.011765399999975,
+      "warmupSeconds": 2,
+      "requests": 2890,
+      "ok": 2890,
+      "nonOk": 0,
+      "statuses": {
+        "200": 2890
+      },
+      "throughputRps": 576.6431126245483,
+      "meanBytes": 1271,
+      "n": 2890,
+      "meanMs": 27.656622664359862,
+      "stdevMs": 12.17937854776321,
+      "minMs": 8.7954,
+      "p50Ms": 25.3922,
+      "p95Ms": 53.8377,
+      "p99Ms": 68.1426,
+      "maxMs": 75.7632
+    }
+  ]
+}

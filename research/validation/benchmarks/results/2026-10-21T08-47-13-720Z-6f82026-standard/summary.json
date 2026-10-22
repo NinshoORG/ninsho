@@ -1,0 +1,1131 @@
+{
+  "runDir": "2026-10-21T08-47-13-720Z-6f82026-standard",
+  "env": {
+    "capturedAt": "2026-10-21T08:47:08.857Z",
+    "git": {
+      "commit": "6f8202659d8d05330bc220dbd7b6d72e76a09b41",
+      "branch": "assessment/final-security-benchmark",
+      "dirty": [
+        "M packages/server/src/__tests__/paseto-engine.test.ts",
+        " M packages/server/src/engine/paseto.ts",
+        "?? academic/",
+        "?? research/"
+      ]
+    },
+    "runtime": {
+      "node": "v22.13.1",
+      "npm": "11.0.0",
+      "v8": "12.4.254.21-node.22",
+      "openssl": "3.0.15+quic",
+      "execArgv": [],
+      "NODE_ENV": null
+    },
+    "os": {
+      "platform": "win32",
+      "release": "10.0.19045",
+      "version": "Windows 10 Home",
+      "arch": "x64",
+      "powerPlan": "Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)"
+    },
+    "cpu": {
+      "model": "Intel(R) Core(TM) i5-4300U CPU @ 1.90GHz",
+      "logicalCores": 4,
+      "physicalCores": 2,
+      "speedMHz": 2494
+    },
+    "memory": {
+      "totalBytes": 17080705024,
+      "freeBytesAtStart": 2476412928
+    },
+    "redis": {
+      "url": "redis://localhost:6379",
+      "version": "7.4.11",
+      "mode": "standalone",
+      "os": "Linux 6.6.87.2-microsoft-standard-WSL2 x86_64",
+      "archBits": "64",
+      "config": {
+        "save": "",
+        "appendonly": "no",
+        "maxmemory": "0",
+        "maxmemory-policy": "noeviction",
+        "io-threads": "1",
+        "hz": "10"
+      }
+    },
+    "docker": {
+      "server": "27.5.1",
+      "runningContainers": [
+        "redis:7-alpine ninsho-redis-assess",
+        "b6b7e9aad6bf k8s_service-c_service-c-d7d488bb9-sgb6m_default_fcaeaacc-5cc2-4a99-bb56-b307f6928835_7",
+        "b6b7e9aad6bf k8s_worker_worker-bf957c549-v4xs4_default_25d7f67b-7888-4850-988e-f3421770c015_7",
+        "b6b7e9aad6bf k8s_service-b_service-b-585869b99c-qvsvg_default_175f97fd-8dc5-4b1b-b589-f2e6f9e5f222_7",
+        "b6b7e9aad6bf k8s_worker_worker-bf957c549-5mcfd_default_2b2d5251-f0fa-4bff-8fb1-84af31beeee7_7",
+        "b6b7e9aad6bf k8s_worker_worker-bf957c549-hjqwb_default_ca854841-a78b-471d-968e-d625258e4e86_7",
+        "b6b7e9aad6bf k8s_worker_worker-bf957c549-tcmj9_default_a628d45e-05f8-4427-a6d3-7a7ddda5bf1c_7",
+        "b6b7e9aad6bf k8s_service-a_service-a-7c78689b4f-xdf85_default_78a06cc5-0330-4262-9a2e-890a2d1e05d7_7"
+      ]
+    },
+    "packages": {
+      "@ninshorg/core": "0.1.1",
+      "@ninshorg/server": "0.1.1",
+      "express": "5.2.1",
+      "ioredis": "6.0.0",
+      "jose": "5.10.0"
+    },
+    "settings": {
+      "mode": "standard",
+      "verifyCost": {
+        "trials": 3,
+        "iterations": 1000,
+        "warmup": 200
+      },
+      "http": {
+        "trials": 3,
+        "duration": 5,
+        "warmup": 2,
+        "levels": [
+          1,
+          16
+        ]
+      },
+      "seed": 20261021,
+      "poolSize": 64
+    }
+  },
+  "verifyCost": [
+    {
+      "id": "verify.ninsho-paseto.no-revocation",
+      "group": "reference",
+      "checks": "Ed25519 PASETO + claims; revocation check skipped (skipRevocationCheck). NOT the default path.",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 0.3227,
+        "min": 0.2413,
+        "max": 0.4911,
+        "cvPercent": 36.224054591981805,
+        "n": 3
+      },
+      "p95": {
+        "median": 0.8007,
+        "min": 0.7204,
+        "max": 0.8035,
+        "cvPercent": 6.090117252295248,
+        "n": 3
+      },
+      "p99": {
+        "median": 1.9537,
+        "min": 1.786,
+        "max": 2.1235,
+        "cvPercent": 8.634419202076122,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 2255.6860770709272,
+        "min": 1786.4173685500514,
+        "max": 2581.456571381663,
+        "cvPercent": 18.102295252506654,
+        "n": 3
+      }
+    },
+    {
+      "id": "store.ninsho.exists",
+      "group": "store-lookup",
+      "checks": "RedisStore.exists (ioredis EXISTS behind Ninsho’s store wrapper).",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 1.5854,
+        "min": 1.3169,
+        "max": 1.7968,
+        "cvPercent": 15.354993189951546,
+        "n": 3
+      },
+      "p95": {
+        "median": 10.2215,
+        "min": 2.3108,
+        "max": 11.0528,
+        "cvPercent": 61.3754820205332,
+        "n": 3
+      },
+      "p99": {
+        "median": 16.0636,
+        "min": 3.7521,
+        "max": 19.8981,
+        "cvPercent": 63.723956561512885,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 362.5262555108977,
+        "min": 342.36806127785724,
+        "max": 700.4265737919712,
+        "cvPercent": 42.94222269233819,
+        "n": 3
+      }
+    },
+    {
+      "id": "verify.jwt-stateless",
+      "group": "reference",
+      "checks": "jose EdDSA JWT + claims; no revocation check.",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 0.32,
+        "min": 0.3008,
+        "max": 0.5135,
+        "cvPercent": 31.116677281488975,
+        "n": 3
+      },
+      "p95": {
+        "median": 0.6032,
+        "min": 0.554,
+        "max": 0.9728,
+        "cvPercent": 32.2418454788335,
+        "n": 3
+      },
+      "p99": {
+        "median": 1.0473,
+        "min": 0.845,
+        "max": 1.492,
+        "cvPercent": 29.339727394542237,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 2688.40474901322,
+        "min": 1814.2784804982302,
+        "max": 2844.638638442165,
+        "cvPercent": 22.673563296345293,
+        "n": 3
+      }
+    },
+    {
+      "id": "verify.jwt-redis.redis",
+      "group": "comparable",
+      "checks": "jose EdDSA JWT + claims + Redis EXISTS denylist.",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 2.1625,
+        "min": 2.0944,
+        "max": 2.3503,
+        "cvPercent": 6.017699192148225,
+        "n": 3
+      },
+      "p95": {
+        "median": 3.9342,
+        "min": 3.2899,
+        "max": 4.0394,
+        "cvPercent": 10.807805056823693,
+        "n": 3
+      },
+      "p99": {
+        "median": 5.9143,
+        "min": 5.1492,
+        "max": 7.5083,
+        "cvPercent": 19.44198788187284,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 426.1943660258654,
+        "min": 389.4552801937963,
+        "max": 457.95459343569735,
+        "cvPercent": 8.074674902046745,
+        "n": 3
+      }
+    },
+    {
+      "id": "verify.ninsho-opaque.memory",
+      "group": "reference",
+      "checks": "Opaque verify against in-process MemoryStore (CPU cost without a network hop).",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 0.0375,
+        "min": 0.0072,
+        "max": 0.0485,
+        "cvPercent": 68.84675694409516,
+        "n": 3
+      },
+      "p95": {
+        "median": 0.1362,
+        "min": 0.0109,
+        "max": 0.1904,
+        "cvPercent": 81.83732131792821,
+        "n": 3
+      },
+      "p99": {
+        "median": 0.4671,
+        "min": 0.0224,
+        "max": 0.6811,
+        "cvPercent": 86.11374117889343,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 16179.711289231753,
+        "min": 8951.934378740223,
+        "max": 122171.72457606437,
+        "cvPercent": 129.0889097901161,
+        "n": 3
+      }
+    },
+    {
+      "id": "verify.ninsho-paseto.redis",
+      "group": "comparable",
+      "checks": "Ed25519 PASETO + claims + Redis EXISTS denylist.",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 2.0511,
+        "min": 2.0432,
+        "max": 2.2172,
+        "cvPercent": 4.670419444416759,
+        "n": 3
+      },
+      "p95": {
+        "median": 5.9378,
+        "min": 4.021,
+        "max": 8.1671,
+        "cvPercent": 34.34331898178614,
+        "n": 3
+      },
+      "p99": {
+        "median": 15.6301,
+        "min": 9.7637,
+        "max": 16.7368,
+        "cvPercent": 26.685041377263136,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 365.70944413919943,
+        "min": 353.0135442471591,
+        "max": 428.4808844393909,
+        "cvPercent": 10.5668669207907,
+        "n": 3
+      }
+    },
+    {
+      "id": "store.ioredis.get",
+      "group": "store-lookup",
+      "checks": "One Redis GET via ioredis (absent key).",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 1.3759,
+        "min": 1.3049,
+        "max": 1.5521,
+        "cvPercent": 9.020491643379454,
+        "n": 3
+      },
+      "p95": {
+        "median": 6.0785,
+        "min": 2.8059,
+        "max": 9.2529,
+        "cvPercent": 53.320361551551656,
+        "n": 3
+      },
+      "p99": {
+        "median": 14.6629,
+        "min": 5.477,
+        "max": 19.2449,
+        "cvPercent": 53.404378814793716,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 481.08362354302005,
+        "min": 375.7379116847576,
+        "max": 638.6280022541011,
+        "cvPercent": 26.54170342705886,
+        "n": 3
+      }
+    },
+    {
+      "id": "store.ioredis.exists",
+      "group": "store-lookup",
+      "checks": "One Redis EXISTS via ioredis (absent key).",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 1.3365,
+        "min": 1.0878,
+        "max": 1.4592,
+        "cvPercent": 14.617896576988779,
+        "n": 3
+      },
+      "p95": {
+        "median": 3.688,
+        "min": 3.5752,
+        "max": 6.1458,
+        "cvPercent": 32.50061884344691,
+        "n": 3
+      },
+      "p99": {
+        "median": 12.0736,
+        "min": 8.4928,
+        "max": 15.8461,
+        "cvPercent": 30.29508913294936,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 588.1091965869678,
+        "min": 443.6564907987195,
+        "max": 606.0706337747289,
+        "cvPercent": 16.30912003299393,
+        "n": 3
+      }
+    },
+    {
+      "id": "store.ninsho.get",
+      "group": "store-lookup",
+      "checks": "RedisStore.get (ioredis GET behind Ninsho’s store wrapper).",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 1.3574,
+        "min": 1.2449,
+        "max": 1.5383,
+        "cvPercent": 10.724740606769137,
+        "n": 3
+      },
+      "p95": {
+        "median": 8.0826,
+        "min": 2.6861,
+        "max": 8.6852,
+        "cvPercent": 50.94190455009963,
+        "n": 3
+      },
+      "p99": {
+        "median": 16.0255,
+        "min": 4.8152,
+        "max": 16.1855,
+        "cvPercent": 52.81893880075626,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 433.65452244641295,
+        "min": 390.7705620343578,
+        "max": 651.8297610998292,
+        "cvPercent": 28.44932891023772,
+        "n": 3
+      }
+    },
+    {
+      "id": "verify.ninsho-opaque.redis",
+      "group": "comparable",
+      "checks": "SHA-256 + Redis GET + record parse + expiry + binding.",
+      "iterationsPerTrial": 1000,
+      "p50": {
+        "median": 1.5878,
+        "min": 1.2001,
+        "max": 1.7429,
+        "cvPercent": 18.512145748017623,
+        "n": 3
+      },
+      "p95": {
+        "median": 7.6788,
+        "min": 2.3671,
+        "max": 8.5551,
+        "cvPercent": 54.004634836021836,
+        "n": 3
+      },
+      "p99": {
+        "median": 15.7463,
+        "min": 4.5679,
+        "max": 16.6616,
+        "cvPercent": 54.63286755728062,
+        "n": 3
+      },
+      "opsPerSec": {
+        "median": 396.87226555009096,
+        "min": 388.7247736086354,
+        "max": 700.1778311655592,
+        "cvPercent": 35.84236395006737,
+        "n": 3
+      }
+    }
+  ],
+  "http": [
+    {
+      "config": "ninsho-opaque",
+      "comparable": true,
+      "concurrency": 1,
+      "throughputRps": {
+        "median": 286.51594195294985,
+        "min": 165.12095329723817,
+        "max": 301.86848797452905,
+        "cvPercent": 29.826058732197513,
+        "n": 3
+      },
+      "p50": {
+        "median": 3.1885,
+        "min": 3.0519,
+        "max": 4.9303,
+        "cvPercent": 28.126022999304602,
+        "n": 3
+      },
+      "p95": {
+        "median": 5.3593,
+        "min": 5.2716,
+        "max": 12.0671,
+        "cvPercent": 51.52410223532256,
+        "n": 3
+      },
+      "p99": {
+        "median": 9.2161,
+        "min": 7.4927,
+        "max": 21.4251,
+        "cvPercent": 59.75321515414985,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        1510,
+        826,
+        1433
+      ]
+    },
+    {
+      "config": "ninsho-paseto",
+      "comparable": true,
+      "concurrency": 1,
+      "throughputRps": {
+        "median": 245.3062488578121,
+        "min": 226.35623175902734,
+        "max": 275.1128937555797,
+        "cvPercent": 9.874036981455175,
+        "n": 3
+      },
+      "p50": {
+        "median": 3.6885,
+        "min": 3.5088,
+        "max": 3.9258,
+        "cvPercent": 5.641286261855575,
+        "n": 3
+      },
+      "p95": {
+        "median": 6.3954,
+        "min": 5.3287,
+        "max": 6.5838,
+        "cvPercent": 11.090839140373989,
+        "n": 3
+      },
+      "p99": {
+        "median": 9.6706,
+        "min": 7.5157,
+        "max": 11.7283,
+        "cvPercent": 21.85560465815582,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        1227,
+        1132,
+        1376
+      ]
+    },
+    {
+      "config": "jwt-redis",
+      "comparable": true,
+      "concurrency": 1,
+      "throughputRps": {
+        "median": 251.32035657900025,
+        "min": 213.35840364562665,
+        "max": 260.7580909596203,
+        "cvPercent": 10.37562806198562,
+        "n": 3
+      },
+      "p50": {
+        "median": 3.7446,
+        "min": 3.6651,
+        "max": 3.9568,
+        "cvPercent": 3.9800315404176985,
+        "n": 3
+      },
+      "p95": {
+        "median": 5.8524,
+        "min": 5.6107,
+        "max": 8.7034,
+        "cvPercent": 25.587718555195526,
+        "n": 3
+      },
+      "p99": {
+        "median": 8.3677,
+        "min": 7.8856,
+        "max": 17.0933,
+        "cvPercent": 46.62400407470382,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        1257,
+        1304,
+        1067
+      ]
+    },
+    {
+      "config": "jwt-stateless",
+      "comparable": false,
+      "concurrency": 1,
+      "throughputRps": {
+        "median": 487.5847678518497,
+        "min": 462.256358459172,
+        "max": 559.2738501903525,
+        "cvPercent": 10.003422069978955,
+        "n": 3
+      },
+      "p50": {
+        "median": 1.8867,
+        "min": 1.7465,
+        "max": 1.9431,
+        "cvPercent": 5.446238555842874,
+        "n": 3
+      },
+      "p95": {
+        "median": 3.2441,
+        "min": 2.713,
+        "max": 3.9375,
+        "cvPercent": 18.617428882757626,
+        "n": 3
+      },
+      "p99": {
+        "median": 5.8298,
+        "min": 4.9029,
+        "max": 7.1634,
+        "cvPercent": 19.048808810659626,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        2312,
+        2797,
+        2438
+      ]
+    },
+    {
+      "config": "no-auth",
+      "comparable": false,
+      "concurrency": 1,
+      "throughputRps": {
+        "median": 1135.934229408121,
+        "min": 1043.1373908937999,
+        "max": 1140.6972231801933,
+        "cvPercent": 4.970480269115249,
+        "n": 3
+      },
+      "p50": {
+        "median": 0.8265,
+        "min": 0.8083,
+        "max": 0.9115,
+        "cvPercent": 6.490065108548178,
+        "n": 3
+      },
+      "p95": {
+        "median": 1.3846,
+        "min": 1.3462,
+        "max": 1.468,
+        "cvPercent": 4.449132395668041,
+        "n": 3
+      },
+      "p99": {
+        "median": 2.6844,
+        "min": 2.5881,
+        "max": 2.9058,
+        "cvPercent": 5.975691092894597,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        5704,
+        5680,
+        5216
+      ]
+    },
+    {
+      "config": "ninsho-opaque",
+      "comparable": true,
+      "concurrency": 16,
+      "throughputRps": {
+        "median": 951.3792904602129,
+        "min": 933.1616528805929,
+        "max": 977.9589315080724,
+        "cvPercent": 2.361048523111874,
+        "n": 3
+      },
+      "p50": {
+        "median": 14.9325,
+        "min": 14.0829,
+        "max": 14.9769,
+        "cvPercent": 3.4357601377450426,
+        "n": 3
+      },
+      "p95": {
+        "median": 30.3226,
+        "min": 29.9035,
+        "max": 30.9687,
+        "cvPercent": 1.7652852056587776,
+        "n": 3
+      },
+      "p99": {
+        "median": 40.7522,
+        "min": 39.1629,
+        "max": 45.7233,
+        "cvPercent": 8.172002170448808,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        4675,
+        4768,
+        4904
+      ]
+    },
+    {
+      "config": "ninsho-paseto",
+      "comparable": true,
+      "concurrency": 16,
+      "throughputRps": {
+        "median": 563.5351451120919,
+        "min": 420.14960156045044,
+        "max": 566.8227046886066,
+        "cvPercent": 16.20415019361843,
+        "n": 3
+      },
+      "p50": {
+        "median": 24.9423,
+        "min": 24.1344,
+        "max": 29.7308,
+        "cvPercent": 11.515231314300973,
+        "n": 3
+      },
+      "p95": {
+        "median": 49.4727,
+        "min": 47.2825,
+        "max": 82.7736,
+        "cvPercent": 33.23485413914129,
+        "n": 3
+      },
+      "p99": {
+        "median": 97.1664,
+        "min": 65.0541,
+        "max": 99.3499,
+        "cvPercent": 22.022479859261615,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        2832,
+        2838,
+        2108
+      ]
+    },
+    {
+      "config": "jwt-redis",
+      "comparable": true,
+      "concurrency": 16,
+      "throughputRps": {
+        "median": 801.0471642691109,
+        "min": 576.6431126245483,
+        "max": 804.1053713579695,
+        "cvPercent": 17.937270637596438,
+        "n": 3
+      },
+      "p50": {
+        "median": 17.6107,
+        "min": 17.0263,
+        "max": 25.3922,
+        "cvPercent": 23.34115196221759,
+        "n": 3
+      },
+      "p95": {
+        "median": 37.9663,
+        "min": 35.576,
+        "max": 53.8377,
+        "cvPercent": 23.37634129932941,
+        "n": 3
+      },
+      "p99": {
+        "median": 54.3477,
+        "min": 50.1368,
+        "max": 68.1426,
+        "cvPercent": 16.367800371787148,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        4017,
+        4026,
+        2890
+      ]
+    },
+    {
+      "config": "jwt-stateless",
+      "comparable": false,
+      "concurrency": 16,
+      "throughputRps": {
+        "median": 963.3319714248402,
+        "min": 518.3341277547194,
+        "max": 1059.213863514263,
+        "cvPercent": 34.07574835092717,
+        "n": 3
+      },
+      "p50": {
+        "median": 14.1062,
+        "min": 13.1488,
+        "max": 23.4279,
+        "cvPercent": 33.61179181480649,
+        "n": 3
+      },
+      "p95": {
+        "median": 34.9564,
+        "min": 33.3066,
+        "max": 74.6114,
+        "cvPercent": 49.103900416520915,
+        "n": 3
+      },
+      "p99": {
+        "median": 51.1969,
+        "min": 47.9381,
+        "max": 131.8917,
+        "cvPercent": 61.756264577810526,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        4825,
+        2609,
+        5312
+      ]
+    },
+    {
+      "config": "no-auth",
+      "comparable": false,
+      "concurrency": 16,
+      "throughputRps": {
+        "median": 1309.7280545166163,
+        "min": 1221.6084223738858,
+        "max": 1361.3958181709058,
+        "cvPercent": 5.447179993330958,
+        "n": 3
+      },
+      "p50": {
+        "median": 10.6514,
+        "min": 10.5403,
+        "max": 11.2869,
+        "cvPercent": 3.7208482781560366,
+        "n": 3
+      },
+      "p95": {
+        "median": 27.4896,
+        "min": 22.5094,
+        "max": 29.7718,
+        "cvPercent": 13.966715836326514,
+        "n": 3
+      },
+      "p99": {
+        "median": 50.839,
+        "min": 46.4801,
+        "max": 52.3945,
+        "cvPercent": 6.143598670556039,
+        "n": 3
+      },
+      "nonOk": 0,
+      "requestsPerTrial": [
+        6563,
+        6813,
+        6126
+      ]
+    }
+  ],
+  "preflights": [
+    {
+      "trial": 1,
+      "config": "jwt-stateless",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 1,
+      "config": "no-auth",
+      "answers": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 1,
+      "config": "ninsho-opaque",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 1,
+      "config": "ninsho-paseto",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 1,
+      "config": "jwt-redis",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "jwt-stateless",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "ninsho-opaque",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "no-auth",
+      "answers": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "ninsho-paseto",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 2,
+      "config": "jwt-redis",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "no-auth",
+      "answers": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 200,
+        "tampered": null,
+        "revoked": null,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "ninsho-opaque",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": null
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "jwt-stateless",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 200,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "ninsho-paseto",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "trial": 3,
+      "config": "jwt-redis",
+      "answers": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "expected": {
+        "valid": 200,
+        "missing": 401,
+        "tampered": 401,
+        "revoked": 401,
+        "wrongAudience": 401
+      },
+      "passed": true,
+      "mismatches": []
+    }
+  ]
+}

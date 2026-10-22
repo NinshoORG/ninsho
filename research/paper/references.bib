@@ -1,0 +1,210 @@
+% references.bib -- Ninsho paper.
+% Provenance of each entry is recorded in research/paper/author-checklist.md.
+% Entries whose DOI or pages were confirmed from a single secondary source
+% carry a "verify" comment; confirm them on the publisher page before
+% submission. IETF RFC DOIs follow the RFC Editor's 10.17487/RFCnnnn scheme.
+
+% ── IETF specifications ────────────────────────────────────────────────────
+@misc{rfc6749,
+  author       = {D. Hardt},
+  title        = {The {OAuth} 2.0 Authorization Framework},
+  howpublished = {RFC 6749, Internet Engineering Task Force},
+  month        = oct,
+  year         = {2012},
+  doi          = {10.17487/RFC6749}
+}
+
+@misc{rfc6750,
+  author       = {M. Jones and D. Hardt},
+  title        = {The {OAuth} 2.0 Authorization Framework: Bearer Token Usage},
+  howpublished = {RFC 6750, Internet Engineering Task Force},
+  month        = oct,
+  year         = {2012},
+  doi          = {10.17487/RFC6750}
+}
+
+@misc{rfc7009,
+  author       = {T. Lodderstedt and S. Dronia and M. Scurtescu},
+  title        = {{OAuth} 2.0 Token Revocation},
+  howpublished = {RFC 7009, Internet Engineering Task Force},
+  month        = aug,
+  year         = {2013},
+  doi          = {10.17487/RFC7009}
+}
+
+@misc{rfc7519,
+  author       = {M. Jones and J. Bradley and N. Sakimura},
+  title        = {{JSON} Web Token ({JWT})},
+  howpublished = {RFC 7519, Internet Engineering Task Force},
+  month        = may,
+  year         = {2015},
+  doi          = {10.17487/RFC7519}
+}
+
+@misc{rfc7638,
+  author       = {M. Jones and N. Sakimura},
+  title        = {{JSON} Web Key ({JWK}) Thumbprint},
+  howpublished = {RFC 7638, Internet Engineering Task Force},
+  month        = sep,
+  year         = {2015},
+  doi          = {10.17487/RFC7638}
+}
+
+@misc{rfc7662,
+  author       = {J. Richer},
+  title        = {{OAuth} 2.0 Token Introspection},
+  howpublished = {RFC 7662, Internet Engineering Task Force},
+  month        = oct,
+  year         = {2015},
+  doi          = {10.17487/RFC7662}
+}
+
+@misc{rfc8032,
+  author       = {S. Josefsson and I. Liusvaara},
+  title        = {{Edwards}-Curve Digital Signature Algorithm ({EdDSA})},
+  howpublished = {RFC 8032, Internet Engineering Task Force},
+  month        = jan,
+  year         = {2017},
+  doi          = {10.17487/RFC8032}
+}
+
+@misc{rfc8725,
+  author       = {Y. Sheffer and D. Hardt and M. Jones},
+  title        = {{JSON} Web Token Best Current Practices},
+  howpublished = {RFC 8725 (BCP 225), Internet Engineering Task Force},
+  month        = feb,
+  year         = {2020},
+  doi          = {10.17487/RFC8725}
+}
+
+@misc{rfc9449,
+  author       = {D. Fett and B. Campbell and J. Bradley and T. Lodderstedt and M. Jones and D. Waite},
+  title        = {{OAuth} 2.0 Demonstrating Proof of Possession ({DPoP})},
+  howpublished = {RFC 9449, Internet Engineering Task Force},
+  month        = sep,
+  year         = {2023},
+  doi          = {10.17487/RFC9449}
+}
+
+@misc{rfc9700,
+  author       = {T. Lodderstedt and J. Bradley and A. Labunets and D. Fett},
+  title        = {Best Current Practice for {OAuth} 2.0 Security},
+  howpublished = {RFC 9700 (BCP 240), Internet Engineering Task Force},
+  month        = jan,
+  year         = {2025},
+  doi          = {10.17487/RFC9700}
+}
+
+% ── W3C, specifications and project documentation ─────────────────────────
+@misc{webauthn3,
+  author       = {{World Wide Web Consortium}},
+  title        = {Web Authentication: An {API} for Accessing Public Key Credentials -- {Level} 3},
+  howpublished = {W3C Recommendation},
+  month        = aug,
+  year         = {2026},
+  url          = {https://www.w3.org/TR/webauthn-3/},
+  note         = {Recommendation dated 25 August 2026}
+}
+
+@misc{pasetov4,
+  author       = {{PASETO Standard}},
+  title        = {{PASETO} Version 4 Specification},
+  howpublished = {paseto-spec repository, docs/01-Protocol-Versions/Version4.md},
+  year         = {2021},
+  url          = {https://github.com/paseto-standard/paseto-spec/blob/master/docs/01-Protocol-Versions/Version4.md}
+}
+
+@misc{owaspapi2023,
+  author       = {{OWASP Foundation}},
+  title        = {{OWASP} Top 10 {API} Security Risks -- 2023},
+  year         = {2023},
+  url          = {https://owasp.org/API-Security/editions/2023/en/0x11-t10/}
+}
+
+@misc{redispersistence,
+  author       = {{Redis Ltd.}},
+  title        = {Redis persistence},
+  howpublished = {Redis documentation},
+  url          = {https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/}
+}
+
+@misc{jose,
+  author       = {F. Skokan},
+  title        = {jose: {JWA}, {JWS}, {JWE}, {JWT}, {JWK}, {JWKS} for {Node}.js and other runtimes},
+  howpublished = {Software library, version 5.10.0},
+  url          = {https://github.com/panva/jose}
+}
+
+@misc{ninshorepo,
+  author       = {{Ninsho contributors}},
+  title        = {Ninsho: authentication and session management for {Node}.js},
+  howpublished = {Source repository, commit 6f82026 (release 0.1.1)},
+  year         = {2026},
+  url          = {https://github.com/NinshoORG/ninsho}
+}
+
+% ── Peer-reviewed research ─────────────────────────────────────────────────
+% VERIFY: DOI and pages from a single secondary source; confirm on IEEE Xplore
+@inproceedings{bonneau2012quest,
+  author    = {J. Bonneau and C. Herley and P. C. van Oorschot and F. Stajano},
+  title     = {The Quest to Replace Passwords: A Framework for Comparative Evaluation of Web Authentication Schemes},
+  booktitle = {Proc. IEEE Symp. Security and Privacy},
+  year      = {2012},
+  pages     = {553--567},
+  doi       = {10.1109/SP.2012.44}
+}
+
+% VERIFY: pages from institutional repository record; confirm on ACM DL
+@inproceedings{fett2016oauth,
+  author    = {D. Fett and R. K{\"u}sters and G. Schmitz},
+  title     = {A Comprehensive Formal Security Analysis of {OAuth} 2.0},
+  booktitle = {Proc. ACM SIGSAC Conf. Computer and Communications Security (CCS)},
+  year      = {2016},
+  pages     = {1204--1215},
+  doi       = {10.1145/2976749.2978385}
+}
+
+@article{calzavara2017surviving,
+  author  = {S. Calzavara and R. Focardi and M. Squarcina and M. Tempesta},
+  title   = {Surviving the Web: A Journey into Web Session Security},
+  journal = {ACM Computing Surveys},
+  volume  = {50},
+  number  = {1},
+  pages   = {13:1--13:34},
+  year    = {2017},
+  doi     = {10.1145/3038923}
+}
+
+% VERIFY: page range not confirmed; second author given name varies (Iasonas/Jason)
+@inproceedings{sivakorn2016cookie,
+  author    = {S. Sivakorn and I. Polakis and A. D. Keromytis},
+  title     = {The Cracked Cookie Jar: {HTTP} Cookie Hijacking and the Exposure of Private Information},
+  booktitle = {Proc. IEEE Symp. Security and Privacy},
+  year      = {2016},
+  doi       = {10.1109/SP.2016.49}
+}
+
+@inproceedings{squarcina2023cookie,
+  author    = {M. Squarcina and P. Ad{\~a}o and L. Veronese and M. Maffei},
+  title     = {Cookie Crumbles: Breaking and Fixing Web Session Integrity},
+  booktitle = {Proc. 32nd USENIX Security Symp.},
+  address   = {Anaheim, CA, USA},
+  year      = {2023},
+  pages     = {5539--5556}
+}
+
+@inproceedings{lassak2024passkeys,
+  author    = {L. Lassak and E. Pan and B. Ur and M. Golla},
+  title     = {Why Aren't We Using Passkeys? {Obstacles} Companies Face Deploying {FIDO2} Passwordless Authentication},
+  booktitle = {Proc. 33rd USENIX Security Symp.},
+  year      = {2024},
+  pages     = {7231--7248}
+}
+
+@inproceedings{yang2026jwt,
+  author    = {J. Yang and E. Wang and J. Chen and Q. Wang and Y. Zhang and H. Duan and W. Xie and B. Wang},
+  title     = {Token Time Bomb: Evaluating {JWT} Implementations for Vulnerability Discovery},
+  booktitle = {Proc. Network and Distributed System Security Symp. (NDSS)},
+  year      = {2026},
+  url       = {https://www.ndss-symposium.org/ndss-paper/token-time-bomb-evaluating-jwt-implementations-for-vulnerability-discovery/}
+}

@@ -653,36 +653,53 @@ describe('assertions that identify nobody', () => {
     expect(error.detail).toMatch(/did not identify a user/);
   });
 
-  it('falls back to the user handle when the credential has no owner', async () => {
-    const server = makeServer();
-    const authenticator = await VirtualAuthenticator.create();
+  // ─── An owner-less credential must not name anyone ────────────────────────
+  // REGRESSION, replacing the former test *falls back to the user handle when
+  // the credential has no owner*, which asserted the vulnerable behaviour as
+  // intended. With `StoredCredential.userId` omitted, the principal came from
+  // either the challenge's user or the user handle. The user handle is not
+  // covered by the assertion signature (that covers authenticatorData and the
+  // client-data hash only), and the challenge's user says who was *expected*,
+  // not whose key signed. Either way an attacker holding any passkey on the
+  // site could sign in as someone else. Found as B-01 by the second
+  // model-assisted review; the user-handle variant was found while fixing it.
 
-    const registration = await server.startRegistration({ userId: 'user-1', userName: 'n' });
-    const verified = await server.finishRegistration(
-      await authenticator.register({
-        challenge: fromB64u(registration.challenge),
-        origin: ORIGIN,
-        rpId: RP_ID,
-      }),
-    );
+  it('refuses a challenge issued for one user and completed with an owner-less credential', async () => {
+    const server = makeServer();
+    const attacker = await VirtualAuthenticator.create();
+    const attackerCredential = await enrol(server, attacker, 'attacker');
+
+    const options = await server.startAuthentication({ userId: 'victim' });
+    const assertion = await attacker.authenticate({
+      challenge: fromB64u(options.challenge),
+      origin: ORIGIN,
+      rpId: RP_ID,
+    });
+
+    const { userId: _omitted, ...ownerless } = attackerCredential;
+    const error = await rejection(server.finishAuthentication(assertion, ownerless));
+    expect(error).toBeInstanceOf(WebAuthnError);
+    expect(error.detail).toMatch(/no owner/);
+  });
+
+  it('refuses to take the principal from an unsigned user handle', async () => {
+    const server = makeServer();
+    const attacker = await VirtualAuthenticator.create();
+    const attackerCredential = await enrol(server, attacker, 'attacker');
 
     const options = await server.startAuthentication();
-    const result = await server.finishAuthentication(
-      await authenticator.authenticate({
-        challenge: fromB64u(options.challenge),
-        origin: ORIGIN,
-        rpId: RP_ID,
-        userHandle: new TextEncoder().encode('user-1'),
-        flags: FLAG_UP | FLAG_UV,
-      }),
-      {
-        credentialId: verified.credentialId,
-        publicKey: verified.credentialPublicKey,
-        signCount: verified.signCount,
-      },
-    );
+    const assertion = await attacker.authenticate({
+      challenge: fromB64u(options.challenge),
+      origin: ORIGIN,
+      rpId: RP_ID,
+      userHandle: new TextEncoder().encode('victim'),
+      flags: FLAG_UP | FLAG_UV,
+    });
 
-    expect(result.principal.userId).toBe('user-1');
+    const { userId: _omitted, ...ownerless } = attackerCredential;
+    const error = await rejection(server.finishAuthentication(assertion, ownerless));
+    expect(error).toBeInstanceOf(WebAuthnError);
+    expect(error.detail).toMatch(/no owner/);
   });
 });
 

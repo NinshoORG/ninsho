@@ -1,0 +1,20 @@
+{
+  "name": "ninsho-validation-benchmarks",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reproducible verification-cost and protected-request benchmarks for the Ninsho final assessment. Not a workspace; not run in CI.",
+  "type": "module",
+  "scripts": {
+    "bench": "node run.mjs",
+    "bench:quick": "node run.mjs --quick",
+    "verify-cost": "node verify-cost.mjs",
+    "http": "node http-bench.mjs",
+    "summarize": "node summarize.mjs"
+  },
+  "dependencies": {
+    "jose": "5.10.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

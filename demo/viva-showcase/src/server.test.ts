@@ -203,5 +203,54 @@ describe('SecureShop Viva Showcase Integration Tests', () => {
       });
       expect(replayedProofRes.status).toBe(401);
     });
+
+    it('revokes the server session on logout, so neither the access token nor the refresh cookie still works', async () => {
+      // REGRESSION. The logout route passed the raw refresh-token cookie to
+      // revokeSession(), which takes a session id. Nothing was revoked, the
+      // response still said "server session revoked", and both credentials
+      // kept working. Found by the second model-assisted review (B-12).
+      const key = generateDpopKeyPair('ES256');
+      const loginRes = await fetch(`${baseUrl}/api/dpop/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          DPoP: createDpopProof(key, { method: 'POST', url: `${baseUrl}/api/dpop/login` }),
+        },
+        body: JSON.stringify({ email: 'bob@example.com', password: 'password123' }),
+      });
+      expect(loginRes.status).toBe(200);
+      const { accessToken } = (await loginRes.json()) as { accessToken: string };
+      const refreshCookie = (loginRes.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+      expect(refreshCookie.startsWith('ninsho_dpop_rt=')).toBe(true);
+
+      const logoutRes = await fetch(`${baseUrl}/api/dpop/logout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `DPoP ${accessToken}`,
+          DPoP: createDpopProof(key, { method: 'POST', url: `${baseUrl}/api/dpop/logout`, accessToken }),
+          Cookie: refreshCookie,
+        },
+      });
+      expect(logoutRes.status).toBe(200);
+
+      // The access token, presented with a fresh and valid proof by the key holder.
+      const afterAccess = await fetch(`${baseUrl}/api/dpop/orders`, {
+        headers: {
+          Authorization: `DPoP ${accessToken}`,
+          DPoP: createDpopProof(key, { method: 'GET', url: `${baseUrl}/api/dpop/orders`, accessToken }),
+        },
+      });
+      expect(afterAccess.status).toBe(401);
+
+      // The refresh cookie a copied browser profile would still hold.
+      const afterRefresh = await fetch(`${baseUrl}/api/dpop/refresh`, {
+        method: 'POST',
+        headers: {
+          DPoP: createDpopProof(key, { method: 'POST', url: `${baseUrl}/api/dpop/refresh` }),
+          Cookie: refreshCookie,
+        },
+      });
+      expect(afterRefresh.status).toBe(401);
+    });
   });
 });

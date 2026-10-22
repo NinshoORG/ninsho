@@ -122,10 +122,18 @@ export class PasetoEngine implements TokenEngine {
     // index is the *only* way to reach a token again — the token itself is not
     // stored anywhere, so without this, "sign out this device" could not
     // revoke the access tokens it had already issued.
+    //
+    // The index must outlive every token in it for as long as verify() will
+    // accept one, which is exp + clockToleranceSeconds — the same bound the
+    // denylist TTL in revoke() uses. Config permits a tolerance up to the
+    // access TTL, so a fixed +60s let the index expire first and left a
+    // revoked session's token verifying; see paseto-engine.test.ts › *still
+    // reaches a token through its session while clock tolerance keeps it
+    // acceptable*.
     await this.#store.sAdd(
       KEYS.sessionTokens(input.sessionId),
       tokenId,
-      this.#options.accessTokenTtl + 60,
+      this.#options.accessTokenTtl + this.#options.clockToleranceSeconds + 60,
     );
 
     return { token, tokenId, issuedAt, expiresAt };
