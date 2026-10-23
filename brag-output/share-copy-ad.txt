@@ -1,0 +1,86 @@
+── SHARE COPY · SALES AD (brag-ad.mp4) ─────────────────────────────────────
+
+PRIMARY (X / Twitter)
+
+Your "sign out everywhere" button probably doesn't.
+
+If nothing reads the token at verify time, revoking it changes a row in your
+database and nothing about what your API accepts.
+
+Ninsho reads the store on every request. 401 on the next one — not the next
+expiry.
+
+npm i @ninshorg/server
+
+
+── ALTERNATES ──────────────────────────────────────────────────────────────
+
+LINKEDIN
+
+Here's a bug almost every API has shipped at least once.
+
+A user opens account settings, sees a session they don't recognise, and clicks
+"Sign out everywhere." They get a green toast. They feel safe.
+
+Four minutes later that same token still returns 200, because the token is
+self-contained and nothing reads it at verify time. Revocation updated a row.
+It did not change what the API accepts. The button was honest about intent and
+wrong about effect.
+
+Ninsho consults the store on every request, so revocation lands on the *next
+request* rather than the next expiry. That one read is the entire architecture —
+and it's why the library is store-backed instead of stateless.
+
+Sessions, passkeys (all seven WebAuthn attestation formats), refresh rotation
+with theft detection, DPoP proof-of-possession, six authorization guards,
+four frameworks with zero framework dependencies.
+
+2,056 tests against real Redis. Every claim in the docs links to the file that
+proves it. Not independently audited yet — and it says so.
+
+npm i @ninshorg/server · github.com/NinshoORG/ninsho
+
+
+HACKER NEWS / REDDIT
+
+Show HN: Ninsho — store-backed auth for Node, because "sign out everywhere"
+should actually sign you out everywhere
+
+The trade-off is explicit: one store read per verify. In exchange, revocation
+takes effect on the next request instead of at token expiry, refresh reuse
+revokes the whole family (RFC 9700 §4.14.2), and a stolen token is inert under
+DPoP without the browser key.
+
+I benchmarked both strategies rather than asserting one is faster. In-process,
+opaque verification is 13.8x faster than Ed25519. Over loopback Redis the
+ordering inverts and a stateless path that skips the store read is 2.65x
+faster. The ratio also varies 2.6x across two ordinary laptops, so treat any
+single published number — mine included — as an artifact of the machine.
+
+Project rule: a security claim in the README must name the test that
+demonstrates it, or it doesn't go in the README.
+
+
+SHORT (Instagram / TikTok / YouTube Shorts)
+
+Your logout button is lying to you. 🔓
+Watch a revoked token still return 200 — then watch it die on the next request.
+npm i @ninshorg/server
+
+
+ONE-LINER (Discord / Slack)
+
+Revoked the token. API still said 200. That's the bug Ninsho exists to fix →
+npm i @ninshorg/server
+
+
+── NOTES ───────────────────────────────────────────────────────────────────
+
+Everything above is checkable against the repo: the benchmark figures are in
+PERFORMANCE.md, the test count and the "not audited" status are in README.md,
+and every test filename shown in the video is a real file. The share copy for
+this project should not be the one artifact that breaks its own rule.
+
+Poster: brag-ad.jpg — pulled at 17.5s (the 401 landed, caption settled). That
+frame is the ad's argument in a single still, which makes it the right idle
+thumbnail; the logo frame is prettier but says nothing.

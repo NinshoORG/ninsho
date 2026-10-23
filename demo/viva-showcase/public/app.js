@@ -23,24 +23,46 @@ const dpopClient = new NinshoClient({
   sessionSync: { context: 'secureshop-auth' },
 });
 
-// BroadcastChannel listener for 2-tab demonstration
+let signingOut = false; // this tab is signing itself out
+
+// Two-tab demonstration. This channel also hears this tab's OWN notices, and
+// a notice carries no sender. The Ninsho client's channel was created first,
+// so it has already handled the message (ignoring its own) by the time this
+// runs: if this tab's token is now gone, another tab ended or replaced it.
 const syncChannel = new BroadcastChannel('ninsho:session:v1:secureshop-auth');
 syncChannel.onmessage = (event) => {
   const data = event.data;
-  if (data && data.context === 'secureshop-auth' && data.type === 'logout') {
-    appendTimeline('EVENT', 'BroadcastChannel (sessionSync)', 'peer-tab-logout', {
-      notice: 'Received peer logout invalidation notice',
-      type: data.type,
-      id: data.id,
-    });
-    // Invalidate UI
-    if (currentStrategy === 'dpop') {
-      currentUser = null;
-      updateUI();
-      alert('👥 Two-Tab Sync: Session invalidated because another browser tab logged out!');
-    }
-  }
+  if (!data || data.context !== 'secureshop-auth') return;
+  if (currentStrategy !== 'dpop' || !currentUser || signingOut || dpopClient.accessToken !== null) return;
+  appendTimeline('EVENT', 'BroadcastChannel (sessionSync)', data.type, {
+    notice: data.type === 'logout' ? 'Another tab signed out' : 'Another tab signed in',
+    id: data.id,
+  });
+  currentUser = null;
+  updateUI();
+  showNotice(
+    data.type === 'logout'
+      ? 'Another tab signed out, so this tab was signed out too. No token was sent between tabs.'
+      : 'Another tab signed in, which replaced this tab’s login. Sign in again here, or use the other tab.',
+  );
 };
+
+/** Plain-text banner at the top of the page, in place of alert(). */
+function showNotice(text, tone = 'info') {
+  const el = document.getElementById('notice');
+  document.getElementById('noticeText').textContent = text;
+  el.className = `notice notice-${tone}`;
+  el.hidden = false;
+}
+document.getElementById('noticeClose').onclick = () => {
+  document.getElementById('notice').hidden = true;
+};
+
+const esc = (value) =>
+  String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+const initials = (name) =>
+  name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 
 // ── Timeline Helper ─────────────────────────────────────────────────────────
 
@@ -66,8 +88,7 @@ function renderTimeline() {
   if (timelineEvents.length === 0) {
     list.innerHTML = `
       <div class="empty-state">
-        <span class="empty-icon">📡</span>
-        <p>No HTTP requests recorded yet. Make a request to view live wire logs.</p>
+        <p>No requests yet. Sign in or run an experiment, and each request appears here.</p>
       </div>`;
     return;
   }
@@ -87,17 +108,15 @@ function renderTimeline() {
         <div class="timeline-entry">
           <div class="timeline-header">
             <div>
-              <span class="timeline-method">${e.method}</span>
-              <span class="timeline-path">${e.url}</span>
+              <span class="timeline-method">${esc(e.method)}</span>
+              <span class="timeline-path">${esc(e.url)}</span>
             </div>
             <div>
-              <span class="timeline-status ${statusClass}">HTTP ${e.status}</span>
-              <span class="text-muted" style="margin-left: 0.5rem; font-size: 0.75rem;">${e.time}</span>
+              <span class="timeline-status ${statusClass}">${typeof e.status === 'number' ? `HTTP ${e.status}` : esc(e.status)}</span>
+              <span class="timeline-time">${esc(e.time)}</span>
             </div>
           </div>
-          <div class="timeline-body">
-${JSON.stringify({ headers: e.headers, response: e.body }, null, 2)}
-          </div>
+          <div class="timeline-body">${esc(JSON.stringify({ headers: e.headers, response: e.body }, null, 2))}</div>
         </div>`;
     })
     .join('');
@@ -114,11 +133,11 @@ function updateUI() {
   const modeBadge = document.getElementById('currentAuthModeBadge');
   const profMode = document.getElementById('profMode');
   const modeNames = {
-    dpop: 'Ninsho DPoP',
-    opaque: 'Ninsho Opaque (Dual-Instance)',
-    jwt: 'Stateless JWT Baseline',
+    dpop: 'Ninsho + device key',
+    opaque: 'Ninsho sessions',
+    jwt: 'Plain JWT',
   };
-  modeBadge.textContent = `Mode: ${modeNames[currentStrategy]}`;
+  modeBadge.textContent = modeNames[currentStrategy];
   if (profMode) profMode.textContent = modeNames[currentStrategy];
 
   // User state
@@ -129,13 +148,13 @@ function updateUI() {
   const profileContainer = document.getElementById('profileContainer');
 
   if (currentUser) {
-    navAvatar.textContent = currentUser.avatar;
+    navAvatar.textContent = initials(currentUser.name);
     navUserName.textContent = `${currentUser.name} (${currentUser.role})`;
     navLogoutBtn.style.display = 'inline-flex';
     loginFormContainer.style.display = 'none';
     profileContainer.style.display = 'block';
 
-    document.getElementById('profAvatar').textContent = currentUser.avatar;
+    document.getElementById('profAvatar').textContent = initials(currentUser.name);
     document.getElementById('profName').textContent = currentUser.name;
     document.getElementById('profEmail').textContent = currentUser.email;
     document.getElementById('profRole').textContent = currentUser.role;
@@ -148,34 +167,34 @@ function updateUI() {
 
     if (currentStrategy === 'jwt') {
       const stored = localStorage.getItem('secureshop_jwt_token');
-      inspectLocal.textContent = stored ? `Stored (${stored.slice(0, 16)}...)` : 'None';
-      inspectLocal.style.color = '#f59e0b';
-      inspectMem.textContent = 'None (reads localStorage)';
+      inspectLocal.textContent = stored ? `${stored.slice(0, 16)}… (any script can read it)` : 'Nothing';
+      inspectLocal.className = 'inspect-val is-bad';
+      inspectMem.textContent = 'Read from localStorage';
       inspectIdb.textContent = 'None';
       inspectCookie.textContent = 'None';
     } else if (currentStrategy === 'opaque') {
-      inspectLocal.textContent = 'null (Tokens not stored in localStorage)';
-      inspectLocal.style.color = '#10b981';
-      inspectMem.textContent = capturedOpaqueToken ? `Present (${capturedOpaqueToken.slice(0, 12)}...)` : 'Stored in Client Memory';
-      inspectIdb.textContent = 'None (Opaque requires no client key)';
+      inspectLocal.textContent = 'Nothing';
+      inspectLocal.className = 'inspect-val is-good';
+      inspectMem.textContent = capturedOpaqueToken ? `${capturedOpaqueToken.slice(0, 12)}… (in page memory)` : 'In page memory';
+      inspectIdb.textContent = 'None (this mode uses no device key)';
       inspectCookie.textContent = 'None';
     } else {
       // DPoP
-      inspectLocal.textContent = 'null (Protected - Absent from localStorage)';
-      inspectLocal.style.color = '#10b981';
-      inspectMem.textContent = 'In-Memory Only (Non-extractable)';
-      inspectIdb.textContent = 'IndexedDB: secureshop-dpop-keys (Non-extractable)';
-      inspectCookie.textContent = 'ninsho_dpop_rt (HttpOnly, SameSite=Lax)';
+      inspectLocal.textContent = 'Nothing';
+      inspectLocal.className = 'inspect-val is-good';
+      inspectMem.textContent = 'In page memory only';
+      inspectIdb.textContent = 'secureshop-dpop-keys (cannot be exported)';
+      inspectCookie.textContent = 'ninsho_dpop_rt (HttpOnly: scripts cannot read it)';
     }
   } else {
-    navAvatar.textContent = '👤';
-    navUserName.textContent = 'Not Authenticated';
+    navAvatar.textContent = '';
+    navUserName.textContent = 'Not signed in';
     navLogoutBtn.style.display = 'none';
     loginFormContainer.style.display = 'block';
     profileContainer.style.display = 'none';
     document.getElementById('ordersEmptyState').style.display = 'block';
     document.getElementById('ordersList').style.display = 'none';
-    document.getElementById('ordersSourceBadge').textContent = 'Awaiting API Call';
+    document.getElementById('ordersSourceBadge').textContent = 'Not loaded';
   }
 }
 
@@ -190,9 +209,9 @@ async function loadProducts() {
       .map(
         (p) => `
       <div class="product-card">
-        <div class="product-name">${p.name}</div>
-        <p class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.5rem;">${p.description}</p>
-        <div class="product-price">$${p.price}</div>
+        <div class="product-name">${esc(p.name)}</div>
+        <p class="product-desc">${esc(p.description)}</p>
+        <div class="product-price">$${esc(p.price)}</div>
       </div>`,
       )
       .join('');
@@ -209,15 +228,15 @@ async function checkHealth() {
     const res = await fetch('/api/health');
     const data = await res.json();
     if (data.status === 'healthy') {
-      statusEl.textContent = 'Redis: Connected (7.x Alpine)';
-      statusEl.style.color = '#6ee7b7';
+      statusEl.textContent = 'Redis connected';
+      statusEl.className = 'is-good';
     } else {
-      statusEl.textContent = 'Redis: Degraded';
-      statusEl.style.color = '#fcd34d';
+      statusEl.textContent = 'Redis unavailable';
+      statusEl.className = 'is-bad';
     }
   } catch {
-    statusEl.textContent = 'Server: Unreachable';
-    statusEl.style.color = '#fca5a5';
+    statusEl.textContent = 'Server unreachable';
+    statusEl.className = 'is-bad';
   }
 }
 
@@ -261,7 +280,7 @@ async function loadOrders() {
       appendTimeline('GET (DPoP Client Error)', endpoint, 401, {
         error: err instanceof Error ? err.message : String(err),
       });
-      alert(`DPoP request failed: ${err.message}`);
+      showNotice(`The request could not be sent: ${err.message}`, 'bad');
       return;
     }
   }
@@ -269,22 +288,22 @@ async function loadOrders() {
   if (res && res.ok && data.orders) {
     emptyEl.style.display = 'none';
     listEl.style.display = 'block';
-    badgeEl.textContent = `Verified via ${data.verifiedBy || currentStrategy}`;
+    badgeEl.textContent = 'Loaded from the server';
 
     listEl.innerHTML = data.orders
       .map(
         (o) => `
       <div class="order-item">
         <div class="order-top">
-          <span class="order-id">${o.id}</span>
-          <span class="badge badge-success">${o.status.toUpperCase()}</span>
-          <span class="order-total">$${o.total}</span>
+          <span class="order-id">${esc(o.id)}</span>
+          <span class="badge">${esc(o.status)}</span>
+          <span class="order-total">$${esc(o.total)}</span>
         </div>
         <div class="order-items">
-          ${o.items.map((i) => `<div>• ${i.productName} (x${i.quantity}) — $${i.price} each</div>`).join('')}
+          ${o.items.map((i) => `<div>${esc(i.productName)} &times; ${esc(i.quantity)} — $${esc(i.price)} each</div>`).join('')}
         </div>
-        <div class="text-muted font-mono" style="font-size: 0.75rem; margin-top: 0.35rem;">
-          Tracking: ${o.tracking} | Placed: ${new Date(o.placedAt).toLocaleDateString()}
+        <div class="order-meta">
+          Tracking ${esc(o.tracking)} · Placed ${esc(new Date(o.placedAt).toLocaleDateString())}
         </div>
       </div>`,
       )
@@ -292,7 +311,7 @@ async function loadOrders() {
   } else {
     emptyEl.style.display = 'block';
     listEl.style.display = 'none';
-    badgeEl.textContent = `Rejected (HTTP ${res ? res.status : 'Error'})`;
+    badgeEl.textContent = `Refused (HTTP ${res ? res.status : 'error'})`;
   }
 }
 
@@ -315,7 +334,7 @@ async function handleLogin(email, password) {
       updateUI();
       await loadOrders();
     } else {
-      alert(data.error?.message || 'Login failed');
+      showNotice(data.error?.message || 'Sign-in failed.', 'bad');
     }
   } else if (currentStrategy === 'opaque') {
     const res = await fetch('/api/opaque/login', {
@@ -333,7 +352,7 @@ async function handleLogin(email, password) {
       updateUI();
       await loadOrders();
     } else {
-      alert(data.error?.message || 'Login failed');
+      showNotice(data.error?.message || 'Sign-in failed.', 'bad');
     }
   } else {
     // DPoP using NinshoClient.signIn
@@ -354,10 +373,10 @@ async function handleLogin(email, password) {
         await loadOrders();
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error?.message || 'DPoP Login failed');
+        showNotice(err.error?.message || 'Sign-in failed.', 'bad');
       }
     } catch (err) {
-      alert(`DPoP signIn error: ${err.message}`);
+      showNotice(`Sign-in failed: ${err.message}`, 'bad');
     }
   }
 }
@@ -382,16 +401,24 @@ async function handleLogout() {
     updateUI();
   } else {
     // DPoP using NinshoClient.signOut
+    signingOut = true;
     try {
       const res = await dpopClient.signOut('/api/dpop/logout');
-      appendTimeline('POST (DPoP Client)', '/api/dpop/logout', res ? res.status : 200, {
-        ok: true,
-        message: 'Revoked via DPoP client and broadcasted to peer tabs',
-      });
-      currentUser = null;
-      updateUI();
+      // signOut sends nothing when this tab no longer holds a token (another
+      // tab replaced or ended its login), so only claim what happened.
+      if (res) {
+        appendTimeline('POST (DPoP Client)', '/api/dpop/logout', res.status, {
+          message: res.ok ? 'Session ended on the server; other tabs notified' : 'The server refused the sign-out',
+        });
+      } else {
+        appendTimeline('POST (DPoP Client)', '/api/dpop/logout', 'not sent', {
+          message: 'This tab had no active token, so there was nothing to end from here.',
+        });
+      }
     } catch (err) {
       console.error('SignOut error', err);
+    } finally {
+      signingOut = false;
       currentUser = null;
       updateUI();
     }
@@ -414,7 +441,7 @@ document.getElementById('expJwtLoginBtn').onclick = async () => {
     localStorage.setItem('secureshop_jwt_token', data.token);
     document.getElementById('expJwtCaptureBtn').disabled = false;
     document.getElementById('expJwtLogoutBtn').disabled = false;
-    document.getElementById('jwtVerdictBox').textContent = 'Step 1 complete: Alice logged in. Token issued.';
+    document.getElementById('jwtVerdictBox').textContent = 'Step 1 done: Alice is signed in and holds a token.';
     document.getElementById('jwtVerdictBox').className = 'verdict-box verdict-success';
   }
 };
@@ -423,7 +450,7 @@ document.getElementById('expJwtCaptureBtn').onclick = () => {
   if (capturedJwtToken) {
     document.getElementById('jwtCapturedBox').textContent = capturedJwtToken;
     document.getElementById('expJwtReplayBtn').disabled = false;
-    document.getElementById('jwtVerdictBox').textContent = 'Step 2 complete: Token captured into memory variable for replay.';
+    document.getElementById('jwtVerdictBox').textContent = 'Step 2 done: the token is copied (shown above).';
   }
 };
 
@@ -432,7 +459,7 @@ document.getElementById('expJwtLogoutBtn').onclick = async () => {
   const data = await res.json();
   appendTimeline('POST', '/api/jwt/logout', res.status, data);
   localStorage.removeItem('secureshop_jwt_token');
-  document.getElementById('jwtVerdictBox').textContent = 'Step 3 complete: Client logged out and token deleted from localStorage.';
+  document.getElementById('jwtVerdictBox').textContent = 'Step 3 done: signed out. The browser deleted its token; the server had nothing to do.';
   document.getElementById('jwtVerdictBox').className = 'verdict-box verdict-warning';
 };
 
@@ -447,7 +474,7 @@ document.getElementById('expJwtReplayBtn').onclick = async () => {
 
   const verdict = document.getElementById('jwtVerdictBox');
   if (res.status === 200) {
-    verdict.textContent = `🚨 REPLAY ACCEPTED (HTTP 200)! The server accepted the captured token after logout. Because the baseline is stateless, the server has no record of the logout.`;
+    verdict.textContent = 'Accepted (HTTP 200) after logout. The server keeps no record of the logout, so the copied token still works until it expires.';
     verdict.className = 'verdict-box verdict-warning';
   } else {
     verdict.textContent = `Unexpected rejection: HTTP ${res.status}`;
@@ -469,7 +496,7 @@ document.getElementById('expOpaqueLoginBtn').onclick = async () => {
     document.getElementById('expOpaqueVerifyABtn').disabled = false;
     document.getElementById('expOpaqueVerifyBBtn').disabled = false;
     document.getElementById('expOpaqueLogoutBtn').disabled = false;
-    document.getElementById('opaqueVerdictBox').textContent = 'Step 1 complete: Alice logged in via Instance A. Session stored in Redis.';
+    document.getElementById('opaqueVerdictBox').textContent = 'Step 1 done: Alice is signed in through server A. Her session is in Redis.';
     document.getElementById('opaqueVerdictBox').className = 'verdict-box verdict-success';
   }
 };
@@ -480,7 +507,7 @@ document.getElementById('expOpaqueVerifyABtn').onclick = async () => {
   });
   const data = await res.json();
   appendTimeline('GET', '/api/opaque/instance-a/orders', res.status, data);
-  document.getElementById('opaqueVerdictBox').textContent = `Instance A response: HTTP ${res.status} OK (Verified by Instance A).`;
+  document.getElementById('opaqueVerdictBox').textContent = `Server A answered HTTP ${res.status}.`;
 };
 
 document.getElementById('expOpaqueVerifyBBtn').onclick = async () => {
@@ -489,7 +516,7 @@ document.getElementById('expOpaqueVerifyBBtn').onclick = async () => {
   });
   const data = await res.json();
   appendTimeline('GET', '/api/opaque/instance-b/orders', res.status, data);
-  document.getElementById('opaqueVerdictBox').textContent = `Instance B response: HTTP ${res.status} OK (Verified across shared Redis store by Instance B).`;
+  document.getElementById('opaqueVerdictBox').textContent = `Server B answered HTTP ${res.status}, using the same session in Redis.`;
 };
 
 document.getElementById('expOpaqueLogoutBtn').onclick = async () => {
@@ -502,7 +529,7 @@ document.getElementById('expOpaqueLogoutBtn').onclick = async () => {
   appendTimeline('POST', '/api/opaque/logout', res.status, data);
   document.getElementById('expOpaqueReplayABtn').disabled = false;
   document.getElementById('expOpaqueReplayBBtn').disabled = false;
-  document.getElementById('opaqueVerdictBox').textContent = 'Step 3 complete: Session revoked via Instance A. Ready to test replay.';
+  document.getElementById('opaqueVerdictBox').textContent = 'Step 3 done: the session was ended through server A. Now try the copied token.';
   document.getElementById('opaqueVerdictBox').className = 'verdict-box verdict-warning';
 };
 
@@ -514,7 +541,7 @@ document.getElementById('expOpaqueReplayABtn').onclick = async () => {
   appendTimeline('GET (Replay Attack)', '/api/opaque/instance-a/orders', res.status, data);
   const verdict = document.getElementById('opaqueVerdictBox');
   if (res.status === 401) {
-    verdict.textContent = `🛡️ REPLAY REJECTED (HTTP 401)! Instance A instantly rejected the revoked token.`;
+    verdict.textContent = 'Refused (HTTP 401) by server A. The session was ended, so the token no longer works.';
     verdict.className = 'verdict-box verdict-rejected';
   }
 };
@@ -527,7 +554,7 @@ document.getElementById('expOpaqueReplayBBtn').onclick = async () => {
   appendTimeline('GET (Replay Attack)', '/api/opaque/instance-b/orders', res.status, data);
   const verdict = document.getElementById('opaqueVerdictBox');
   if (res.status === 401) {
-    verdict.textContent = `🛡️ REPLAY REJECTED (HTTP 401)! Instance B ALSO instantly rejected the revoked token (zero latency cross-instance revocation).`;
+    verdict.textContent = 'Refused (HTTP 401) by server B too. Both servers read the same Redis, so ending the session on one ends it on both.';
     verdict.className = 'verdict-box verdict-rejected';
   }
 };
@@ -546,11 +573,11 @@ document.getElementById('expDpopLoginBtn').onclick = async () => {
       document.getElementById('expDpopTokenOnlyBtn').disabled = false;
       document.getElementById('expDpopWrongKeyBtn').disabled = false;
       document.getElementById('expDpopProofReplayBtn').disabled = false;
-      document.getElementById('dpopVerdictBox').textContent = 'Step 1 complete: Bob logged in via DPoP. Token bound to non-extractable client key.';
+      document.getElementById('dpopVerdictBox').textContent = 'Step 1 done: Bob is signed in. His login is tied to this browser’s key.';
       document.getElementById('dpopVerdictBox').className = 'verdict-box verdict-success';
     }
   } catch (err) {
-    alert(`DPoP error: ${err.message}`);
+    showNotice(`Sign-in failed: ${err.message}`, 'bad');
   }
 };
 
@@ -566,7 +593,7 @@ document.getElementById('expDpopTokenOnlyBtn').onclick = async () => {
 
   const verdict = document.getElementById('dpopVerdictBox');
   if (res.status === 401) {
-    verdict.textContent = `🛡️ ATTACK BLOCKED (HTTP 401)! Server refused bearer-only replay because the token is bound to a DPoP key proof.`;
+    verdict.textContent = 'Refused (HTTP 401). The token is tied to a key, and no proof from that key was sent.';
     verdict.className = 'verdict-box verdict-rejected';
   }
 };
@@ -594,38 +621,38 @@ document.getElementById('expDpopWrongKeyBtn').onclick = async () => {
 
   const verdict = document.getElementById('dpopVerdictBox');
   if (res.status === 401) {
-    verdict.textContent = `🛡️ ATTACK BLOCKED (HTTP 401)! Server verified proof signature, but thumbprint does NOT match the bound confirmation key (jkt).`;
+    verdict.textContent = 'Refused (HTTP 401). The proof was signed by a different key than the one this login is tied to.';
     verdict.className = 'verdict-box verdict-rejected';
   }
 };
 
 document.getElementById('expDpopProofReplayBtn').onclick = async () => {
-  // Replay a previously used proof
-  const attackerKey = await generateDpopKey();
-  const proof = await createProof(attackerKey, {
+  // A proof signed by the REAL device key, sent twice. The first use must
+  // succeed; otherwise a refusal of the second would prove nothing.
+  const token = dpopClient.accessToken ?? capturedDpopToken;
+  const proof = await createProof(await dpopClient.getKey(), {
     method: 'GET',
     url: `${window.location.origin}/api/dpop/orders`,
-    accessToken: capturedDpopToken,
+    accessToken: token,
   });
+  const send = () => fetch('/api/dpop/orders', { headers: { Authorization: `DPoP ${token}`, DPoP: proof } });
 
-  // First call (fails on wrong key, but registers jti in store)
-  await fetch('/api/dpop/orders', {
-    headers: { Authorization: `DPoP ${capturedDpopToken}`, DPoP: proof },
+  const first = await send();
+  appendTimeline('GET (proof, first use)', '/api/dpop/orders', first.status, await first.json(), {
+    DPoP: '<proof signed by this device>',
   });
-
-  // Second call with same proof header (replay)
-  const res2 = await fetch('/api/dpop/orders', {
-    headers: { Authorization: `DPoP ${capturedDpopToken}`, DPoP: proof },
-  });
-  const data2 = await res2.json();
-  appendTimeline('GET (Proof JTI Replay)', '/api/dpop/orders', res2.status, data2, {
-    DPoP: '<replayed_proof_header>',
+  const second = await send();
+  appendTimeline('GET (same proof again)', '/api/dpop/orders', second.status, await second.json(), {
+    DPoP: '<the identical proof>',
   });
 
   const verdict = document.getElementById('dpopVerdictBox');
-  if (res2.status === 401) {
-    verdict.textContent = `🛡️ ATTACK BLOCKED (HTTP 401)! Server detected reused DPoP proof JTI in single-use replay guard.`;
+  if (first.ok && second.status === 401) {
+    verdict.textContent = 'First use accepted (HTTP 200). The identical proof sent again was refused (HTTP 401): each proof works once.';
     verdict.className = 'verdict-box verdict-rejected';
+  } else {
+    verdict.textContent = `The first use was refused (HTTP ${first.status}), so this run shows nothing about replay. Click "Login Bob (DPoP)" and try again.`;
+    verdict.className = 'verdict-box verdict-warning';
   }
 };
 

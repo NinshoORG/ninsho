@@ -1,0 +1,62 @@
+── SHARE COPY ─────────────────────────────────────────────────────────────
+
+PRIMARY (X / Twitter, Discord)
+
+Most auth libraries tell you they're secure.
+Ninsho names the test file. 2,056 of them.
+
+npm i @ninshorg/server
+
+
+── ALTERNATES ──────────────────────────────────────────────────────────────
+
+LINKEDIN
+
+I shipped an auth library, then audited it. The release couldn't be built from
+a clean checkout, a test double was in the production bundle, and it defaulted
+to admitting requests when the datastore went down. None of the claims in its
+README were dishonest — they'd just outrun the evidence, which for an auth
+library is the same failure.
+
+So I rebuilt it under one rule: a security claim must name the test that
+demonstrates it, or it doesn't get made.
+
+Ninsho — sessions, passkeys, refresh rotation with theft detection, DPoP
+proof-of-possession, and all seven WebAuthn attestation formats. 2,056 tests
+against real Redis. Every claim in the docs links to the file that proves it.
+
+npm i @ninshorg/server · github.com/NinshoORG/ninsho
+
+
+HACKER NEWS / REDDIT
+
+Show HN: Ninsho — an auth library where every security claim names its test
+
+The rule: a security property stated in the README must name the test that
+demonstrates it, or it doesn't go in the README. It exists because the library
+this one replaces claimed "instant revocation", "all attacks blocked" and
+"110 tests passing" — and its CI hadn't run since the release commit, 8 of 9
+test files failed to import, and the attack suite tested a reimplementation
+rather than the shipped middleware.
+
+Revocation takes effect on the next request, not the next expiry.
+2,056 tests. Not independently audited yet, and it says so.
+
+
+SHORT (Instagram / TikTok caption)
+
+Every claim in this video names the file that proves it. 🔎
+Ninsho — auth that proves it works.
+npm i @ninshorg/server
+
+
+── NOTES ───────────────────────────────────────────────────────────────────
+
+Every line above is checkable against the repo — the audit findings, the test
+count and the "not yet audited" status are all in README.md. That is deliberate:
+share copy for this project should not be the one artifact that breaks its own
+rule.
+
+Poster: brag.jpg (pulled at 5.0s — lockup + "Auth that proves it works.").
+It is also baked as frame 0 of brag.mp4, so Slack, X and Discord thumbnail it
+correctly instead of grabbing a black intro frame.

@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>Ninsho — vertical ad</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/music/bed.audio-data.js"></script>
+    <style>
+      @font-face { font-family:'Instrument Serif'; src:url('assets/fonts/InstrumentSerif-400.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:block; }
+      @font-face { font-family:'JetBrains Mono'; src:url('assets/fonts/JetBrainsMono-400.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:block; }
+      @font-face { font-family:'JetBrains Mono'; src:url('assets/fonts/JetBrainsMono-700.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:block; }
+      @font-face { font-family:'Manrope'; src:url('assets/fonts/Manrope-400.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:block; }
+      @font-face { font-family:'Manrope'; src:url('assets/fonts/Manrope-800.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:block; }
+
+      :root {
+        --void:#020d17; --surface:#0a2032; --raised:#0f2b40;
+        --line:#17334a; --line-hot:#24485f;
+        --ink:#f2f7fb; --dim:#a8bccd; --quiet:#8fa6bc;
+        --seal:#18acfd; --pass:#3ddc97; --alarm:#ff6b63; --amber:#ffb454;
+      }
+      * { margin:0; padding:0; box-sizing:border-box; }
+      html, body { width:1080px; height:1920px; overflow:hidden; background:var(--void); }
+      #root { position:relative; width:100%; height:100%; overflow:hidden;
+        background:var(--void); color:var(--ink); font-family:'Manrope', sans-serif; }
+
+      #bg { position:absolute; inset:0;
+        background:radial-gradient(110% 70% at 50% 44%, #07243a 0%, #03111f 58%, #020d17 100%); }
+      /* margin offsets, never transform — GSAP drives scale here from the audio */
+      #glow { position:absolute; left:50%; top:46%; width:1500px; height:1500px;
+        margin-left:-750px; margin-top:-750px; border-radius:50%;
+        background:radial-gradient(circle, rgba(24,172,253,0.5) 0%, rgba(17,216,254,0.14) 38%, rgba(2,13,23,0) 66%);
+        opacity:0.08; }
+      #vig { position:absolute; inset:0;
+        background:radial-gradient(90% 62% at 50% 46%, rgba(2,13,23,0) 36%, rgba(2,13,23,0.9) 100%); }
+
+      /* ── Mobile safe area ──────────────────────────────────────────────
+         Reels / Shorts / TikTok put chrome over the top ~230px, the caption
+         and CTA over the bottom ~440px, and an action rail down the right.
+         Every scene is centred inside what is left: 1080x1220, x 70-1010. */
+      .clip { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+        padding:260px 70px 440px; }
+      .stack { display:flex; flex-direction:column; align-items:center; text-align:center; gap:34px; width:100%; }
+      .display { font-family:'Instrument Serif', serif; font-weight:400; letter-spacing:-0.012em; line-height:1.07; color:var(--ink); }
+      .mono { font-family:'JetBrains Mono', monospace; }
+      .l { display:block; }
+
+      .panel { border:1px solid var(--line); border-radius:20px; background:var(--surface);
+        box-shadow:0 30px 80px -30px rgba(0,0,0,0.85); overflow:hidden; }
+      .bar { display:flex; align-items:center; gap:9px; padding:15px 20px; border-bottom:1px solid var(--line); background:var(--raised); }
+      .dot { width:12px; height:12px; border-radius:50%; display:block; }
+      .dot.r{background:#ff5f57;} .dot.y{background:#febc2e;} .dot.g{background:#28c840;}
+      .bar-name { font-family:'JetBrains Mono', monospace; font-size:19px; color:var(--quiet); margin-left:10px; }
+
+      /* ── V1 · the pain — promise above, reality below ──────────────── */
+      #v1 { padding:0; }
+      #v1-card { position:absolute; left:70px; right:70px; top:452px; }
+      .card-body { padding:28px 30px 32px; }
+      .card-head { font-family:'JetBrains Mono', monospace; font-size:23px; letter-spacing:0.16em;
+        text-transform:uppercase; color:var(--seal); margin-bottom:20px; }
+      .srow { display:flex; align-items:center; gap:14px; padding:14px 0; border-top:1px solid var(--line);
+        font-family:'JetBrains Mono', monospace; font-size:25px; color:var(--dim); }
+      .srow .pip { width:10px; height:10px; border-radius:50%; background:var(--pass); flex:none; }
+      .srow .when { margin-left:auto; color:var(--quiet); font-size:22px; }
+      .srow.warn, .srow.warn .when { color:var(--amber); }
+      .srow.warn .pip { background:var(--amber); }
+      #v1-btn { margin-top:26px; display:flex; align-items:center; justify-content:center; height:76px;
+        border-radius:13px; background:var(--seal); color:#031120;
+        font-family:'Manrope', sans-serif; font-weight:800; font-size:31px; }
+      #v1-toast { position:absolute; left:70px; right:70px; top:960px; display:flex; align-items:center;
+        justify-content:center; gap:14px; padding:20px 24px; border-radius:13px;
+        border:1px solid #1d6b4e; background:#07251a;
+        font-family:'JetBrains Mono', monospace; font-size:26px; color:var(--pass); opacity:0; }
+      #v1-cursor { position:absolute; left:50%; top:452px; margin-left:-20px; opacity:0; }
+      #v1-term { position:absolute; left:70px; right:70px; top:982px; opacity:0; }
+      .term-body { padding:26px 28px 30px; font-family:'JetBrains Mono', monospace; font-size:23px; line-height:1.62; color:var(--ink); }
+      .t-dim { color:var(--quiet); }
+      .t-cmd { color:#7bd3ff; word-break:break-all; }
+      #v1-status { font-family:'JetBrains Mono', monospace; font-weight:700; font-size:46px; color:var(--alarm); margin-top:12px; }
+      #v1-note { display:flex; align-items:center; gap:11px; margin-top:14px;
+        font-family:'JetBrains Mono', monospace; font-size:23px; color:var(--alarm); }
+
+      /* ── V2 · agitate ──────────────────────────────────────────────── */
+      #v2-head { font-size:94px; }
+      #v2-sub { font-family:'JetBrains Mono', monospace; font-size:28px; color:var(--dim); line-height:1.55; }
+      #v2-pill { display:inline-flex; align-items:center; padding:16px 28px; border-radius:999px;
+        border:1px solid #6e2a28; background:#2a0f0e;
+        font-family:'JetBrains Mono', monospace; font-size:26px; color:var(--alarm); }
+
+      /* ── V3 · the turn ─────────────────────────────────────────────── */
+      #v3-burst { position:absolute; left:50%; top:46%; width:1000px; height:1000px; margin-left:-500px; margin-top:-500px;
+        border-radius:50%; background:radial-gradient(circle, rgba(24,172,253,0.55) 0%, rgba(24,172,253,0) 62%); opacity:0; }
+      #v3-mark { display:block; width:620px; height:200px; border-radius:22px; }
+      #v3-head { font-size:86px; }
+      #v3-head em { font-style:normal; color:var(--seal); }
+      #v3-sub { font-family:'JetBrains Mono', monospace; font-size:26px; color:var(--dim); }
+      .jp { font-family:sans-serif; color:var(--seal); }
+
+      /* ── V4 · the demo — stacked, which 9:16 is actually better at ─── */
+      #v4 .stack { gap:26px; }
+      #v4-editor, #v4-log { width:100%; opacity:0; }
+      /* .stack sets text-align:center for the headline scenes — code and log
+         readouts must opt back out, or the source reads centred. */
+      .code { padding:26px 26px 28px; font-family:'JetBrains Mono', monospace; font-size:23px; line-height:1.74; text-align:left; }
+      .code .k{color:#7bd3ff;} .code .f{color:var(--seal);} .code .s{color:var(--pass);} .code .c{color:#8199ad;}
+      .cl { display:block; border-radius:6px; padding:1px 7px; margin-left:-7px; color:var(--ink); }
+      #v4-revoke { display:block; margin-top:14px; border-radius:8px; padding:11px; margin-left:-11px;
+        background:rgba(255,180,84,0.12); border-left:3px solid var(--amber); color:var(--ink); opacity:0; }
+      .log-body { padding:24px 26px 26px; text-align:left; }
+      .log-head { font-family:'JetBrains Mono', monospace; font-size:21px; letter-spacing:0.18em;
+        text-transform:uppercase; color:var(--seal); margin-bottom:16px; }
+      .lrow { display:flex; align-items:center; gap:16px; padding:15px 0; border-top:1px solid var(--line);
+        font-family:'JetBrains Mono', monospace; font-size:26px; color:var(--dim); }
+      .lrow .ok { margin-left:auto; color:var(--pass); font-weight:700; }
+      .lrow .no { margin-left:auto; color:var(--alarm); font-weight:700; font-size:50px; line-height:1; }
+      #v4-why { font-family:'JetBrains Mono', monospace; font-size:22px; color:var(--alarm); padding-top:10px; opacity:0; }
+      #v4-cap { opacity:0; }
+      #v4-cap .big { font-family:'Manrope', sans-serif; font-weight:800; font-size:38px; line-height:1.22; color:var(--ink); }
+      #v4-cap .cite { font-family:'JetBrains Mono', monospace; font-size:22px; color:var(--pass); margin-top:10px; }
+      #v4-cap .cite span { color:var(--quiet); }
+
+      /* ── V5 · the stack ────────────────────────────────────────────── */
+      #v5 .stack { gap:22px; }
+      .frow { display:flex; align-items:center; gap:22px; width:100%; padding:26px 28px;
+        border:1px solid var(--line); border-radius:17px;
+        background:linear-gradient(90deg,#0c2639 0%,#081d2d 100%); text-align:left; opacity:0; }
+      .frow .tick { width:36px; height:36px; flex:none; opacity:0; }
+      .frow .txt { font-family:'Manrope', sans-serif; font-weight:800; font-size:39px; letter-spacing:-0.01em; color:var(--ink); }
+      .frow .fn { display:block; font-family:'JetBrains Mono', monospace; font-weight:400; font-size:22px; color:var(--pass); margin-top:6px; }
+
+      /* ── V6 · proof + offer ────────────────────────────────────────── */
+      #v6 .stack { gap:26px; }
+      #v6-count { font-family:'JetBrains Mono', monospace; font-weight:700; font-size:142px; line-height:1; color:var(--ink); }
+      #v6-sub { font-family:'JetBrains Mono', monospace; font-size:24px; color:var(--dim); }
+      #v6-install { display:inline-flex; align-items:center; gap:16px; padding:22px 38px; border-radius:15px;
+        border:1px solid var(--line-hot); background:var(--surface);
+        font-family:'JetBrains Mono', monospace; font-weight:700; font-size:40px; color:var(--ink); }
+      #v6-install .p { color:var(--seal); }
+      #v6-mark { display:block; width:330px; height:107px; border-radius:12px; }
+      #v6-line { font-size:62px; }
+      #v6-links { font-family:'JetBrains Mono', monospace; font-size:21px; color:var(--quiet); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="25.65"
+         data-width="1080" data-height="1920" data-fps="30">
+      <div id="bg"></div>
+      <div id="glow"></div>
+      <div id="vig"></div>
+
+      <!-- ════ V1 · 0 → 5.34 — THE PAIN ═══════════════════════════════ -->
+      <section id="v1" class="clip" data-start="0" data-duration="5.34" data-track-index="0">
+        <div id="v1-card" class="panel">
+          <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">yourapp.com/settings</span></div>
+          <div class="card-body">
+            <p class="card-head">Active sessions &middot; 3</p>
+            <div class="srow" id="v1-r1"><i class="pip"></i>MacBook Pro<span class="when">this device</span></div>
+            <div class="srow" id="v1-r2"><i class="pip"></i>iPhone 15<span class="when">2h ago</span></div>
+            <div class="srow warn" id="v1-r3"><i class="pip"></i>Unknown &middot; Warsaw<span class="when">4m ago</span></div>
+            <div id="v1-btn">Sign out everywhere</div>
+          </div>
+        </div>
+
+        <div id="v1-toast">
+          <svg width="26" height="26" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Signed out of all devices
+        </div>
+
+        <svg id="v1-cursor" width="36" height="48" viewBox="0 0 24 32" aria-hidden="true">
+          <path d="M3 2l17 12.5-7.4 1.4 4.2 8.3-3.6 1.8-4.2-8.4L3 23.4z" fill="#ffffff" stroke="#031120" stroke-width="1.4" stroke-linejoin="round"/>
+        </svg>
+
+        <div id="v1-term" class="panel">
+          <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">attacker@vps &middot; 4 minutes later</span></div>
+          <div class="term-body">
+            <span class="t-dim">$</span> <span class="t-cmd" id="v1-curl"></span>
+            <div id="v1-status">200 OK</div>
+            <div id="v1-note">
+              <svg width="21" height="21" viewBox="0 0 22 22" aria-hidden="true"><path d="M11 3.5l8 14.5H3z" fill="none" stroke="#ff6b63" stroke-width="2" stroke-linejoin="round"/><path d="M11 9v4.2" stroke="#ff6b63" stroke-width="2" stroke-linecap="round"/></svg>
+              the token you just revoked
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ V2 · 5.34 → 8.74 — AGITATE ═════════════════════════════ -->
+      <section id="v2" class="clip" data-start="5.34" data-duration="3.4" data-track-index="1">
+        <div class="stack">
+          <p id="v2-head" class="display"><span class="l">Your logout button</span><span class="l">is lying to you.</span></p>
+          <p id="v2-sub" class="mono"><span class="l">A token nothing reads at verify time</span><span class="l">is valid until it expires.</span></p>
+          <p><span id="v2-pill" class="mono">live for another 6d 23h 58m</span></p>
+        </div>
+      </section>
+
+      <!-- ════ V3 · 8.74 → 10.93 — THE TURN ═══════════════════════════ -->
+      <section id="v3" class="clip" data-start="8.74" data-duration="2.19" data-track-index="2">
+        <div id="v3-burst"></div>
+        <div class="stack">
+          <img id="v3-mark" src="assets/brand/lockup.png" alt="Ninsho" />
+          <h1 id="v3-head" class="display"><span class="l">Auth that <em>proves</em></span><span class="l">it works.</span></h1>
+          <p id="v3-sub" class="mono"><span class="jp">&#35469;&#35388;</span> &middot; the store is read every request</p>
+        </div>
+      </section>
+
+      <!-- ════ V4 · 10.93 → 17.47 — THE DEMO ══════════════════════════ -->
+      <section id="v4" class="clip" data-start="10.93" data-duration="6.54" data-track-index="3">
+        <div class="stack">
+          <div id="v4-editor" class="panel">
+            <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">server.ts</span></div>
+            <div class="code">
+              <span class="cl" id="v4-l1"><span class="k">const</span> auth = <span class="k">new</span> <span class="f">Ninsho</span>({ store });</span>
+              <span class="cl" id="v4-l2">app.<span class="f">get</span>(<span class="s">'/me'</span>, auth.<span class="f">verify</span>(), handler);</span>
+              <span id="v4-revoke"><span class="k">await</span> auth.<span class="f">revokeAllForUser</span>(id);</span>
+            </div>
+          </div>
+
+          <div id="v4-log" class="panel">
+            <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">live requests</span></div>
+            <div class="log-body">
+              <p class="log-head">Same token, both times</p>
+              <div class="lrow" id="v4-q1">GET /me<span class="ok">200</span></div>
+              <div class="lrow" id="v4-q2">GET /me<span class="no">401</span></div>
+              <p id="v4-why">&#8593; revoked &middot; refused on the next request</p>
+            </div>
+          </div>
+
+          <div id="v4-cap">
+            <p class="big"><span class="l">Revocation lands on the</span><span class="l">next request. Not the next expiry.</span></p>
+            <p class="cite">against real Redis <span>&middot; session.test.ts</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ V5 · 17.47 → 21.84 — THE STACK ═════════════════════════ -->
+      <section id="v5" class="clip" data-start="17.47" data-duration="4.37" data-track-index="4">
+        <div class="stack">
+          <div class="frow" id="v5-f1">
+            <svg class="tick" id="v5-t1" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="txt">A stolen token is inert<span class="fn">dpop-integration.test.ts</span></span>
+          </div>
+          <div class="frow" id="v5-f2">
+            <svg class="tick" id="v5-t2" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="txt">Passkeys, all seven formats<span class="fn">attestation.test.ts</span></span>
+          </div>
+          <div class="frow" id="v5-f3">
+            <svg class="tick" id="v5-t3" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="txt">Six authorization guards<span class="fn">middleware.test.ts</span></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ V6 · 21.84 → 25.65 — PROOF + OFFER ═════════════════════ -->
+      <section id="v6" class="clip" data-start="21.84" data-duration="3.81" data-track-index="5">
+        <div class="stack">
+          <p id="v6-count">0</p>
+          <p id="v6-sub" class="mono">tests against real Redis &middot; MIT</p>
+          <p><span id="v6-install"><span class="p">$</span> npm i @ninshorg/server</span></p>
+          <img id="v6-mark" src="assets/brand/lockup-end.png" alt="Ninsho" />
+          <p id="v6-line" class="display"><span class="l">Don't take the claims.</span><span class="l">Run them.</span></p>
+          <p id="v6-links" class="mono">github.com/NinshoORG/ninsho</p>
+        </div>
+      </section>
+
+      <!-- ════ AUDIO ══════════════════════════════════════════════════ -->
+      <audio id="bed" src="assets/music/bed.mp3" data-start="0" data-duration="25.65" data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.30},{"t":2.60,"v":0.34},{"t":4.30,"v":0.44},{"t":5.34,"v":0.36},{"t":8.60,"v":0.54},{"t":8.74,"v":0.98},{"t":10.93,"v":0.94},{"t":15.70,"v":0.94},{"t":15.84,"v":1.0},{"t":17.47,"v":1.0},{"t":21.70,"v":1.0},{"t":21.84,"v":0.78},{"t":22.90,"v":0.94},{"t":24.30,"v":0.70},{"t":25.65,"v":0}]}]}'></audio>
+
+      <audio id="x-click" src="assets/sfx/click_003.ogg" data-start="1.64" data-duration="0.01" data-volume="0.7" data-track-index="11"></audio>
+      <audio id="x-toast" src="assets/sfx/drop_001.ogg" data-start="2.19" data-duration="0.11" data-volume="0.55" data-track-index="11"></audio>
+      <audio id="x-swap" src="assets/sfx/card-slide-1.ogg" data-start="2.73" data-duration="0.60" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="x-t1" src="assets/sfx/keypress-004.wav" data-start="3.34" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-t2" src="assets/sfx/keypress-009.wav" data-start="3.58" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-t3" src="assets/sfx/keypress-014.wav" data-start="3.82" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-200" src="assets/sfx/impactMetal_medium_001.ogg" data-start="4.39" data-duration="0.14" data-volume="0.85" data-track-index="11"></audio>
+      <audio id="x-line" src="assets/sfx/impactSoft_heavy_002.ogg" data-start="5.34" data-duration="0.57" data-volume="0.8" data-track-index="11"></audio>
+      <audio id="x-kick" src="assets/sfx/impactSoft_heavy_000.ogg" data-start="8.74" data-duration="0.50" data-volume="0.95" data-track-index="11"></audio>
+      <audio id="x-ed" src="assets/sfx/card-slide-1.ogg" data-start="10.93" data-duration="0.60" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-c1" src="assets/sfx/click2.ogg" data-start="12.02" data-duration="0.06" data-volume="0.4" data-track-index="12"></audio>
+      <audio id="x-lg" src="assets/sfx/card-slide-1.ogg" data-start="13.11" data-duration="0.60" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-rev" src="assets/sfx/impactSoft_medium_004.ogg" data-start="14.73" data-duration="0.15" data-volume="0.62" data-track-index="11"></audio>
+      <audio id="x-401" src="assets/sfx/impactSoft_heavy_002.ogg" data-start="15.84" data-duration="0.57" data-volume="0.95" data-track-index="12"></audio>
+      <audio id="x-cap" src="assets/sfx/impactSoft_medium_001.ogg" data-start="16.38" data-duration="0.18" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="x-r1" src="assets/sfx/rollover2.ogg" data-start="17.47" data-duration="0.06" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-r2" src="assets/sfx/rollover2.ogg" data-start="18.56" data-duration="0.06" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-r3" src="assets/sfx/rollover2.ogg" data-start="19.66" data-duration="0.06" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-s1" src="assets/sfx/impactSoft_medium_001.ogg" data-start="20.75" data-duration="0.18" data-volume="0.46" data-track-index="11"></audio>
+      <audio id="x-cnt" src="assets/sfx/bong_001.ogg" data-start="22.37" data-duration="0.12" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="x-end" src="assets/sfx/impactSoft_heavy_004.ogg" data-start="22.93" data-duration="0.50" data-volume="0.72" data-track-index="11"></audio>
+    </div>
+
+    <script>
+      /* ═══════════════════════════════════════════════════════════════
+         Ninsho — 25.65s vertical ad. 1080x1920 @ 30fps.
+         Same argument as the landscape cut, re-laid-out for 9:16 rather
+         than cropped: content lives inside the platform safe area, type is
+         scaled up for a phone, and scene 4 stacks the editor over the log —
+         which vertical is genuinely better at than landscape was.
+         Beat grid 109.96 BPM. Strong-cue locks marked inline.
+         ═══════════════════════════════════════════════════════════════ */
+      const tl = gsap.timeline({ paused: true });
+      const E = 'power3.out';
+
+      /* ── V1 · the pain ─────────────────────────────────────────────── */
+      // The card starts optically centred, then rises to make room for the
+      // terminal — so the promise and the contradiction share the last frame.
+      tl.fromTo('#v1-card', { opacity: 0, y: 214, scale: 0.97 }, { opacity: 1, y: 194, scale: 1, duration: 0.5, ease: E }, 0.22);
+      tl.fromTo(['#v1-r1', '#v1-r2', '#v1-r3'], { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.3, ease: E, stagger: 0.14 }, 0.56);
+      tl.fromTo('#v1-cursor', { opacity: 0, x: 150, y: 560 }, { opacity: 1, x: 10, y: 616, duration: 0.55, ease: 'power2.inOut' }, 1.05);
+      tl.to('#v1-btn', { scale: 0.96, duration: 0.09, ease: 'power2.in' }, 1.64);
+      tl.to('#v1-btn', { scale: 1, duration: 0.18, ease: 'power2.out' }, 1.73);
+      tl.to('#v1-cursor', { opacity: 0, duration: 0.2 }, 1.9);
+      tl.fromTo('#v1-toast', { opacity: 0, y: 176 }, { opacity: 1, y: 194, duration: 0.3, ease: E }, 2.19);
+
+      // beat-grid 2.73 — the card lifts, the toast goes with it, the truth arrives.
+      tl.to('#v1-card', { y: 0, duration: 0.5, ease: 'power2.inOut' }, 2.73);
+      tl.to('#v1-toast', { opacity: 0, y: 150, duration: 0.34, ease: 'power2.in' }, 2.73);
+      tl.fromTo('#v1-term', { opacity: 0, y: 70 }, { opacity: 1, y: 0, duration: 0.46, ease: E }, 2.9);
+
+      const CURL = 'curl -H "Authorization: Bearer eyJhb..." /api/me';
+      const curlEl = document.getElementById('v1-curl');
+      const curlT = { i: 0 };
+      tl.set('#v1-status', { opacity: 0 }, 0);
+      tl.set('#v1-note', { opacity: 0 }, 0);
+      tl.to(curlT, { i: CURL.length, duration: 0.78, ease: 'none',
+        onUpdate: function () { curlEl.textContent = CURL.slice(0, Math.round(curlT.i)); } }, 3.34);
+      // beat-grid 4.39 — the gut punch.
+      tl.fromTo('#v1-status', { opacity: 0, scale: 1.2 }, { opacity: 1, scale: 1, duration: 0.26, ease: 'power4.out' }, 4.39);
+      tl.to('#v1-note', { opacity: 1, duration: 0.26 }, 4.7);
+
+      /* ── V2 · agitate ──────────────────────────────────────────────── */
+      tl.fromTo('#v2-head', { opacity: 0, y: 36, scale: 1.05 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: 'power4.out' }, 5.34);
+      tl.fromTo('#v2-sub', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: E }, 6.56);
+      tl.fromTo('#v2-pill', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34, ease: E }, 7.64);
+
+      /* ── V3 · the turn ─────────────────────────────────────────────── */
+      // beat-locked: 8.74 strong cue — the track's hardest hit (measured bass 0.92).
+      tl.fromTo('#v3-burst', { opacity: 0, scale: 0.5 }, { opacity: 0.9, scale: 1.1, duration: 0.42, ease: E }, 8.74);
+      tl.to('#v3-burst', { opacity: 0, duration: 0.7, ease: 'power2.out' }, 9.2);
+      tl.fromTo('#v3-mark', { opacity: 0, scale: 1.22 }, { opacity: 1, scale: 1, duration: 0.44, ease: 'power4.out' }, 8.74);
+      tl.fromTo('#v3-head', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.44, ease: E }, 9.29);
+      tl.fromTo('#v3-sub', { opacity: 0 }, { opacity: 1, duration: 0.36 }, 9.83);
+
+      /* ── V4 · the demo ─────────────────────────────────────────────── */
+      // beat-locked: 10.93 strong cue
+      tl.fromTo('#v4-editor', { opacity: 0, y: -60 }, { opacity: 1, y: 0, duration: 0.44, ease: E }, 10.93);
+      tl.fromTo('#v4-l1', { backgroundColor: 'rgba(24,172,253,0)' }, { backgroundColor: 'rgba(24,172,253,0.16)', duration: 0.26 }, 12.02);
+      tl.fromTo('#v4-l2', { backgroundColor: 'rgba(24,172,253,0)' }, { backgroundColor: 'rgba(24,172,253,0.16)', duration: 0.26 }, 12.55);
+      // beat-locked: 13.11 strong cue — the log arrives
+      tl.fromTo('#v4-log', { opacity: 0, y: 70 }, { opacity: 1, y: 0, duration: 0.44, ease: E }, 13.11);
+      tl.set('#v4-q1', { opacity: 0 }, 0);
+      tl.set('#v4-q2', { opacity: 0 }, 0);
+      tl.to('#v4-q1', { opacity: 1, duration: 0.28 }, 13.9);
+      tl.fromTo('#v4-revoke', { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.3, ease: E }, 14.73);
+      // beat-locked: 15.84 strong cue — same token, now refused.
+      tl.fromTo('#v4-q2', { opacity: 0, scale: 1.12 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power4.out' }, 15.84);
+      tl.to('#v4-why', { opacity: 1, duration: 0.26 }, 16.1);
+      tl.fromTo('#v4-cap', { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.3, ease: E }, 16.38);
+
+      /* ── V5 · the stack ────────────────────────────────────────────── */
+      // beat-grid: every other beat (1.09s). Rows accumulate and stay, so row 1
+      // holds 4.4s — well past the reading floor despite the pace.
+      [['#v5-f1', 17.47], ['#v5-f2', 18.56], ['#v5-f3', 19.66]].forEach(function (r) {
+        tl.fromTo(r[0], { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.36, ease: E }, r[1]);
+      });
+      [['#v5-t1', 20.75], ['#v5-t2', 20.95], ['#v5-t3', 21.15]].forEach(function (t) {
+        tl.fromTo(t[0], { opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1, duration: 0.24, ease: 'back.out(2.4)' }, t[1]);
+      });
+
+      /* ── V6 · proof + offer ────────────────────────────────────────── */
+      const counter = { v: 0 };
+      const countEl = document.getElementById('v6-count');
+      tl.fromTo('#v6-count', { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.26, ease: E }, 21.84);
+      tl.to(counter, { v: 2056, duration: 0.8, ease: 'power2.out',
+        onUpdate: function () { countEl.textContent = Math.round(counter.v).toLocaleString('en-US'); } }, 21.88);
+      tl.fromTo('#v6-sub', { opacity: 0 }, { opacity: 1, duration: 0.26 }, 22.37);
+      // beat-locked: 22.93 strong cue — the CTA lands on the hit.
+      tl.fromTo('#v6-install', { opacity: 0, scale: 1.1 }, { opacity: 1, scale: 1, duration: 0.34, ease: 'power4.out' }, 22.93);
+      tl.fromTo('#v6-mark', { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.32, ease: E }, 23.46);
+      tl.fromTo('#v6-line', { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.38, ease: E }, 23.9);
+      tl.fromTo('#v6-links', { opacity: 0 }, { opacity: 1, duration: 0.3 }, 24.4);
+
+      /* ── Audio-reactive: measured bass breathes the ambient glow ───── */
+      const AD = window.AUDIO_DATA;
+      const FRAMES = Math.min(AD.totalFrames, Math.ceil(25.65 * AD.fps));
+      for (let f = 0; f < FRAMES; f += 1) {
+        tl.set('#glow', { opacity: 0.06 + AD.bass[f] * 0.28, scale: 1 + AD.bass[f] * 0.09 }, f / AD.fps);
+      }
+
+      window.__timelines['main'] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JWT vs Ninsho</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-row">
+      <strong class="brand">JWT vs Ninsho</strong>
+      <span class="health" id="health">Checking services…</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="intro">
+      <h1>One account. Two ways to stay signed in.</h1>
+      <p>
+        Both sides below sign in the <em>same</em> user from the same database.
+        The only difference is what happens after the password is accepted.
+        Sign in on both sides, then run the scenarios to see where they differ.
+      </p>
+      <ol class="how">
+        <li>Create an account (once).</li>
+        <li>Sign in on <strong>both</strong> sides.</li>
+        <li>Run a scenario and compare the two results.</li>
+      </ol>
+    </section>
+
+    <!-- ── Account ─────────────────────────────────────────────────────── -->
+    <section class="card" id="signupCard">
+      <h2>Create an account</h2>
+      <p class="muted">Saved in Postgres. The password is stored only as a scrypt hash.</p>
+      <form id="signupForm" class="row-form" autocomplete="on">
+        <label>Name <input name="name" required maxlength="60" autocomplete="name"></label>
+        <label>Email <input name="email" type="email" required autocomplete="email"></label>
+        <label>Password <input name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="8+ characters"></label>
+        <button type="submit">Create account</button>
+      </form>
+      <p class="msg" id="signupMsg" role="status"></p>
+    </section>
+
+    <!-- ── The two sides ───────────────────────────────────────────────── -->
+    <div class="sides">
+      <section class="card side" id="jwtSide" data-side="jwt">
+        <div class="side-head">
+          <h2>JWT</h2>
+          <span class="tag">the usual way</span>
+        </div>
+        <p class="muted">A signed token saved in the browser. After signing it, the server remembers nothing.</p>
+
+        <form class="signin" data-form="jwt">
+          <label>Email <input name="email" type="email" required autocomplete="username"></label>
+          <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+          <button type="submit">Sign in with JWT</button>
+        </form>
+
+        <div class="signed-in" hidden>
+          <p class="who">Signed in as <strong data-field="name"></strong> <span class="muted" data-field="email"></span></p>
+          <div class="actions">
+            <button type="button" data-action="check">Check my account</button>
+            <button type="button" class="secondary" data-action="signout">Sign out</button>
+          </div>
+        </div>
+        <p class="msg" data-field="msg" role="status"></p>
+
+        <h3>What this browser holds</h3>
+        <dl class="holds">
+          <dt>Saved in localStorage</dt>
+          <dd data-field="stored">nothing</dd>
+          <dt>Readable by any script on the page?</dt>
+          <dd data-field="readable">—</dd>
+          <dt>Expires in</dt>
+          <dd data-field="expires">—</dd>
+          <dt>Record on the server</dt>
+          <dd>None. The server cannot list or cancel this token.</dd>
+        </dl>
+      </section>
+
+      <section class="card side" id="ninshoSide" data-side="ninsho">
+        <div class="side-head">
+          <h2>Ninsho</h2>
+          <span class="tag">session + device key</span>
+        </div>
+        <p class="muted">A session the server checks on every request, tied to a key only this browser can use.</p>
+
+        <form class="signin" data-form="ninsho">
+          <label>Email <input name="email" type="email" required autocomplete="username"></label>
+          <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+          <button type="submit">Sign in with Ninsho</button>
+        </form>
+
+        <div class="signed-in" hidden>
+          <p class="who">Signed in as <strong data-field="name"></strong> <span class="muted" data-field="email"></span></p>
+          <div class="actions">
+            <button type="button" data-action="check">Check my account</button>
+            <button type="button" class="secondary" data-action="signout">Sign out</button>
+          </div>
+        </div>
+        <p class="msg" data-field="msg" role="status"></p>
+
+        <h3>What this browser holds</h3>
+        <dl class="holds">
+          <dt>Saved in localStorage</dt>
+          <dd data-field="stored">nothing</dd>
+          <dt>Access token</dt>
+          <dd data-field="access">—</dd>
+          <dt>Refresh token</dt>
+          <dd data-field="refresh">—</dd>
+          <dt>Device key</dt>
+          <dd data-field="key">—</dd>
+          <dt>Active sessions on the server</dt>
+          <dd data-field="sessions">—</dd>
+        </dl>
+      </section>
+    </div>
+
+    <!-- ── Scenarios ───────────────────────────────────────────────────── -->
+    <section class="scenarios">
+      <h2>Real scenarios</h2>
+      <p class="muted" id="scenarioHint">Sign in on both sides to run these.</p>
+
+      <article class="card scenario" data-scenario="copied">
+        <h3>1. You signed out, but someone had already copied your login</h3>
+        <p>A shared computer, a browser extension, a screen-share. They copied what your browser sends. Later you sign out and walk away.</p>
+        <button type="button" data-run="copied" disabled>Run on both sides</button>
+        <div class="results" hidden>
+          <div class="result" data-result="jwt"><h4>JWT</h4><ol></ol><p class="verdict"></p></div>
+          <div class="result" data-result="ninsho"><h4>Ninsho</h4><ol></ol><p class="verdict"></p></div>
+        </div>
+      </article>
+
+      <article class="card scenario" data-scenario="stolen">
+        <h3>2. Your token leaks while you are still signed in</h3>
+        <p>It ends up in a log file, a proxy, or a malicious script reads it. The attacker tries it from their own computer.</p>
+        <button type="button" data-run="stolen" disabled>Run on both sides</button>
+        <div class="results" hidden>
+          <div class="result" data-result="jwt"><h4>JWT</h4><ol></ol><p class="verdict"></p></div>
+          <div class="result" data-result="ninsho"><h4>Ninsho</h4><ol></ol><p class="verdict"></p></div>
+        </div>
+      </article>
+
+      <article class="card scenario" data-scenario="everywhere">
+        <h3>3. You lost your phone: sign out of every device</h3>
+        <p>Your phone is still signed in somewhere. You want every session ended now, not in fifteen minutes. Tip: sign in on Ninsho in a second browser first, to see it counted.</p>
+        <button type="button" data-run="everywhere" disabled>Run on both sides</button>
+        <div class="results" hidden>
+          <div class="result" data-result="jwt"><h4>JWT</h4><ol></ol><p class="verdict"></p></div>
+          <div class="result" data-result="ninsho"><h4>Ninsho</h4><ol></ol><p class="verdict"></p></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ── Summary ─────────────────────────────────────────────────────── -->
+    <section class="summary">
+      <h2>The differences at a glance</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th></th><th>JWT</th><th>Ninsho</th></tr>
+          </thead>
+          <tbody>
+            <tr><th>Where your login lives</th><td>A token in localStorage, readable by any script</td><td>Access token in memory, refresh token in an HttpOnly cookie, a key that cannot be exported</td></tr>
+            <tr><th>Signing out</th><td>The browser forgets its copy. Other copies keep working until they expire</td><td>The server ends the session. Every copy stops working at once</td></tr>
+            <tr><th>A stolen token</th><td>Works from anywhere until it expires</td><td>Useless without this browser’s key</td></tr>
+            <tr><th>Sign out everywhere</th><td>Not possible, short of signing out every user</td><td>One call ends every session for the account</td></tr>
+            <tr><th>See signed-in devices</th><td>No. The server keeps no list</td><td>Yes</td></tr>
+            <tr><th>Work per request</th><td>A signature check. No lookup</td><td>One Redis read and a signature check</td></tr>
+            <tr><th>What the server stores</th><td>Nothing</td><td>Sessions in Redis, each expiring on its own</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">
+        <strong>What neither one fixes:</strong> a malicious script running <em>on this page</em> can act as you while the page is open.
+        Ninsho stops it from taking your login <em>away</em> and using it elsewhere. Preventing that script is still the site’s job.
+      </p>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    Accounts: Postgres. Ninsho sessions: Redis. The JWT side uses HS256 with a 15-minute expiry. Nothing here is sent anywhere but this server.
+  </footer>
+</body>
+</html>

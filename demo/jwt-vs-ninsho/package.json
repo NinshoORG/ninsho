@@ -1,0 +1,28 @@
+{
+  "name": "jwt-vs-ninsho",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One account, two ways to sign in: a plain JWT and a Ninsho session, side by side, with the scenarios where they differ.",
+  "type": "module",
+  "scripts": {
+    "start": "tsx --env-file=.env src/server.ts",
+    "test": "tsx --env-file=.env --test src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ninshorg/client": "^0.1.1",
+    "@ninshorg/server": "^0.1.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "jose": "^5.9.6",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

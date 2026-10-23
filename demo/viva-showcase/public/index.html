@@ -3,454 +3,354 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SecureShop — Ninsho Viva Demonstration Showcase</title>
+  <title>SecureShop — Ninsho demo</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="app-layout">
-    <!-- Header -->
     <header class="navbar">
       <div class="nav-brand">
-        <span class="brand-shield">🛡️</span>
-        <div>
-          <span class="brand-title">SecureShop</span>
-          <span class="brand-subtitle">Ninsho Viva Security Showcase</span>
-        </div>
+        <span class="brand-title">SecureShop</span>
+        <span class="brand-subtitle">A demo shop for comparing sign-in methods</span>
       </div>
       <div class="nav-status">
-        <div class="status-indicator">
-          <span class="status-dot"></span>
-          <span id="redisStatus">Connecting to Redis...</span>
-        </div>
-        <div class="badge badge-tech">@ninshorg/server v0.1.1</div>
-        <div class="badge badge-tech">@ninshorg/client v0.1.1</div>
+        <span class="status-indicator"><span id="redisStatus">Checking Redis…</span></span>
+        <span class="badge badge-tech">@ninshorg 0.1.1</span>
       </div>
     </header>
 
-    <!-- Sub-bar: Strategy switcher & user state -->
+    <div class="notice" id="notice" hidden role="status">
+      <span id="noticeText"></span>
+      <button type="button" class="btn btn-sm btn-outline" id="noticeClose">Dismiss</button>
+    </div>
+
     <div class="strategy-bar">
       <div class="strategy-selector">
-        <span class="strategy-label">Authentication Engine:</span>
+        <span class="strategy-label">Sign-in method</span>
         <div class="pill-group" id="strategyPills">
-          <button class="pill active" data-strategy="dpop" id="btnStratDpop">
-            <span class="pill-icon">🔐</span> Ninsho DPoP (Recommended)
-          </button>
-          <button class="pill" data-strategy="opaque" id="btnStratOpaque">
-            <span class="pill-icon">⚡</span> Ninsho Opaque (Dual-Instance)
-          </button>
-          <button class="pill" data-strategy="jwt" id="btnStratJwt">
-            <span class="pill-icon">⚠️</span> Stateless JWT Baseline
-          </button>
+          <button class="pill active" data-strategy="dpop" id="btnStratDpop">Ninsho + device key</button>
+          <button class="pill" data-strategy="opaque" id="btnStratOpaque">Ninsho sessions</button>
+          <button class="pill" data-strategy="jwt" id="btnStratJwt">Plain JWT</button>
         </div>
       </div>
-
       <div class="user-chip" id="userChip">
-        <span class="user-avatar" id="navAvatar">👤</span>
-        <span class="user-name" id="navUserName">Not Authenticated</span>
-        <button class="btn btn-sm btn-outline-danger" id="navLogoutBtn" style="display: none;">Log Out</button>
+        <span class="user-avatar" id="navAvatar"></span>
+        <span class="user-name" id="navUserName">Not signed in</span>
+        <button class="btn btn-sm btn-outline" id="navLogoutBtn" style="display: none;">Sign out</button>
       </div>
     </div>
 
-    <!-- Main Navigation Tabs -->
     <nav class="main-tabs">
-      <button class="tab-btn active" data-tab="dashboard">🛍️ Store & Dashboard</button>
-      <button class="tab-btn" data-tab="security-lab">🔬 Security Experiments Lab</button>
-      <button class="tab-btn" data-tab="examiner-guide">📋 Examiner Walkthrough (8 Steps)</button>
-      <button class="tab-btn" data-tab="timeline">📡 HTTP Wire Timeline <span class="badge badge-counter" id="timelineCount">0</span></button>
+      <button class="tab-btn active" data-tab="dashboard">Shop</button>
+      <button class="tab-btn" data-tab="security-lab">Experiments</button>
+      <button class="tab-btn" data-tab="examiner-guide">Walkthrough</button>
+      <button class="tab-btn" data-tab="timeline">Request log <span class="badge badge-counter" id="timelineCount">0</span></button>
     </nav>
 
-    <!-- Tab 1: Store & Dashboard -->
+    <!-- Shop -->
     <main class="tab-content active" id="tab-dashboard">
       <div class="grid-2-col">
-        <!-- Left: Login or Active Profile Card -->
         <section class="card" id="authSectionCard">
           <div id="loginFormContainer">
             <div class="card-header">
-              <h2>Account Sign-In</h2>
-              <span class="badge badge-info" id="currentAuthModeBadge">Mode: Ninsho DPoP</span>
+              <h2>Sign in</h2>
+              <span class="badge" id="currentAuthModeBadge">Ninsho + device key</span>
             </div>
-            <p class="text-muted">
-              Select a seeded demo account below or enter credentials manually.
-            </p>
+            <p class="text-muted">Pick a demo account, or type one in. Change the sign-in method above.</p>
 
             <div class="quick-accounts">
-              <span class="quick-label">One-Click Seeded Accounts:</span>
               <div class="account-buttons">
-                <button type="button" class="btn btn-sm btn-seed" id="seedAliceBtn">
-                  👩‍💼 Alice Vance (Admin)
-                </button>
-                <button type="button" class="btn btn-sm btn-seed" id="seedBobBtn">
-                  👨‍💼 Bob Smith (Customer)
-                </button>
+                <button type="button" class="btn btn-sm btn-seed" id="seedAliceBtn">Alice (admin)</button>
+                <button type="button" class="btn btn-sm btn-seed" id="seedBobBtn">Bob (customer)</button>
               </div>
             </div>
 
             <form id="loginForm" class="auth-form">
               <div class="form-group">
-                <label for="loginEmail">Email Address</label>
+                <label for="loginEmail">Email</label>
                 <input type="email" id="loginEmail" class="form-control" value="alice@example.com" required>
               </div>
               <div class="form-group">
                 <label for="loginPassword">Password</label>
                 <input type="password" id="loginPassword" class="form-control" value="password123" required>
               </div>
-              <button type="submit" class="btn btn-primary btn-block" id="submitLoginBtn">
-                Authenticate with Selected Mode
-              </button>
+              <button type="submit" class="btn btn-primary btn-block" id="submitLoginBtn">Sign in</button>
             </form>
           </div>
 
-          <!-- Active Session Profile (shown after login) -->
           <div id="profileContainer" style="display: none;">
             <div class="card-header">
-              <h2>Active Session</h2>
-              <span class="badge badge-success" id="profileBadge">Authenticated</span>
+              <h2>Signed in</h2>
+              <span class="badge" id="profileBadge">Active</span>
             </div>
 
             <div class="profile-card">
-              <div class="profile-avatar" id="profAvatar">👩‍💼</div>
+              <div class="profile-avatar" id="profAvatar"></div>
               <div class="profile-info">
-                <h3 id="profName">Alice Vance</h3>
-                <p id="profEmail" class="text-muted">alice@example.com</p>
+                <h3 id="profName"></h3>
+                <p id="profEmail" class="text-muted"></p>
                 <div class="profile-meta">
-                  <span class="badge badge-role" id="profRole">admin</span>
-                  <span class="badge badge-mode" id="profMode">Ninsho DPoP</span>
+                  <span class="badge" id="profRole"></span>
+                  <span class="badge" id="profMode"></span>
                 </div>
               </div>
             </div>
 
-            <!-- Token Storage & Security Inspection Box -->
             <div class="storage-inspector">
-              <h4>Browser Storage Inspection</h4>
+              <h4>What this browser holds</h4>
               <div class="inspect-item">
-                <span class="inspect-label">localStorage (Access Token):</span>
-                <span class="inspect-val" id="inspectLocalStorage">null (Protected)</span>
+                <span class="inspect-label">localStorage</span>
+                <span class="inspect-val" id="inspectLocalStorage"></span>
               </div>
               <div class="inspect-item">
-                <span class="inspect-label">Client Memory (Access Token):</span>
-                <span class="inspect-val font-mono" id="inspectMemoryToken">Present</span>
+                <span class="inspect-label">Access token</span>
+                <span class="inspect-val" id="inspectMemoryToken"></span>
               </div>
               <div class="inspect-item">
-                <span class="inspect-label">IndexedDB DPoP Private Key:</span>
-                <span class="inspect-val" id="inspectIndexedDb">Extractable: false (Non-exportable)</span>
+                <span class="inspect-label">Device key (IndexedDB)</span>
+                <span class="inspect-val" id="inspectIndexedDb"></span>
               </div>
               <div class="inspect-item">
-                <span class="inspect-label">HttpOnly Refresh Cookie:</span>
-                <span class="inspect-val" id="inspectCookie">ninsho_dpop_rt (Secure & HttpOnly)</span>
+                <span class="inspect-label">Refresh cookie</span>
+                <span class="inspect-val" id="inspectCookie"></span>
               </div>
             </div>
 
             <div class="action-buttons-row">
-              <button class="btn btn-secondary" id="refreshDashboardBtn">🔄 Reload Orders via API</button>
-              <button class="btn btn-danger" id="logoutBtn">🚪 Log Out Session</button>
+              <button class="btn btn-secondary" id="refreshDashboardBtn">Reload my orders</button>
+              <button class="btn btn-outline" id="logoutBtn">Sign out</button>
             </div>
           </div>
         </section>
 
-        <!-- Right: Orders & Catalog -->
         <section class="card">
           <div class="card-header">
-            <h2>Customer Orders (Protected Resource)</h2>
-            <span class="badge badge-secondary" id="ordersSourceBadge">Awaiting API Call</span>
+            <h2>My orders</h2>
+            <span class="badge" id="ordersSourceBadge">Not loaded</span>
           </div>
-
           <div id="ordersContent">
             <div class="empty-state" id="ordersEmptyState">
-              <span class="empty-icon">📦</span>
-              <p>Authenticate to load your private order history from the protected route.</p>
+              <p>Sign in to load your orders. They come from a protected route.</p>
             </div>
             <div class="orders-list" id="ordersList" style="display: none;"></div>
           </div>
-
           <div class="products-preview">
-            <h3>Featured Security Hardware</h3>
+            <h3>Products</h3>
             <div class="product-grid" id="productGrid"></div>
           </div>
         </section>
       </div>
     </main>
 
-    <!-- Tab 2: Security Experiments Lab -->
+    <!-- Experiments -->
     <main class="tab-content" id="tab-security-lab">
       <div class="lab-intro">
-        <h2>Security Experiments & Comparative Evaluation</h2>
+        <h2>Experiments</h2>
         <p class="text-muted">
-          Perform live, interactive attacks against each authentication strategy.
-          Observe real HTTP responses, status codes, and server-side logs.
+          Each column is one sign-in method. Click the steps in order, top to bottom,
+          and read the result in the box at the bottom of the column.
         </p>
       </div>
 
       <div class="grid-3-col">
-        <!-- Experiment 1: Stateless JWT Replay -->
         <div class="experiment-card">
-          <div class="exp-header exp-warn">
-            <h3>Comparison A: Stateless JWT</h3>
-            <span class="badge badge-warning">Deliberately Limited</span>
+          <div class="exp-header">
+            <h3>A. Plain JWT</h3>
+            <span class="badge">The usual way</span>
           </div>
           <div class="exp-body">
-            <p class="exp-desc">
-              Demonstrates the classic stateless dilemma: without a server-side denylist or session table,
-              logging out on the client cannot revoke a signed JWT before natural expiry.
-            </p>
-
+            <p class="exp-desc">Does signing out stop a copied token? The server keeps no record of tokens, so let’s see.</p>
             <div class="exp-step">
               <span class="step-num">1</span>
-              <div>
-                <strong>Login with JWT Baseline</strong>
-                <button class="btn btn-sm btn-outline" id="expJwtLoginBtn">Login Alice (JWT)</button>
-              </div>
+              <div><strong>Sign in</strong><button class="btn btn-sm btn-outline" id="expJwtLoginBtn">Login Alice (JWT)</button></div>
             </div>
-
             <div class="exp-step">
               <span class="step-num">2</span>
               <div>
-                <strong>Capture Active Token</strong>
-                <button class="btn btn-sm btn-outline" id="expJwtCaptureBtn" disabled>Capture Token</button>
-                <div class="captured-token-box" id="jwtCapturedBox">No token captured yet</div>
+                <strong>Copy the token, as an attacker would</strong>
+                <button class="btn btn-sm btn-outline" id="expJwtCaptureBtn" disabled>Capture token</button>
+                <div class="captured-token-box" id="jwtCapturedBox">Nothing copied yet</div>
               </div>
             </div>
-
             <div class="exp-step">
               <span class="step-num">3</span>
-              <div>
-                <strong>Simulate Client Logout</strong>
-                <button class="btn btn-sm btn-danger" id="expJwtLogoutBtn" disabled>Logout (Clear LocalStorage)</button>
-              </div>
+              <div><strong>Sign out</strong><button class="btn btn-sm btn-outline" id="expJwtLogoutBtn" disabled>Sign out (clear localStorage)</button></div>
             </div>
-
             <div class="exp-step">
               <span class="step-num">4</span>
-              <div>
-                <strong>Replay Copied Token to Protected Route</strong>
-                <button class="btn btn-sm btn-warning" id="expJwtReplayBtn" disabled>⚠️ Replay Token</button>
-              </div>
+              <div><strong>Use the copied token</strong><button class="btn btn-sm btn-outline" id="expJwtReplayBtn" disabled>Replay token</button></div>
             </div>
-
-            <div class="verdict-box" id="jwtVerdictBox">
-              Awaiting experiment execution...
-            </div>
+            <div class="verdict-box" id="jwtVerdictBox">Result appears here.</div>
           </div>
         </div>
 
-        <!-- Experiment 2: Ninsho Opaque Centralized Revocation -->
         <div class="experiment-card">
-          <div class="exp-header exp-success">
-            <h3>Comparison B: Ninsho Opaque</h3>
-            <span class="badge badge-success">Dual-Instance Revocation</span>
+          <div class="exp-header">
+            <h3>B. Ninsho sessions</h3>
+            <span class="badge">Two servers</span>
           </div>
           <div class="exp-body">
-            <p class="exp-desc">
-              Two independent Ninsho server instances (`Instance A` and `Instance B`) share a Redis namespace.
-              Logging out through Instance A revokes the session instantly across all instances.
-            </p>
-
+            <p class="exp-desc">Two servers, A and B, share one Redis. End the session on A, then try the copied token on both.</p>
             <div class="exp-step">
               <span class="step-num">1</span>
-              <div>
-                <strong>Login via Instance A</strong>
-                <button class="btn btn-sm btn-outline" id="expOpaqueLoginBtn">Login Alice (Opaque)</button>
-              </div>
+              <div><strong>Sign in through server A</strong><button class="btn btn-sm btn-outline" id="expOpaqueLoginBtn">Login Alice (Opaque)</button></div>
             </div>
-
             <div class="exp-step">
               <span class="step-num">2</span>
               <div>
-                <strong>Verify on Instance A & B</strong>
+                <strong>Check it works on both</strong>
                 <div class="button-dual-row">
-                  <button class="btn btn-sm btn-outline" id="expOpaqueVerifyABtn" disabled>Query Inst A</button>
-                  <button class="btn btn-sm btn-outline" id="expOpaqueVerifyBBtn" disabled>Query Inst B</button>
+                  <button class="btn btn-sm btn-outline" id="expOpaqueVerifyABtn" disabled>Query server A</button>
+                  <button class="btn btn-sm btn-outline" id="expOpaqueVerifyBBtn" disabled>Query server B</button>
                 </div>
               </div>
             </div>
-
             <div class="exp-step">
               <span class="step-num">3</span>
-              <div>
-                <strong>Revoke Session (Logout on Instance A)</strong>
-                <button class="btn btn-sm btn-danger" id="expOpaqueLogoutBtn" disabled>Revoke via Inst A</button>
-              </div>
+              <div><strong>Sign out on server A</strong><button class="btn btn-sm btn-outline" id="expOpaqueLogoutBtn" disabled>End session on A</button></div>
             </div>
-
             <div class="exp-step">
               <span class="step-num">4</span>
               <div>
-                <strong>Replay Stolen/Copied Token on Both</strong>
+                <strong>Use the copied token on both</strong>
                 <div class="button-dual-row">
-                  <button class="btn btn-sm btn-danger" id="expOpaqueReplayABtn" disabled>Replay on Inst A</button>
-                  <button class="btn btn-sm btn-danger" id="expOpaqueReplayBBtn" disabled>Replay on Inst B</button>
+                  <button class="btn btn-sm btn-outline" id="expOpaqueReplayABtn" disabled>Replay on A</button>
+                  <button class="btn btn-sm btn-outline" id="expOpaqueReplayBBtn" disabled>Replay on B</button>
                 </div>
               </div>
             </div>
-
-            <div class="verdict-box" id="opaqueVerdictBox">
-              Awaiting experiment execution...
-            </div>
+            <div class="verdict-box" id="opaqueVerdictBox">Result appears here.</div>
           </div>
         </div>
 
-        <!-- Experiment 3: Ninsho DPoP Proof of Possession -->
         <div class="experiment-card">
-          <div class="exp-header exp-dpop">
-            <h3>Comparison C: Ninsho DPoP</h3>
-            <span class="badge badge-primary">Cryptographic Binding</span>
+          <div class="exp-header">
+            <h3>C. Ninsho + device key</h3>
+            <span class="badge">DPoP</span>
           </div>
           <div class="exp-body">
-            <p class="exp-desc">
-              Tokens are sender-constrained to a non-extractable WebCrypto key.
-              Token-only theft, wrong-key presentation, and proof replays are completely blocked.
-            </p>
-
+            <p class="exp-desc">The login is tied to a key in this browser that cannot be copied. Try using the token without it.</p>
             <div class="exp-step">
               <span class="step-num">1</span>
-              <div>
-                <strong>Login with DPoP Client</strong>
-                <button class="btn btn-sm btn-outline" id="expDpopLoginBtn">Login Bob (DPoP)</button>
-              </div>
+              <div><strong>Sign in</strong><button class="btn btn-sm btn-outline" id="expDpopLoginBtn">Login Bob (DPoP)</button></div>
             </div>
-
             <div class="exp-step">
               <span class="step-num">2</span>
               <div>
-                <strong>Token-Only Replay Attack (No Proof)</strong>
-                <p class="step-hint">Attacker stole the raw bearer token and tries to use it directly.</p>
-                <button class="btn btn-sm btn-danger" id="expDpopTokenOnlyBtn" disabled>Simulate Token Theft Replay</button>
+                <strong>Use the stolen token alone</strong>
+                <p class="step-hint">The attacker has the token but not the key.</p>
+                <button class="btn btn-sm btn-outline" id="expDpopTokenOnlyBtn" disabled>Send token only</button>
               </div>
             </div>
-
             <div class="exp-step">
               <span class="step-num">3</span>
               <div>
-                <strong>Wrong-Key Proof Attack</strong>
-                <p class="step-hint">Attacker creates a proof with their own separate key.</p>
-                <button class="btn btn-sm btn-danger" id="expDpopWrongKeyBtn" disabled>Attack with Wrong Key</button>
+                <strong>Sign with a different key</strong>
+                <p class="step-hint">The attacker makes their own key and signs with it.</p>
+                <button class="btn btn-sm btn-outline" id="expDpopWrongKeyBtn" disabled>Send with wrong key</button>
               </div>
             </div>
-
             <div class="exp-step">
               <span class="step-num">4</span>
               <div>
-                <strong>DPoP Proof Replay Attack</strong>
-                <p class="step-hint">Replaying an already-claimed DPoP proof JTI header.</p>
-                <button class="btn btn-sm btn-danger" id="expDpopProofReplayBtn" disabled>Replay Captured Proof</button>
+                <strong>Reuse a valid signed request</strong>
+                <p class="step-hint">One request signed by this browser’s real key, sent twice.</p>
+                <button class="btn btn-sm btn-outline" id="expDpopProofReplayBtn" disabled>Send the same proof twice</button>
               </div>
             </div>
-
-            <div class="verdict-box" id="dpopVerdictBox">
-              Awaiting experiment execution...
-            </div>
+            <div class="verdict-box" id="dpopVerdictBox">Result appears here.</div>
           </div>
         </div>
       </div>
 
-      <!-- Two-Tab Invalidation Lab -->
       <div class="card two-tab-card">
         <div class="card-header">
-          <h3>👥 Two-Tab Session Synchronization Demonstration</h3>
-          <span class="badge badge-info">Opt-In sessionSync: { context: 'secureshop-auth' }</span>
+          <h3>Two tabs, one sign-out</h3>
+          <span class="badge">Ninsho + device key only</span>
         </div>
         <div class="two-tab-body">
-          <p>
-            Open SecureShop in <strong>two separate browser tabs</strong> side-by-side.
-            Both tabs authenticate through the DPoP client using the shared IndexedDB key and context.
-            When you click <strong>Log Out</strong> in Tab 1, observe Tab 2 immediately receiving
-            the invalidation event and clearing its in-memory access token without transferring any secrets!
-          </p>
+          <ol class="plain-steps">
+            <li>Sign in on the Shop tab with <strong>Ninsho + device key</strong>.</li>
+            <li>Open a second tab and sign in there too.</li>
+            <li>Sign out in the tab where you signed in <strong>last</strong>.</li>
+            <li>The other tab switches to “Not signed in”. No token is passed between tabs.</li>
+          </ol>
+          <p class="text-muted">Signing in on one tab replaces the login in the others, so the most recent tab is the one holding the live session.</p>
           <div class="two-tab-actions">
-            <button class="btn btn-outline" id="openSecondTabBtn">🔗 Open Second Tab for Demonstration</button>
-            <div class="sync-status" id="tabSyncStatus">
-              Sync Channel Status: <span class="badge badge-success">Listening on BroadcastChannel</span>
-            </div>
+            <button class="btn btn-outline" id="openSecondTabBtn">Open a second tab</button>
           </div>
         </div>
       </div>
     </main>
 
-    <!-- Tab 3: Examiner Walkthrough Guide -->
+    <!-- Walkthrough -->
     <main class="tab-content" id="tab-examiner-guide">
       <div class="card">
         <div class="card-header">
-          <h2>External Examiner Walkthrough (8 Concrete Verification Steps)</h2>
-          <span class="badge badge-primary">Viva Examination Guide</span>
+          <h2>Walkthrough in 8 steps</h2>
+          <span class="badge">About 10 minutes</span>
         </div>
         <div class="guide-content">
-          <p class="lead">
-            This showcase was built specifically for an external examiner to evaluate
-            authentication invariants directly using browser developer tools and real HTTP responses.
-          </p>
-
+          <p class="lead">Open your browser’s developer tools (F12) alongside. Every claim below can be checked there.</p>
           <ol class="examiner-steps">
             <li>
-              <h4>Step 1: Log in through the Stateless JWT Baseline</h4>
-              <p>Select the <strong>Stateless JWT</strong> strategy pill. Click <em>Alice Vance (Admin)</em> and submit.</p>
+              <h4>Sign in with Plain JWT</h4>
+              <p>Choose <strong>Plain JWT</strong> at the top, click <em>Alice</em>, then <em>Sign in</em>.</p>
             </li>
             <li>
-              <h4>Step 2: Inspect Application Storage</h4>
-              <p>Open Browser DevTools (F12) &rarr; <strong>Application</strong> &rarr; <strong>Local Storage</strong>. Notice the JWT access token stored under <code>secureshop_jwt_token</code>.</p>
+              <h4>See where the token is kept</h4>
+              <p>DevTools → <strong>Application</strong> → <strong>Local Storage</strong>. The token is under <code>secureshop_jwt_token</code>, readable by any script on the page.</p>
             </li>
             <li>
-              <h4>Step 3: Inspect Network Request</h4>
-              <p>Open <strong>Network</strong> tab. Click <em>Reload Orders via API</em>. Observe the <code>Authorization: Bearer &lt;jwt&gt;</code> header sent to <code>/api/jwt/dashboard</code>.</p>
+              <h4>See it being sent</h4>
+              <p>DevTools → <strong>Network</strong>. Click <em>Reload my orders</em>. The request carries <code>Authorization: Bearer …</code>.</p>
             </li>
             <li>
-              <h4>Step 4: Demonstrate Stateless JWT Replay Limitation</h4>
-              <p>Go to <strong>Security Experiments Lab</strong> &rarr; Comparison A. Capture the token, click <em>Logout</em>, and click <em>Replay Token</em>. Observe that the server returns <strong>HTTP 200 OK</strong> because the stateless server has no revocation state!</p>
+              <h4>Experiment A: a copied JWT after sign-out</h4>
+              <p>Copy the token, sign out, replay it. The server answers <strong>200</strong>: signing out did not stop the copy.</p>
             </li>
             <li>
-              <h4>Step 5: Demonstrate Ninsho Opaque Centralized Revocation</h4>
-              <p>In Comparison B, log in Alice under Opaque mode. Verify that queries to both <strong>Instance A</strong> and <strong>Instance B</strong> return 200. Click <em>Revoke via Inst A</em>. Replay the token against both instances. Observe that both return <strong>HTTP 401 Unauthorized</strong> immediately.</p>
+              <h4>Experiment B: ending a session on two servers</h4>
+              <p>Both servers answer <strong>200</strong>. End the session on A. Replays on A and B both get <strong>401</strong>.</p>
             </li>
             <li>
-              <h4>Step 6: Inspect Ninsho DPoP Client Protection</h4>
-              <p>Log in under <strong>Ninsho DPoP</strong>. Inspect <strong>Local Storage</strong> &rarr; verify the access token is <strong>absent</strong> (kept in memory only). Inspect <strong>IndexedDB</strong> &rarr; verify the non-extractable crypto key in <code>secureshop-dpop-keys</code>. In <strong>Network</strong>, inspect the <code>DPoP</code> proof header and <code>Authorization: DPoP &lt;token&gt;</code> header.</p>
+              <h4>Sign in with Ninsho + device key and look again</h4>
+              <p>Local Storage is empty. IndexedDB holds <code>secureshop-dpop-keys</code>, a key that cannot be exported. The refresh cookie is <code>HttpOnly</code>. In Network, each request has <code>Authorization: DPoP …</code> and a fresh <code>DPoP</code> header.</p>
             </li>
             <li>
-              <h4>Step 7: Demonstrate DPoP Attack Resistance</h4>
-              <p>In Comparison C, click <em>Simulate Token Theft Replay</em> (sends token without DPoP proof) &rarr; returns <strong>HTTP 401</strong>. Click <em>Attack with Wrong Key</em> &rarr; returns <strong>HTTP 401</strong>. Click <em>Replay Captured Proof</em> &rarr; returns <strong>HTTP 401</strong> (single-use JTI replay rejected).</p>
+              <h4>Experiment C: a stolen token without the key</h4>
+              <p>Token alone: <strong>401</strong>. Signed with another key: <strong>401</strong>. The same valid proof twice: <strong>200</strong>, then <strong>401</strong>.</p>
             </li>
             <li>
-              <h4>Step 8: Open Second Tab & Cross-Tab Invalidation</h4>
-              <p>Click <em>Open Second Tab</em>. With both tabs authenticated, log out in Tab 1. Watch Tab 2 instantly clear its session and transition to logged-out state via <code>sessionSync</code>.</p>
+              <h4>Two tabs</h4>
+              <p>Sign in on two tabs, then sign out in the one you signed in on last. The other tab is signed out too.</p>
             </li>
           </ol>
         </div>
       </div>
     </main>
 
-    <!-- Tab 4: HTTP Wire Timeline -->
+    <!-- Request log -->
     <main class="tab-content" id="tab-timeline">
       <div class="card">
         <div class="card-header">
-          <h2>Live HTTP Request & Result Timeline</h2>
+          <h2>Request log</h2>
           <div class="timeline-controls">
-            <button class="btn btn-sm btn-outline" id="clearTimelineBtn">Clear History</button>
+            <button class="btn btn-sm btn-outline" id="clearTimelineBtn">Clear</button>
           </div>
         </div>
-        <p class="text-muted">
-          All HTTP requests made by this application are captured below in real time with exact headers,
-          response status codes, and server evaluation details.
-        </p>
-
+        <p class="text-muted">Every request this page makes, newest first, with its status and response.</p>
         <div class="timeline-container" id="timelineList">
           <div class="empty-state">
-            <span class="empty-icon">📡</span>
-            <p>No HTTP requests recorded yet. Make a request or run an experiment to see real network traces.</p>
+            <p>No requests yet. Sign in or run an experiment, and each request appears here.</p>
           </div>
         </div>
       </div>
     </main>
 
-    <!-- Footer -->
     <footer class="app-footer">
-      <div>
-        <strong>SecureShop Viva Showcase</strong> — Powered by Ninsho published packages (@ninshorg/server, @ninshorg/client).
-      </div>
-      <div>
-        <span class="badge badge-tech">Pre-release v0.1.1</span>
-        <span class="badge badge-tech">Educational Viva Demonstration</span>
-      </div>
+      <span>SecureShop — a teaching demo built on the published <code>@ninshorg</code> packages.</span>
+      <span>Ninsho 0.1.1 is pre-1.0 and has not had an external security audit.</span>
     </footer>
   </div>
 

@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en" data-resolution="square">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1080" />
+    <title>Ninsho — square ad</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/music/bed.audio-data.js"></script>
+    <style>
+      @font-face { font-family:'Instrument Serif'; src:url('assets/fonts/InstrumentSerif-400.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:block; }
+      @font-face { font-family:'JetBrains Mono'; src:url('assets/fonts/JetBrainsMono-400.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:block; }
+      @font-face { font-family:'JetBrains Mono'; src:url('assets/fonts/JetBrainsMono-700.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:block; }
+      @font-face { font-family:'Manrope'; src:url('assets/fonts/Manrope-400.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:block; }
+      @font-face { font-family:'Manrope'; src:url('assets/fonts/Manrope-800.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:block; }
+
+      :root {
+        --void:#020d17; --surface:#0a2032; --raised:#0f2b40;
+        --line:#17334a; --line-hot:#24485f;
+        --ink:#f2f7fb; --dim:#a8bccd; --quiet:#8fa6bc;
+        --seal:#18acfd; --pass:#3ddc97; --alarm:#ff6b63; --amber:#ffb454;
+      }
+      * { margin:0; padding:0; box-sizing:border-box; }
+      html, body { width:1080px; height:1080px; overflow:hidden; background:var(--void); }
+      #root { position:relative; width:100%; height:100%; overflow:hidden;
+        background:var(--void); color:var(--ink); font-family:'Manrope', sans-serif; }
+
+      #bg { position:absolute; inset:0;
+        background:radial-gradient(112% 100% at 50% 44%, #07243a 0%, #03111f 58%, #020d17 100%); }
+      /* margin offsets, never transform — GSAP drives scale here from the audio */
+      #glow { position:absolute; left:50%; top:50%; width:1200px; height:1200px;
+        margin-left:-600px; margin-top:-600px; border-radius:50%;
+        background:radial-gradient(circle, rgba(24,172,253,0.5) 0%, rgba(17,216,254,0.14) 38%, rgba(2,13,23,0) 66%);
+        opacity:0.08; }
+      #vig { position:absolute; inset:0;
+        background:radial-gradient(100% 76% at 50% 48%, rgba(2,13,23,0) 38%, rgba(2,13,23,0.88) 100%); }
+
+      .clip { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:60px; }
+      .stack { display:flex; flex-direction:column; align-items:center; text-align:center; gap:26px; width:100%; }
+      .display { font-family:'Instrument Serif', serif; font-weight:400; letter-spacing:-0.012em; line-height:1.07; color:var(--ink); }
+      .mono { font-family:'JetBrains Mono', monospace; }
+      .l { display:block; }
+
+      .panel { border:1px solid var(--line); border-radius:18px; background:var(--surface);
+        box-shadow:0 26px 70px -28px rgba(0,0,0,0.85); overflow:hidden; }
+      .bar { display:flex; align-items:center; gap:8px; padding:13px 18px; border-bottom:1px solid var(--line); background:var(--raised); }
+      .dot { width:11px; height:11px; border-radius:50%; display:block; }
+      .dot.r{background:#ff5f57;} .dot.y{background:#febc2e;} .dot.g{background:#28c840;}
+      .bar-name { font-family:'JetBrains Mono', monospace; font-size:18px; color:var(--quiet); margin-left:10px; }
+
+      /* ── Q1 · the pain ─────────────────────────────────────────────── */
+      #q1 { padding:0; }
+      #q1-card { position:absolute; left:90px; right:90px; top:186px; }
+      .card-body { padding:24px 26px 28px; }
+      .card-head { font-family:'JetBrains Mono', monospace; font-size:21px; letter-spacing:0.16em;
+        text-transform:uppercase; color:var(--seal); margin-bottom:16px; }
+      .srow { display:flex; align-items:center; gap:13px; padding:12px 0; border-top:1px solid var(--line);
+        font-family:'JetBrains Mono', monospace; font-size:23px; color:var(--dim); }
+      .srow .pip { width:9px; height:9px; border-radius:50%; background:var(--pass); flex:none; }
+      .srow .when { margin-left:auto; color:var(--quiet); font-size:20px; }
+      .srow.warn, .srow.warn .when { color:var(--amber); }
+      .srow.warn .pip { background:var(--amber); }
+      #q1-btn { margin-top:22px; display:flex; align-items:center; justify-content:center; height:68px;
+        border-radius:12px; background:var(--seal); color:#031120;
+        font-family:'Manrope', sans-serif; font-weight:800; font-size:28px; }
+      #q1-toast { position:absolute; left:90px; right:90px; top:620px; display:flex; align-items:center;
+        justify-content:center; gap:12px; padding:17px 22px; border-radius:12px;
+        border:1px solid #1d6b4e; background:#07251a;
+        font-family:'JetBrains Mono', monospace; font-size:24px; color:var(--pass); opacity:0; }
+      #q1-cursor { position:absolute; left:50%; top:186px; margin-left:-18px; opacity:0; }
+      #q1-term { position:absolute; left:90px; right:90px; top:640px; opacity:0; }
+      .term-body { padding:22px 26px 26px; font-family:'JetBrains Mono', monospace; font-size:22px; line-height:1.6; color:var(--ink); text-align:left; }
+      .t-dim { color:var(--quiet); }
+      .t-cmd { color:#7bd3ff; word-break:break-all; }
+      #q1-status { font-family:'JetBrains Mono', monospace; font-weight:700; font-size:42px; color:var(--alarm); margin-top:10px; }
+      #q1-note { display:flex; align-items:center; gap:10px; margin-top:12px;
+        font-family:'JetBrains Mono', monospace; font-size:22px; color:var(--alarm); }
+
+      /* ── Q2 · agitate ──────────────────────────────────────────────── */
+      #q2-head { font-size:80px; }
+      #q2-sub { font-family:'JetBrains Mono', monospace; font-size:26px; color:var(--dim); line-height:1.55; }
+      #q2-pill { display:inline-flex; align-items:center; padding:14px 26px; border-radius:999px;
+        border:1px solid #6e2a28; background:#2a0f0e;
+        font-family:'JetBrains Mono', monospace; font-size:24px; color:var(--alarm); }
+
+      /* ── Q3 · the turn ─────────────────────────────────────────────── */
+      #q3-burst { position:absolute; left:50%; top:50%; width:900px; height:900px; margin-left:-450px; margin-top:-450px;
+        border-radius:50%; background:radial-gradient(circle, rgba(24,172,253,0.55) 0%, rgba(24,172,253,0) 62%); opacity:0; }
+      #q3-mark { display:block; width:540px; height:174px; border-radius:19px; }
+      #q3-head { font-size:76px; }
+      #q3-head em { font-style:normal; color:var(--seal); }
+      #q3-sub { font-family:'JetBrains Mono', monospace; font-size:24px; color:var(--dim); }
+      .jp { font-family:sans-serif; color:var(--seal); }
+
+      /* ── Q4 · the demo ─────────────────────────────────────────────── */
+      #q4 .stack { gap:20px; }
+      #q4-editor, #q4-log { width:100%; opacity:0; }
+      /* .stack centres text for the headline scenes; code must opt back out. */
+      .code { padding:22px 24px 24px; font-family:'JetBrains Mono', monospace; font-size:22px; line-height:1.72; text-align:left; }
+      .code .k{color:#7bd3ff;} .code .f{color:var(--seal);} .code .s{color:var(--pass);} .code .c{color:#8199ad;}
+      .cl { display:block; border-radius:6px; padding:1px 7px; margin-left:-7px; color:var(--ink); }
+      #q4-revoke { display:block; margin-top:12px; border-radius:8px; padding:10px; margin-left:-10px;
+        background:rgba(255,180,84,0.12); border-left:3px solid var(--amber); color:var(--ink); opacity:0; }
+      .log-body { padding:20px 24px 22px; text-align:left; }
+      .log-head { font-family:'JetBrains Mono', monospace; font-size:20px; letter-spacing:0.18em;
+        text-transform:uppercase; color:var(--seal); margin-bottom:12px; }
+      .lrow { display:flex; align-items:center; gap:14px; padding:12px 0; border-top:1px solid var(--line);
+        font-family:'JetBrains Mono', monospace; font-size:25px; color:var(--dim); }
+      .lrow .ok { margin-left:auto; color:var(--pass); font-weight:700; }
+      .lrow .no { margin-left:auto; color:var(--alarm); font-weight:700; font-size:46px; line-height:1; }
+      #q4-why { font-family:'JetBrains Mono', monospace; font-size:21px; color:var(--alarm); padding-top:8px; opacity:0; }
+      #q4-cap { opacity:0; }
+      #q4-cap .big { font-family:'Manrope', sans-serif; font-weight:800; font-size:34px; line-height:1.2; color:var(--ink); }
+      #q4-cap .cite { font-family:'JetBrains Mono', monospace; font-size:21px; color:var(--pass); margin-top:8px; }
+      #q4-cap .cite span { color:var(--quiet); }
+
+      /* ── Q5 · proof + offer ────────────────────────────────────────── */
+      #q5 .stack { gap:22px; }
+      #q5-count { font-family:'JetBrains Mono', monospace; font-weight:700; font-size:124px; line-height:1; color:var(--ink); }
+      #q5-sub { font-family:'JetBrains Mono', monospace; font-size:23px; color:var(--dim); }
+      #q5-install { display:inline-flex; align-items:center; gap:14px; padding:20px 34px; border-radius:14px;
+        border:1px solid var(--line-hot); background:var(--surface);
+        font-family:'JetBrains Mono', monospace; font-weight:700; font-size:36px; color:var(--ink); }
+      #q5-install .p { color:var(--seal); }
+      #q5-mark { display:block; width:300px; height:97px; border-radius:11px; }
+      #q5-line { font-size:54px; }
+      #q5-links { font-family:'JetBrains Mono', monospace; font-size:20px; color:var(--quiet); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20.19"
+         data-width="1080" data-height="1080" data-fps="30">
+      <div id="bg"></div>
+      <div id="glow"></div>
+      <div id="vig"></div>
+
+      <!-- ════ Q1 · 0 → 5.34 — THE PAIN ═══════════════════════════════ -->
+      <section id="q1" class="clip" data-start="0" data-duration="5.34" data-track-index="0">
+        <div id="q1-card" class="panel">
+          <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">yourapp.com/settings</span></div>
+          <div class="card-body">
+            <p class="card-head">Active sessions &middot; 3</p>
+            <div class="srow" id="q1-r1"><i class="pip"></i>MacBook Pro<span class="when">this device</span></div>
+            <div class="srow" id="q1-r2"><i class="pip"></i>iPhone 15<span class="when">2h ago</span></div>
+            <div class="srow warn" id="q1-r3"><i class="pip"></i>Unknown &middot; Warsaw<span class="when">4m ago</span></div>
+            <div id="q1-btn">Sign out everywhere</div>
+          </div>
+        </div>
+
+        <div id="q1-toast">
+          <svg width="24" height="24" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Signed out of all devices
+        </div>
+
+        <svg id="q1-cursor" width="34" height="45" viewBox="0 0 24 32" aria-hidden="true">
+          <path d="M3 2l17 12.5-7.4 1.4 4.2 8.3-3.6 1.8-4.2-8.4L3 23.4z" fill="#ffffff" stroke="#031120" stroke-width="1.4" stroke-linejoin="round"/>
+        </svg>
+
+        <div id="q1-term" class="panel">
+          <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">attacker@vps &middot; 4 minutes later</span></div>
+          <div class="term-body">
+            <span class="t-dim">$</span> <span class="t-cmd" id="q1-curl"></span>
+            <div id="q1-status">200 OK</div>
+            <div id="q1-note">
+              <svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><path d="M11 3.5l8 14.5H3z" fill="none" stroke="#ff6b63" stroke-width="2" stroke-linejoin="round"/><path d="M11 9v4.2" stroke="#ff6b63" stroke-width="2" stroke-linecap="round"/></svg>
+              the token you just revoked
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ Q2 · 5.34 → 8.74 — AGITATE ═════════════════════════════ -->
+      <section id="q2" class="clip" data-start="5.34" data-duration="3.4" data-track-index="1">
+        <div class="stack">
+          <p id="q2-head" class="display"><span class="l">Your logout button</span><span class="l">is lying to you.</span></p>
+          <p id="q2-sub" class="mono"><span class="l">A token nothing reads at verify time</span><span class="l">is valid until it expires.</span></p>
+          <p><span id="q2-pill" class="mono">live for another 6d 23h 58m</span></p>
+        </div>
+      </section>
+
+      <!-- ════ Q3 · 8.74 → 10.93 — THE TURN ═══════════════════════════ -->
+      <section id="q3" class="clip" data-start="8.74" data-duration="2.19" data-track-index="2">
+        <div id="q3-burst"></div>
+        <div class="stack">
+          <img id="q3-mark" src="assets/brand/lockup.png" alt="Ninsho" />
+          <h1 id="q3-head" class="display"><span class="l">Auth that <em>proves</em></span><span class="l">it works.</span></h1>
+          <p id="q3-sub" class="mono"><span class="jp">&#35469;&#35388;</span> &middot; the store is read every request</p>
+        </div>
+      </section>
+
+      <!-- ════ Q4 · 10.93 → 16.93 — THE DEMO ══════════════════════════ -->
+      <section id="q4" class="clip" data-start="10.93" data-duration="6.0" data-track-index="3">
+        <div class="stack">
+          <div id="q4-editor" class="panel">
+            <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">server.ts</span></div>
+            <div class="code">
+              <span class="cl" id="q4-l1"><span class="k">const</span> auth = <span class="k">new</span> <span class="f">Ninsho</span>({ store });</span>
+              <span class="cl" id="q4-l2">app.<span class="f">get</span>(<span class="s">'/me'</span>, auth.<span class="f">verify</span>(), handler);</span>
+              <span id="q4-revoke"><span class="k">await</span> auth.<span class="f">revokeAllForUser</span>(id);</span>
+            </div>
+          </div>
+
+          <div id="q4-log" class="panel">
+            <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">live requests</span></div>
+            <div class="log-body">
+              <p class="log-head">Same token, both times</p>
+              <div class="lrow" id="q4-q1">GET /me<span class="ok">200</span></div>
+              <div class="lrow" id="q4-q2">GET /me<span class="no">401</span></div>
+              <p id="q4-why">&#8593; revoked &middot; refused on the next request</p>
+            </div>
+          </div>
+
+          <div id="q4-cap">
+            <p class="big">Revocation lands on the next request.</p>
+            <p class="cite">against real Redis <span>&middot; session.test.ts</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ Q5 · 16.93 → 20.19 — PROOF + OFFER ═════════════════════ -->
+      <section id="q5" class="clip" data-start="16.93" data-duration="3.26" data-track-index="4">
+        <div class="stack">
+          <p id="q5-count">0</p>
+          <p id="q5-sub" class="mono">tests against real Redis &middot; MIT</p>
+          <p><span id="q5-install"><span class="p">$</span> npm i @ninshorg/server</span></p>
+          <img id="q5-mark" src="assets/brand/lockup-end.png" alt="Ninsho" />
+          <p id="q5-line" class="display">Don't take the claims. Run them.</p>
+          <p id="q5-links" class="mono">github.com/NinshoORG/ninsho</p>
+        </div>
+      </section>
+
+      <!-- ════ AUDIO ══════════════════════════════════════════════════ -->
+      <audio id="bed" src="assets/music/bed.mp3" data-start="0" data-duration="20.19" data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.30},{"t":2.60,"v":0.34},{"t":4.30,"v":0.44},{"t":5.34,"v":0.36},{"t":8.60,"v":0.54},{"t":8.74,"v":0.98},{"t":10.93,"v":0.94},{"t":15.70,"v":0.94},{"t":15.84,"v":1.0},{"t":16.93,"v":0.92},{"t":18.80,"v":0.58},{"t":20.19,"v":0}]}]}'></audio>
+
+      <audio id="x-click" src="assets/sfx/click_003.ogg" data-start="1.64" data-duration="0.01" data-volume="0.7" data-track-index="11"></audio>
+      <audio id="x-toast" src="assets/sfx/drop_001.ogg" data-start="2.19" data-duration="0.11" data-volume="0.55" data-track-index="11"></audio>
+      <audio id="x-swap" src="assets/sfx/card-slide-1.ogg" data-start="2.73" data-duration="0.60" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="x-t1" src="assets/sfx/keypress-004.wav" data-start="3.34" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-t2" src="assets/sfx/keypress-009.wav" data-start="3.58" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-t3" src="assets/sfx/keypress-014.wav" data-start="3.82" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-200" src="assets/sfx/impactMetal_medium_001.ogg" data-start="4.39" data-duration="0.14" data-volume="0.85" data-track-index="11"></audio>
+      <audio id="x-line" src="assets/sfx/impactSoft_heavy_002.ogg" data-start="5.34" data-duration="0.57" data-volume="0.8" data-track-index="11"></audio>
+      <audio id="x-kick" src="assets/sfx/impactSoft_heavy_000.ogg" data-start="8.74" data-duration="0.50" data-volume="0.95" data-track-index="11"></audio>
+      <audio id="x-ed" src="assets/sfx/card-slide-1.ogg" data-start="10.93" data-duration="0.60" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-c1" src="assets/sfx/click2.ogg" data-start="12.02" data-duration="0.06" data-volume="0.4" data-track-index="12"></audio>
+      <audio id="x-lg" src="assets/sfx/card-slide-1.ogg" data-start="13.11" data-duration="0.60" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-rev" src="assets/sfx/impactSoft_medium_004.ogg" data-start="14.73" data-duration="0.15" data-volume="0.62" data-track-index="11"></audio>
+      <audio id="x-401" src="assets/sfx/impactSoft_heavy_002.ogg" data-start="15.84" data-duration="0.57" data-volume="0.95" data-track-index="12"></audio>
+      <audio id="x-cnt" src="assets/sfx/bong_001.ogg" data-start="17.47" data-duration="0.12" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="x-end" src="assets/sfx/impactSoft_heavy_004.ogg" data-start="18.02" data-duration="0.50" data-volume="0.72" data-track-index="11"></audio>
+    </div>
+
+    <script>
+      /* ═══════════════════════════════════════════════════════════════
+         Ninsho — 20.19s square ad. 1080x1080 @ 30fps.
+
+         Built for the feed, where autoplay is MUTED: the argument has to
+         land with the sound off, so every beat is carried by a visual —
+         the click, the toast, the 200, the 401. Audio is a bonus layer,
+         never the carrier. Within the 15-25s creative law.
+         ═══════════════════════════════════════════════════════════════ */
+      const tl = gsap.timeline({ paused: true });
+      const E = 'power3.out';
+
+      /* ── Q1 · the pain ─────────────────────────────────────────────── */
+      tl.fromTo('#q1-card', { opacity: 0, y: 160, scale: 0.97 }, { opacity: 1, y: 143, scale: 1, duration: 0.5, ease: E }, 0.22);
+      tl.fromTo(['#q1-r1', '#q1-r2', '#q1-r3'], { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.3, ease: E, stagger: 0.14 }, 0.56);
+      tl.fromTo('#q1-cursor', { opacity: 0, x: 140, y: 300 }, { opacity: 1, x: 10, y: 355, duration: 0.55, ease: 'power2.inOut' }, 1.05);
+      tl.to('#q1-btn', { scale: 0.96, duration: 0.09, ease: 'power2.in' }, 1.64);
+      tl.to('#q1-btn', { scale: 1, duration: 0.18, ease: 'power2.out' }, 1.73);
+      tl.to('#q1-cursor', { opacity: 0, duration: 0.2 }, 1.9);
+      tl.fromTo('#q1-toast', { opacity: 0, y: 126 }, { opacity: 1, y: 143, duration: 0.3, ease: E }, 2.19);
+
+      // beat-grid 2.73 — the card lifts and the contradiction arrives beneath it.
+      tl.to('#q1-card', { y: 0, duration: 0.5, ease: 'power2.inOut' }, 2.73);
+      tl.to('#q1-toast', { opacity: 0, y: 110, duration: 0.34, ease: 'power2.in' }, 2.73);
+      tl.fromTo('#q1-term', { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.46, ease: E }, 2.9);
+
+      const CURL = 'curl -H "Authorization: Bearer eyJhb..." /api/me';
+      const curlEl = document.getElementById('q1-curl');
+      const curlT = { i: 0 };
+      tl.set('#q1-status', { opacity: 0 }, 0);
+      tl.set('#q1-note', { opacity: 0 }, 0);
+      tl.to(curlT, { i: CURL.length, duration: 0.78, ease: 'none',
+        onUpdate: function () { curlEl.textContent = CURL.slice(0, Math.round(curlT.i)); } }, 3.34);
+      // beat-grid 4.39 — the gut punch, carried entirely by the visual.
+      tl.fromTo('#q1-status', { opacity: 0, scale: 1.2 }, { opacity: 1, scale: 1, duration: 0.26, ease: 'power4.out' }, 4.39);
+      tl.to('#q1-note', { opacity: 1, duration: 0.26 }, 4.7);
+
+      /* ── Q2 · agitate ──────────────────────────────────────────────── */
+      tl.fromTo('#q2-head', { opacity: 0, y: 34, scale: 1.05 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: 'power4.out' }, 5.34);
+      tl.fromTo('#q2-sub', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, ease: E }, 6.56);
+      tl.fromTo('#q2-pill', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.34, ease: E }, 7.64);
+
+      /* ── Q3 · the turn ─────────────────────────────────────────────── */
+      // beat-locked: 8.74 strong cue — the track's hardest hit (measured bass 0.92).
+      tl.fromTo('#q3-burst', { opacity: 0, scale: 0.5 }, { opacity: 0.9, scale: 1.1, duration: 0.42, ease: E }, 8.74);
+      tl.to('#q3-burst', { opacity: 0, duration: 0.7, ease: 'power2.out' }, 9.2);
+      tl.fromTo('#q3-mark', { opacity: 0, scale: 1.22 }, { opacity: 1, scale: 1, duration: 0.44, ease: 'power4.out' }, 8.74);
+      tl.fromTo('#q3-head', { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.44, ease: E }, 9.29);
+      tl.fromTo('#q3-sub', { opacity: 0 }, { opacity: 1, duration: 0.36 }, 9.83);
+
+      /* ── Q4 · the demo ─────────────────────────────────────────────── */
+      // beat-locked: 10.93 strong cue
+      tl.fromTo('#q4-editor', { opacity: 0, y: -50 }, { opacity: 1, y: 0, duration: 0.44, ease: E }, 10.93);
+      tl.fromTo('#q4-l1', { backgroundColor: 'rgba(24,172,253,0)' }, { backgroundColor: 'rgba(24,172,253,0.16)', duration: 0.26 }, 12.02);
+      tl.fromTo('#q4-l2', { backgroundColor: 'rgba(24,172,253,0)' }, { backgroundColor: 'rgba(24,172,253,0.16)', duration: 0.26 }, 12.55);
+      // beat-locked: 13.11 strong cue
+      tl.fromTo('#q4-log', { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.44, ease: E }, 13.11);
+      tl.set('#q4-q1', { opacity: 0 }, 0);
+      tl.set('#q4-q2', { opacity: 0 }, 0);
+      tl.to('#q4-q1', { opacity: 1, duration: 0.28 }, 13.9);
+      tl.fromTo('#q4-revoke', { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.3, ease: E }, 14.73);
+      // beat-locked: 15.84 strong cue — same token, now refused.
+      tl.fromTo('#q4-q2', { opacity: 0, scale: 1.12 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power4.out' }, 15.84);
+      tl.to('#q4-why', { opacity: 1, duration: 0.26 }, 16.1);
+      tl.fromTo('#q4-cap', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.3, ease: E }, 16.3);
+
+      /* ── Q5 · proof + offer ────────────────────────────────────────── */
+      const counter = { v: 0 };
+      const countEl = document.getElementById('q5-count');
+      tl.fromTo('#q5-count', { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.26, ease: E }, 16.93);
+      tl.to(counter, { v: 2056, duration: 0.78, ease: 'power2.out',
+        onUpdate: function () { countEl.textContent = Math.round(counter.v).toLocaleString('en-US'); } }, 16.97);
+      tl.fromTo('#q5-sub', { opacity: 0 }, { opacity: 1, duration: 0.26 }, 17.47);
+      // beat-locked: 18.02 — the CTA.
+      tl.fromTo('#q5-install', { opacity: 0, scale: 1.1 }, { opacity: 1, scale: 1, duration: 0.34, ease: 'power4.out' }, 18.02);
+      tl.fromTo('#q5-mark', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.3, ease: E }, 18.45);
+      tl.fromTo('#q5-line', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.36, ease: E }, 18.8);
+      tl.fromTo('#q5-links', { opacity: 0 }, { opacity: 1, duration: 0.28 }, 19.25);
+
+      /* ── Audio-reactive: measured bass breathes the ambient glow ───── */
+      const AD = window.AUDIO_DATA;
+      const FRAMES = Math.min(AD.totalFrames, Math.ceil(20.19 * AD.fps));
+      for (let f = 0; f < FRAMES; f += 1) {
+        tl.set('#glow', { opacity: 0.06 + AD.bass[f] * 0.28, scale: 1 + AD.bass[f] * 0.09 }, f / AD.fps);
+      }
+
+      window.__timelines['main'] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

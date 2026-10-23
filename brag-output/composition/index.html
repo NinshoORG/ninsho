@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Ninsho — launch</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/music/bed.audio-data.js"></script>
+    <style>
+      /* ── Fonts: shipped locally, no network request at render time ────── */
+      @font-face {
+        font-family: 'Instrument Serif';
+        src: url('assets/fonts/InstrumentSerif-400.ttf') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: block;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono';
+        src: url('assets/fonts/JetBrainsMono-400.ttf') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: block;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono';
+        src: url('assets/fonts/JetBrainsMono-700.ttf') format('truetype');
+        font-weight: 700;
+        font-style: normal;
+        font-display: block;
+      }
+      @font-face {
+        font-family: 'Manrope';
+        src: url('assets/fonts/Manrope-400.ttf') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: block;
+      }
+      @font-face {
+        font-family: 'Manrope';
+        src: url('assets/fonts/Manrope-800.ttf') format('truetype');
+        font-weight: 800;
+        font-style: normal;
+        font-display: block;
+      }
+
+      /* ── Tokens, lifted from the product site's dark theme ────────────── */
+      :root {
+        --void: #020d17;
+        --ground: #041526;
+        --surface: #0a2032;
+        --line: #17334a;
+        --ink: #f2f7fb;
+        --dim: #9fb3c6;
+        --faint: #6b8298;
+        --seal: #18acfd;
+        --cyan: #11d8fe;
+        --pass: #3ddc97;
+        --alarm: #ff5f57;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--void);
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--void);
+        color: var(--ink);
+        font-family: 'Manrope', sans-serif;
+      }
+
+      /* ── Persistent ambient layers (untimed → own positioning) ────────── */
+      #bg {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(120% 90% at 50% 38%, #072033 0%, #031222 55%, #020d17 100%);
+      }
+      /* Offsets via margin, never transform — a CSS transform here would
+         collide with the GSAP scale driven by the audio data. */
+      #glow {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 1500px;
+        height: 1500px;
+        margin-left: -750px;
+        margin-top: -750px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(24, 172, 253, 0.5) 0%, rgba(17, 216, 254, 0.14) 38%, rgba(2, 13, 23, 0) 66%);
+        opacity: 0.1;
+      }
+      #vig {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(110% 80% at 50% 45%, rgba(2, 13, 23, 0) 40%, rgba(2, 13, 23, 0.82) 100%);
+      }
+
+      /* ── Scene shell ──────────────────────────────────────────────────── */
+      .clip {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 120px;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 34px;
+        width: 100%;
+      }
+
+      /* ── Type ─────────────────────────────────────────────────────────── */
+      .display {
+        font-family: 'Instrument Serif', serif;
+        font-weight: 400;
+        letter-spacing: -0.012em;
+        line-height: 1.08;
+        color: var(--ink);
+      }
+      .eyebrow {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 24px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .cite {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 26px;
+        color: var(--pass);
+        letter-spacing: 0.01em;
+      }
+      .cite span {
+        color: var(--faint);
+      }
+
+      /* ── Scene 1 — the discredited claims ─────────────────────────────── */
+      .claims {
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+        align-items: center;
+      }
+      .claim {
+        position: relative;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 60px;
+        color: var(--faint);
+        padding: 0 10px;
+      }
+      .strike {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 52%;
+        height: 5px;
+        background: var(--alarm);
+        transform-origin: left center;
+        border-radius: 3px;
+      }
+      .verdict {
+        font-family: 'Manrope', sans-serif;
+        font-weight: 800;
+        font-size: 104px;
+        letter-spacing: 0.16em;
+        color: var(--alarm);
+      }
+
+      /* ── Scene 2 — the answer ─────────────────────────────────────────── */
+      /* The brand PNG ships as a rounded dark card on a white matte. It is
+         cropped to the card's exact bounds (725x234 at 15,15) and re-rounded
+         here, so no white shows and the wordmark stays white — a colour key
+         would have taken the wordmark out with the background. */
+      #s2-mark {
+        display: block;
+        width: 560px;
+        height: 181px;
+        border-radius: 20px;
+      }
+      #s2-head {
+        font-size: 116px;
+      }
+      #s2-head em {
+        font-style: normal;
+        color: var(--seal);
+      }
+      .sub {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 28px;
+        color: var(--dim);
+        letter-spacing: 0.06em;
+      }
+      .jp {
+        font-family: sans-serif;
+        color: var(--seal);
+      }
+
+      /* ── Scene 3 — the rule ───────────────────────────────────────────── */
+      .rule-line {
+        font-size: 92px;
+      }
+      #s3-hair {
+        width: 720px;
+        height: 2px;
+        background: var(--line);
+        transform-origin: left center;
+      }
+
+      /* ── Scene 4 — six attacks, six receipts ──────────────────────────── */
+      #s4 {
+        align-items: flex-start;
+        padding: 118px 125px 0;
+      }
+      #s4-wash {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(80% 60% at 50% 55%, rgba(24, 172, 253, 0.16) 0%, rgba(2, 13, 23, 0) 70%);
+        opacity: 0;
+      }
+      .s4-inner {
+        position: relative;
+        width: 100%;
+      }
+      .s4-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 34px;
+      }
+      .label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 24px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--seal);
+      }
+      .label.dim {
+        color: var(--faint);
+        letter-spacing: 0.1em;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 26px;
+      }
+      .card {
+        position: relative;
+        min-height: 252px;
+        padding: 30px 30px 28px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: linear-gradient(180deg, #0b2437 0%, #081c2c 100%);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .card h3 {
+        font-family: 'Manrope', sans-serif;
+        font-weight: 800;
+        font-size: 31px;
+        line-height: 1.16;
+        letter-spacing: -0.01em;
+        color: var(--ink);
+      }
+      .verdict-line {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 20px;
+        color: var(--pass);
+        margin-top: auto;
+      }
+      .verdict-line svg {
+        display: block;
+        flex: none;
+      }
+      /* Not --faint. On the lighter card ground the site's faint tone lands at
+         4.26:1, under AA — and the filename is the one thing in this video that
+         must be readable, since it is the whole claim. Lifted until it passes. */
+      .file {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 20px;
+        color: #8fa6bc;
+      }
+
+      /* ── Scene 5 — the number ─────────────────────────────────────────── */
+      .count {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
+        font-size: 210px;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        color: var(--ink);
+      }
+      .count-label {
+        font-family: 'Manrope', sans-serif;
+        font-weight: 400;
+        font-size: 38px;
+        color: var(--dim);
+      }
+      .stats {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 25px;
+        color: var(--faint);
+      }
+      .stats .sep {
+        color: var(--seal);
+      }
+
+      /* ── Scene 6 — run them ───────────────────────────────────────────── */
+      #s6 {
+        padding: 0;
+      }
+      #s6-term {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 1020px;
+        margin-left: -510px;
+        margin-top: -118px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+        overflow: hidden;
+        box-shadow: 0 30px 90px -30px rgba(0, 0, 0, 0.8);
+      }
+      .term-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--line);
+      }
+      .dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        display: block;
+      }
+      .dot.r {
+        background: #ff5f57;
+      }
+      .dot.y {
+        background: #febc2e;
+      }
+      .dot.g {
+        background: #28c840;
+      }
+      .term-name {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 19px;
+        color: var(--faint);
+        margin-left: 12px;
+      }
+      .term-body {
+        display: flex;
+        align-items: center;
+        padding: 40px 32px 44px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 40px;
+        color: var(--ink);
+        white-space: pre;
+      }
+      .cursor {
+        display: inline-block;
+        width: 18px;
+        height: 42px;
+        background: var(--seal);
+        margin-left: 6px;
+      }
+      #s6-end {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 36px;
+        opacity: 0;
+      }
+      #s6-mark {
+        display: block;
+        width: 400px;
+        height: 129px;
+        border-radius: 14px;
+      }
+      #s6-line {
+        font-size: 96px;
+      }
+      .foot {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 24px;
+        color: var(--faint);
+        letter-spacing: 0.04em;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="23.5"
+      data-width="1920"
+      data-height="1080"
+      data-fps="30"
+    >
+      <div id="bg"></div>
+      <div id="glow"></div>
+      <div id="vig"></div>
+
+      <!-- ── Scene 1 — the library this one replaces ──────────────────── -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.82" data-track-index="0">
+        <div class="stack">
+          <p id="s1-eyebrow" class="eyebrow">The library this one replaces said:</p>
+          <div class="claims">
+            <p class="claim" id="c1">"instant revocation"<span class="strike" id="k-1"></span></p>
+            <p class="claim" id="c2">"all attacks blocked"<span class="strike" id="k-2"></span></p>
+            <p class="claim" id="c3">"110 tests passing"<span class="strike" id="k-3"></span></p>
+          </div>
+          <p id="s1-verdict" class="verdict">UNVERIFIED</p>
+        </div>
+      </section>
+
+      <!-- ── Scene 2 — the answer ─────────────────────────────────────── -->
+      <section id="s2" class="clip" data-start="3.82" data-duration="3.27" data-track-index="1">
+        <div class="stack">
+          <img id="s2-mark" src="assets/brand/lockup.png" alt="Ninsho" />
+          <h1 id="s2-head" class="display">Auth that <em>proves</em> it works.</h1>
+          <p id="s2-sub" class="sub"><span class="jp">認証</span> · authentication engine for Node.js</p>
+        </div>
+      </section>
+
+      <!-- ── Scene 3 — the rule the project runs on ───────────────────── -->
+      <section id="s3" class="clip" data-start="7.09" data-duration="3.84" data-track-index="2">
+        <div class="stack">
+          <p id="s3-l1" class="display rule-line">A security claim must name</p>
+          <p id="s3-l2" class="display rule-line">the test that demonstrates it.</p>
+          <div id="s3-hair"></div>
+          <p id="s3-cite" class="cite">enforced in review <span>· CONTRIBUTING.md</span></p>
+        </div>
+      </section>
+
+      <!-- ── Scene 4 — six attacks, six receipts ──────────────────────── -->
+      <section id="s4" class="clip" data-start="10.93" data-duration="6.54" data-track-index="3">
+        <div id="s4-wash"></div>
+        <div class="s4-inner">
+          <div class="s4-head">
+            <span id="s4-label" class="label">What it stops</span>
+            <span id="s4-count" class="label dim">6 attacks · 6 test files</span>
+          </div>
+          <div id="s4-grid" class="grid">
+            <article class="card" id="card1">
+              <h3>Token theft, replayed</h3>
+              <p class="verdict-line" id="v1">
+                <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                entire family revoked
+              </p>
+              <p class="file" id="f1">session.test.ts</p>
+            </article>
+            <article class="card" id="card2">
+              <h3>Access token copied out</h3>
+              <p class="verdict-line" id="v2">
+                <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                inert without the key
+              </p>
+              <p class="file" id="f2">dpop-integration.test.ts</p>
+            </article>
+            <article class="card" id="card3">
+              <h3>One account, thousands of hosts</h3>
+              <p class="verdict-line" id="v3">
+                <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                per-account bucket
+              </p>
+              <p class="file" id="f3">ratelimit.test.ts</p>
+            </article>
+            <article class="card" id="card4">
+              <h3>Password reset, used twice</h3>
+              <p class="verdict-line" id="v4">
+                <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                atomic single use
+              </p>
+              <p class="file" id="f4">ott-race-probe.test.ts</p>
+            </article>
+            <article class="card" id="card5">
+              <h3>Reading someone else's orders</h3>
+              <p class="verdict-line" id="v5">
+                <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                ownership refused
+              </p>
+              <p class="file" id="f5">middleware.test.ts</p>
+            </article>
+            <article class="card" id="card6">
+              <h3>Redis goes down mid-attack</h3>
+              <p class="verdict-line" id="v6">
+                <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                fails closed, 503
+              </p>
+              <p class="file" id="f6">store-invariants.test.ts</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Scene 5 — the number ─────────────────────────────────────── -->
+      <section id="s5" class="clip" data-start="17.47" data-duration="2.73" data-track-index="4">
+        <div class="stack">
+          <p id="s5-count" class="count">0</p>
+          <p id="s5-label" class="count-label">tests, against real Redis</p>
+          <div id="s5-stats" class="stats">
+            <span>4 packages</span><span class="sep">·</span>
+            <span>0 runtime dependencies in 3 of 4</span><span class="sep">·</span>
+            <span>7/7 WebAuthn attestation formats</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Scene 6 — run them ───────────────────────────────────────── -->
+      <section id="s6" class="clip" data-start="20.2" data-duration="3.3" data-track-index="5">
+        <div id="s6-term">
+          <div class="term-bar">
+            <i class="dot r"></i><i class="dot y"></i><i class="dot g"></i>
+            <span class="term-name">install</span>
+          </div>
+          <pre class="term-body"><span id="s6-cmd"></span><span id="s6-cursor" class="cursor"></span></pre>
+        </div>
+        <div id="s6-end">
+          <img id="s6-mark" src="assets/brand/lockup-end.png" alt="Ninsho" />
+          <p id="s6-line" class="display">Don't take the claims. Run them.</p>
+          <p id="s6-foot" class="foot">github.com/NinshoORG/ninsho · MIT · npm i @ninshorg/server</p>
+        </div>
+      </section>
+
+      <!-- ── Audio ────────────────────────────────────────────────────────
+           Music bed carries a volume automation lane: quiet under the hook,
+           lift at the logo, full through the attack grid, ducked for the
+           counter, faded to silence so the closing line reads almost dry. -->
+      <audio
+        id="bed"
+        src="assets/music/bed.mp3"
+        data-start="0"
+        data-duration="23.5"
+        data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.22},{"t":2.6,"v":0.34},{"t":3.82,"v":0.86},{"t":7.09,"v":0.68},{"t":10.6,"v":0.68},{"t":10.93,"v":0.96},{"t":17.2,"v":0.96},{"t":17.7,"v":0.52},{"t":19.1,"v":0.78},{"t":20.2,"v":0.66},{"t":22.0,"v":0.26},{"t":23.5,"v":0}]}]}'
+      ></audio>
+
+      <audio id="sfx-c1" src="assets/sfx/click2.ogg" data-start="0.56" data-duration="0.06" data-volume="0.34" data-track-index="11"></audio>
+      <audio id="sfx-c2" src="assets/sfx/click2.ogg" data-start="0.82" data-duration="0.06" data-volume="0.34" data-track-index="11"></audio>
+      <audio id="sfx-c3" src="assets/sfx/click2.ogg" data-start="1.09" data-duration="0.06" data-volume="0.34" data-track-index="11"></audio>
+      <audio id="sfx-strike" src="assets/sfx/impactSoft_heavy_002.ogg" data-start="2.73" data-duration="0.57" data-volume="0.92" data-track-index="11"></audio>
+      <audio id="sfx-logo" src="assets/sfx/impactSoft_heavy_000.ogg" data-start="3.82" data-duration="0.51" data-volume="0.86" data-track-index="11"></audio>
+      <audio id="sfx-rule" src="assets/sfx/impactSoft_medium_001.ogg" data-start="9.83" data-duration="0.18" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="sfx-k1" src="assets/sfx/impactSoft_medium_001.ogg" data-start="11.46" data-duration="0.18" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="sfx-k2" src="assets/sfx/impactSoft_medium_001.ogg" data-start="13.08" data-duration="0.18" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="sfx-k3" src="assets/sfx/impactSoft_medium_001.ogg" data-start="14.73" data-duration="0.18" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="sfx-grid" src="assets/sfx/impactSoft_medium_004.ogg" data-start="15.84" data-duration="0.15" data-volume="0.62" data-track-index="11"></audio>
+      <audio id="sfx-count" src="assets/sfx/bong_001.ogg" data-start="18.56" data-duration="0.12" data-volume="0.46" data-track-index="11"></audio>
+      <audio id="sfx-end" src="assets/sfx/impactSoft_heavy_004.ogg" data-start="21.50" data-duration="0.50" data-volume="0.6" data-track-index="11"></audio>
+
+      <audio id="sfx-t1" src="assets/sfx/keypress-004.wav" data-start="20.36" data-duration="0.14" data-volume="0.3" data-track-index="12"></audio>
+      <audio id="sfx-t2" src="assets/sfx/keypress-009.wav" data-start="20.58" data-duration="0.14" data-volume="0.3" data-track-index="12"></audio>
+      <audio id="sfx-t3" src="assets/sfx/keypress-014.wav" data-start="20.80" data-duration="0.14" data-volume="0.3" data-track-index="12"></audio>
+      <audio id="sfx-t4" src="assets/sfx/keypress-004.wav" data-start="21.02" data-duration="0.14" data-volume="0.3" data-track-index="12"></audio>
+      <audio id="sfx-t5" src="assets/sfx/keypress-009.wav" data-start="21.24" data-duration="0.14" data-volume="0.3" data-track-index="12"></audio>
+    </div>
+
+    <script>
+      /* ═════════════════════════════════════════════════════════════════
+         Ninsho launch film — 23.5s @ 30fps.
+
+         Beat grid from assets/music/bed.cues.json (109.96 BPM, 0.546s).
+         Three strong-cue locks, marked inline. Sequential attack cards sit
+         on every third beat, not every beat, because each one carries a
+         filename the viewer has to read.
+         ═════════════════════════════════════════════════════════════════ */
+      const tl = gsap.timeline({ paused: true });
+
+      /* ── Scene 1 · 0.00–3.82 — the discredited claims ─────────────── */
+      tl.fromTo('#s1-eyebrow', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out' }, 0.22);
+
+      // beat-grid: claim 1 at 0.56s, claim 2 at 0.82s, claim 3 at 1.09s.
+      // A fast stagger — the three read as one block, then hold 1.6s.
+      tl.fromTo('#c1', { opacity: 0, x: -26 }, { opacity: 1, x: 0, duration: 0.34, ease: 'power3.out' }, 0.56);
+      tl.fromTo('#c2', { opacity: 0, x: -26 }, { opacity: 1, x: 0, duration: 0.34, ease: 'power3.out' }, 0.82);
+      tl.fromTo('#c3', { opacity: 0, x: -26 }, { opacity: 1, x: 0, duration: 0.34, ease: 'power3.out' }, 1.09);
+
+      // The verdict. All three struck at once — one event, not three.
+      tl.fromTo('.strike', { scaleX: 0 }, { scaleX: 1, duration: 0.26, ease: 'power4.in' }, 2.73);
+      tl.to(['#c1', '#c2', '#c3'], { opacity: 0.32, duration: 0.3, ease: 'power2.out' }, 2.82);
+      // Transform + opacity only. A letter-spacing settle would read well but
+      // reflows text, and reflow snaps to device pixels under the seek-by-frame
+      // capture engine — the tail would stutter. The spacing is held static.
+      tl.fromTo(
+        '#s1-verdict',
+        { opacity: 0, scale: 1.16, y: 10 },
+        { opacity: 1, scale: 1, y: 0, duration: 0.38, ease: 'power4.out' },
+        2.8,
+      );
+
+      /* ── Scene 2 · 3.82–7.09 — the answer ─────────────────────────── */
+      // beat-locked: 3.82s (strong beat). The mark lands on the hit.
+      tl.fromTo('#s2-mark', { opacity: 0, scale: 0.9, y: 18 }, { opacity: 1, scale: 1, y: 0, duration: 0.6, ease: 'power4.out' }, 3.82);
+      tl.fromTo('#s2-head', { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out' }, 4.24);
+      tl.fromTo('#s2-sub', { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out' }, 4.9);
+
+      /* ── Scene 3 · 7.09–10.93 — the rule ──────────────────────────── */
+      tl.fromTo('#s3-l1', { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.52, ease: 'power3.out' }, 7.14);
+      tl.fromTo('#s3-l2', { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.52, ease: 'power3.out' }, 7.32);
+      // The rule draws, then the citation stamps. The order is the point:
+      // claim first, evidence second — the video obeys its own thesis.
+      tl.fromTo('#s3-hair', { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.34, ease: 'power2.inOut' }, 9.49);
+      tl.fromTo('#s3-cite', { opacity: 0, y: 12, scale: 1.05 }, { opacity: 1, y: 0, scale: 1, duration: 0.26, ease: 'power4.out' }, 9.83);
+
+      /* ── Scene 4 · 10.93–17.47 — six attacks, six receipts ────────── */
+      // beat-locked: 10.93s — strong cue. The exhibit reel opens here.
+      tl.fromTo('#s4-label', { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.34, ease: 'power3.out' }, 10.93);
+      tl.fromTo('#s4-count', { opacity: 0 }, { opacity: 1, duration: 0.34, ease: 'power2.out' }, 11.05);
+
+      // beat-grid: cards on every third beat — 10.93 / 12.55 / 14.20.
+      // Each card arrives, then its citation stamps 0.53s later. The stamp
+      // is the sound; the arrival is silent. The evidence is the event.
+      const LEAD = [
+        { card: '#card1', line: '#v1', file: '#f1', at: 10.93 },
+        { card: '#card2', line: '#v2', file: '#f2', at: 12.55 },
+        { card: '#card3', line: '#v3', file: '#f3', at: 14.2 },
+      ];
+      LEAD.forEach(function (c) {
+        tl.fromTo(c.card, { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.42, ease: 'power3.out' }, c.at);
+        tl.fromTo(c.line, { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.24, ease: 'power4.out' }, c.at + 0.53);
+        tl.fromTo(c.file, { opacity: 0 }, { opacity: 1, duration: 0.24, ease: 'power2.out' }, c.at + 0.62);
+      });
+
+      // beat-locked: 15.84s — strong cue. The remaining three complete the
+      // grid in one beat, and all six pass marks hold together.
+      const REST = ['#card4', '#card5', '#card6'];
+      tl.fromTo(REST, { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.34, ease: 'power3.out', stagger: 0.06 }, 15.84);
+      tl.fromTo(['#v4', '#v5', '#v6'], { opacity: 0 }, { opacity: 1, duration: 0.26, ease: 'power2.out', stagger: 0.06 }, 16.0);
+      tl.fromTo(['#f4', '#f5', '#f6'], { opacity: 0 }, { opacity: 1, duration: 0.26, ease: 'power2.out', stagger: 0.06 }, 16.08);
+
+      /* ── Scene 5 · 17.47–20.20 — the number ───────────────────────── */
+      // beat-locked: 17.47s — strong cue.
+      const counter = { v: 0 };
+      const countEl = document.getElementById('s5-count');
+      tl.fromTo('#s5-count', { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power3.out' }, 17.47);
+      tl.to(
+        counter,
+        {
+          v: 2056,
+          duration: 1.06,
+          ease: 'power2.out',
+          onUpdate: function () {
+            countEl.textContent = Math.round(counter.v).toLocaleString('en-US');
+          },
+        },
+        17.5,
+      );
+      tl.fromTo('#s5-label', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }, 17.9);
+      tl.fromTo('#s5-stats', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34, ease: 'power3.out' }, 18.56);
+
+      /* ── Scene 6 · 20.20–23.50 — run them ─────────────────────────── */
+      const CMD = '$ npm i @ninshorg/server';
+      const typed = { i: 0 };
+      const cmdEl = document.getElementById('s6-cmd');
+      tl.fromTo('#s6-term', { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power3.out' }, 20.22);
+      tl.to(
+        typed,
+        {
+          i: CMD.length,
+          duration: 1.0,
+          ease: 'none',
+          onUpdate: function () {
+            cmdEl.textContent = CMD.slice(0, Math.round(typed.i));
+          },
+        },
+        20.34,
+      );
+      // Finite repeat — an infinite one is banned by the determinism rules.
+      tl.to('#s6-cursor', { opacity: 0.15, duration: 0.26, ease: 'none', repeat: 5, yoyo: true }, 20.34);
+
+      tl.to('#s6-term', { opacity: 0, y: -22, duration: 0.34, ease: 'power2.in' }, 21.32);
+      tl.fromTo('#s6-end', { opacity: 0 }, { opacity: 1, duration: 0.34, ease: 'power2.out' }, 21.5);
+      tl.fromTo('#s6-mark', { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.42, ease: 'power4.out' }, 21.5);
+      tl.fromTo('#s6-line', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.46, ease: 'power3.out' }, 21.66);
+      tl.fromTo('#s6-foot', { opacity: 0 }, { opacity: 1, duration: 0.36, ease: 'power2.out' }, 22.0);
+
+      /* ── Audio-reactive layer ─────────────────────────────────────────
+         Real per-frame band energy extracted from the bed with ffmpeg
+         (assets/music/bed.audio-data.js). Bass breathes the ambient seal
+         glow; mid lifts the attack grid's presence. Authored as zero-length
+         `set`s rather than `call`s so the values are applied on a seek, not
+         only on playback — the renderer seeks every frame.
+
+         Deliberately subtle, and deliberately attached to elements that
+         already exist for a reason. No bars, no meters, no strobing. */
+      const AD = window.AUDIO_DATA;
+      const FRAMES = Math.min(AD.totalFrames, Math.ceil(23.5 * AD.fps));
+      for (let f = 0; f < FRAMES; f += 1) {
+        const t = f / AD.fps;
+        const bass = AD.bass[f];
+        const mid = AD.mid[f];
+        tl.set('#glow', { opacity: 0.08 + bass * 0.26, scale: 1 + bass * 0.09 }, t);
+        tl.set('#s4-wash', { opacity: mid * 0.9 }, t);
+      }
+
+      window.__timelines['main'] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

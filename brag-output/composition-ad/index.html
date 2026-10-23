@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Ninsho — sales ad</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/music/bed.audio-data.js"></script>
+    <style>
+      @font-face { font-family:'Instrument Serif'; src:url('assets/fonts/InstrumentSerif-400.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:block; }
+      @font-face { font-family:'JetBrains Mono'; src:url('assets/fonts/JetBrainsMono-400.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:block; }
+      @font-face { font-family:'JetBrains Mono'; src:url('assets/fonts/JetBrainsMono-700.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:block; }
+      @font-face { font-family:'Manrope'; src:url('assets/fonts/Manrope-400.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:block; }
+      @font-face { font-family:'Manrope'; src:url('assets/fonts/Manrope-800.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:block; }
+
+      :root {
+        --void:#020d17; --ground:#041526; --surface:#0a2032; --raised:#0f2b40;
+        --line:#17334a; --line-hot:#24485f;
+        --ink:#f2f7fb; --dim:#a8bccd; --quiet:#8fa6bc;
+        --seal:#18acfd; --cyan:#11d8fe; --pass:#3ddc97;
+        --alarm:#ff6b63; --amber:#ffb454;
+      }
+      * { margin:0; padding:0; box-sizing:border-box; }
+      html, body { width:1920px; height:1080px; overflow:hidden; background:var(--void); }
+      #root {
+        position:relative; width:100%; height:100%; overflow:hidden;
+        background:var(--void); color:var(--ink); font-family:'Manrope', sans-serif;
+      }
+
+      /* ── Ambient layers (untimed → own positioning) ─────────────────── */
+      #bg { position:absolute; inset:0;
+        background:radial-gradient(125% 95% at 50% 40%, #07243a 0%, #03111f 55%, #020d17 100%); }
+      /* margin offsets, never transform — GSAP drives scale here from the audio */
+      #glow { position:absolute; left:50%; top:50%; width:1600px; height:1600px;
+        margin-left:-800px; margin-top:-800px; border-radius:50%;
+        background:radial-gradient(circle, rgba(24,172,253,0.52) 0%, rgba(17,216,254,0.15) 38%, rgba(2,13,23,0) 66%);
+        opacity:0.08; }
+      #vig { position:absolute; inset:0;
+        background:radial-gradient(112% 82% at 50% 46%, rgba(2,13,23,0) 38%, rgba(2,13,23,0.86) 100%); }
+
+      .clip { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:0 110px; }
+      .stack { display:flex; flex-direction:column; align-items:center; text-align:center; gap:30px; width:100%; }
+      .display { font-family:'Instrument Serif', serif; font-weight:400; letter-spacing:-0.012em; line-height:1.08; color:var(--ink); }
+      .mono { font-family:'JetBrains Mono', monospace; }
+
+      /* ── Shared panel chrome ────────────────────────────────────────── */
+      .panel { border:1px solid var(--line); border-radius:18px; background:var(--surface);
+        box-shadow:0 34px 90px -34px rgba(0,0,0,0.85); overflow:hidden; }
+      .bar { display:flex; align-items:center; gap:9px; padding:15px 20px; border-bottom:1px solid var(--line); background:var(--raised); }
+      .dot { width:12px; height:12px; border-radius:50%; display:block; }
+      .dot.r{background:#ff5f57;} .dot.y{background:#febc2e;} .dot.g{background:#28c840;}
+      .bar-name { font-family:'JetBrains Mono', monospace; font-size:19px; color:var(--quiet); margin-left:12px; }
+
+      /* ── Scene 1 — the pain ─────────────────────────────────────────── */
+      #s1 { padding:0; }
+      #s1-card { position:absolute; left:50%; top:50%; width:840px; margin-left:-420px; margin-top:-232px; }
+      .card-body { padding:34px 38px 38px; }
+      .card-head { font-family:'JetBrains Mono', monospace; font-size:22px; letter-spacing:0.18em;
+        text-transform:uppercase; color:var(--seal); margin-bottom:26px; }
+      .srow { display:flex; align-items:center; gap:16px; padding:15px 0; border-top:1px solid var(--line);
+        font-family:'JetBrains Mono', monospace; font-size:25px; color:var(--dim); }
+      .srow .pip { width:10px; height:10px; border-radius:50%; background:var(--pass); flex:none; }
+      .srow .when { margin-left:auto; color:var(--quiet); font-size:22px; }
+      .srow.warn { color:var(--amber); }
+      .srow.warn .pip { background:var(--amber); }
+      .srow.warn .when { color:var(--amber); }
+      #s1-btn { margin-top:30px; display:flex; align-items:center; justify-content:center;
+        height:74px; border-radius:12px; background:var(--seal); color:#031120;
+        font-family:'Manrope', sans-serif; font-weight:800; font-size:29px; letter-spacing:0.01em; }
+      #s1-toast { position:absolute; left:50%; top:50%; width:560px; margin-left:-280px; margin-top:258px;
+        display:flex; align-items:center; gap:14px; padding:20px 26px; border-radius:12px;
+        border:1px solid #1d6b4e; background:#07251a;
+        font-family:'JetBrains Mono', monospace; font-size:25px; color:var(--pass); opacity:0; }
+      #s1-cursor { position:absolute; left:50%; top:50%; margin-left:-40px; margin-top:0; opacity:0; }
+      #s1-term { position:absolute; left:50%; top:50%; width:960px; margin-left:-480px; margin-top:-210px; opacity:0; }
+      .term-body { padding:30px 32px 34px; font-family:'JetBrains Mono', monospace; font-size:25px; line-height:1.66; color:var(--ink); }
+      .t-dim { color:var(--quiet); }
+      .t-cmd { color:var(--cyan); }
+      #s1-status { font-family:'JetBrains Mono', monospace; font-weight:700; font-size:46px; color:var(--alarm); margin-top:12px; }
+      #s1-note { display:flex; align-items:center; gap:12px; margin-top:16px;
+        font-family:'JetBrains Mono', monospace; font-size:24px; color:var(--alarm); }
+
+      /* ── Scene 2 — the line ─────────────────────────────────────────── */
+      #s2-head { font-size:110px; }
+      #s2-sub { font-family:'JetBrains Mono', monospace; font-size:31px; color:var(--dim); line-height:1.5; }
+      .l { display:block; }
+      .ev .fn { color:var(--pass); }
+      #s2-pill { display:inline-flex; align-items:center; gap:14px; padding:16px 30px; border-radius:999px;
+        border:1px solid #6e2a28; background:#2a0f0e;
+        font-family:'JetBrains Mono', monospace; font-size:30px; color:var(--alarm); }
+
+      /* ── Scene 3 — the turn ─────────────────────────────────────────── */
+      #s3-burst { position:absolute; left:50%; top:50%; width:1200px; height:1200px; margin-left:-600px; margin-top:-600px;
+        border-radius:50%; background:radial-gradient(circle, rgba(24,172,253,0.55) 0%, rgba(24,172,253,0) 62%); opacity:0; }
+      #s3-mark { display:block; width:560px; height:181px; border-radius:20px; }
+      #s3-head { font-size:118px; }
+      #s3-head em { font-style:normal; color:var(--seal); }
+      #s3-sub { font-family:'JetBrains Mono', monospace; font-size:29px; color:var(--dim); letter-spacing:0.05em; }
+      .jp { font-family:sans-serif; color:var(--seal); }
+
+      /* ── Scene 4 — the demo ─────────────────────────────────────────── */
+      #s4 { padding:0; }
+      #s4-editor { position:absolute; left:104px; top:50%; width:980px; margin-top:-212px; opacity:0; }
+      .code { padding:30px 32px 34px; font-family:'JetBrains Mono', monospace; font-size:26px; line-height:1.72; }
+      .code .k { color:#7bd3ff; } .code .f { color:var(--seal); } .code .s { color:var(--pass); } .code .c { color:#7f97ab; }
+      .cl { display:block; border-radius:6px; padding:1px 8px; margin-left:-8px; color:var(--ink); }
+      #s4-revoke { display:block; margin-top:18px; border-radius:8px; padding:12px 12px; margin-left:-12px;
+        background:rgba(255,180,84,0.12); border-left:3px solid var(--amber); color:var(--ink); opacity:0; }
+      #s4-log { position:absolute; right:104px; top:50%; width:660px; margin-top:-212px; opacity:0; }
+      .log-body { padding:28px 28px 32px; }
+      .log-head { font-family:'JetBrains Mono', monospace; font-size:21px; letter-spacing:0.2em;
+        text-transform:uppercase; color:var(--seal); margin-bottom:22px; }
+      .lrow { display:flex; align-items:baseline; gap:18px; padding:18px 0; border-top:1px solid var(--line);
+        font-family:'JetBrains Mono', monospace; font-size:27px; color:var(--dim); }
+      .lrow .code-ok { margin-left:auto; color:var(--pass); font-weight:700; }
+      .lrow .code-no { margin-left:auto; color:var(--alarm); font-weight:700; font-size:46px; line-height:1; }
+      #s4-why { font-family:'JetBrains Mono', monospace; font-size:23px; color:var(--alarm); padding-top:10px; }
+      #s4-caption { position:absolute; left:0; right:0; bottom:168px; display:flex; flex-direction:column;
+        align-items:center; gap:12px; opacity:0; }
+      #s4-caption .big { font-family:'Manrope', sans-serif; font-weight:800; font-size:42px; color:var(--ink); }
+      #s4-caption .cite { font-family:'JetBrains Mono', monospace; font-size:24px; color:var(--pass); }
+      #s4-caption .cite span { color:var(--quiet); }
+
+      /* ── Scene 5 — the stack ────────────────────────────────────────── */
+      #s5 { padding:0 150px; }
+      #s5-list { display:flex; flex-direction:column; gap:22px; width:100%; }
+      .frow { display:flex; align-items:center; gap:26px; padding:26px 32px; border:1px solid var(--line);
+        border-radius:16px; background:linear-gradient(90deg, #0c2639 0%, #081d2d 100%); opacity:0; }
+      .frow .tick { width:38px; height:38px; flex:none; opacity:0; }
+      .frow .txt { font-family:'Manrope', sans-serif; font-weight:800; font-size:43px; letter-spacing:-0.01em; color:var(--ink); }
+      .frow .ev { margin-left:auto; font-family:'JetBrains Mono', monospace; font-size:24px; color:var(--quiet); text-align:right; }
+      #s5-label { font-family:'JetBrains Mono', monospace; font-size:23px; letter-spacing:0.22em;
+        text-transform:uppercase; color:var(--seal); margin-bottom:8px; opacity:0; }
+
+      /* ── Scene 6 — proof ────────────────────────────────────────────── */
+      #s6-count { font-family:'JetBrains Mono', monospace; font-weight:700; font-size:212px; line-height:1;
+        letter-spacing:-0.02em; color:var(--ink); }
+      #s6-sub { font-family:'JetBrains Mono', monospace; font-size:28px; color:var(--dim); }
+      #s6-line { font-size:62px; }
+
+      /* ── Scene 7 — the offer ────────────────────────────────────────── */
+      #s7-install { display:inline-flex; align-items:center; gap:20px; padding:26px 52px; border-radius:16px;
+        border:1px solid var(--line-hot); background:var(--surface);
+        font-family:'JetBrains Mono', monospace; font-weight:700; font-size:56px; color:var(--ink); }
+      #s7-install .p { color:var(--seal); }
+      #s7-mark { display:block; width:360px; height:116px; border-radius:13px; }
+      #s7-line { font-size:76px; }
+      #s7-links { font-family:'JetBrains Mono', monospace; font-size:25px; color:var(--quiet); letter-spacing:0.04em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="30.56"
+         data-width="1920" data-height="1080" data-fps="30">
+      <div id="bg"></div>
+      <div id="glow"></div>
+      <div id="vig"></div>
+
+      <!-- ════ S1 · 0 → 5.34 — THE PAIN ═══════════════════════════════ -->
+      <section id="s1" class="clip" data-start="0" data-duration="5.34" data-track-index="0">
+        <div id="s1-card" class="panel">
+          <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">yourapp.com/settings/security</span></div>
+          <div class="card-body">
+            <p class="card-head">Active sessions &middot; 3</p>
+            <div class="srow" id="s1-r1"><i class="pip"></i>MacBook Pro &middot; Chrome<span class="when">this device</span></div>
+            <div class="srow" id="s1-r2"><i class="pip"></i>iPhone 15 &middot; Safari<span class="when">2h ago</span></div>
+            <div class="srow warn" id="s1-r3"><i class="pip"></i>Unknown device &middot; Warsaw<span class="when">4m ago</span></div>
+            <div id="s1-btn">Sign out everywhere</div>
+          </div>
+        </div>
+
+        <div id="s1-toast">
+          <svg width="26" height="26" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Signed out of all devices
+        </div>
+
+        <svg id="s1-cursor" width="34" height="46" viewBox="0 0 24 32" aria-hidden="true">
+          <path d="M3 2l17 12.5-7.4 1.4 4.2 8.3-3.6 1.8-4.2-8.4L3 23.4z" fill="#ffffff" stroke="#031120" stroke-width="1.4" stroke-linejoin="round"/>
+        </svg>
+
+        <div id="s1-term" class="panel">
+          <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">attacker@vps &middot; 4 minutes later</span></div>
+          <div class="term-body">
+            <span class="t-dim">$</span> <span class="t-cmd" id="s1-curl"></span>
+            <div id="s1-status">HTTP/1.1 200 OK</div>
+            <div class="t-dim" id="s1-payload">{"userId":"u_8812","roles":["admin"],"tenant":"acme"}</div>
+            <div id="s1-note">
+              <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M11 3.5l8 14.5H3z" fill="none" stroke="#ff6b63" stroke-width="2" stroke-linejoin="round"/><path d="M11 9v4.2" stroke="#ff6b63" stroke-width="2" stroke-linecap="round"/></svg>
+              the token you just revoked &middot; still accepted
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ S2 · 5.34 → 8.74 — THE AGITATION ═══════════════════════ -->
+      <section id="s2" class="clip" data-start="5.34" data-duration="3.4" data-track-index="1">
+        <div class="stack">
+          <p id="s2-head" class="display">Your logout button is lying to you.</p>
+          <p id="s2-sub" class="mono"><span class="l">A self-contained token that nothing reads</span><span class="l">is valid until it expires.</span></p>
+          <p><span id="s2-pill" class="mono">&#9888;&#65038; this session stays live for another 6d 23h 58m</span></p>
+        </div>
+      </section>
+
+      <!-- ════ S3 · 8.74 → 11.46 — THE TURN ══════════════════════════ -->
+      <section id="s3" class="clip" data-start="8.74" data-duration="2.72" data-track-index="2">
+        <div id="s3-burst"></div>
+        <div class="stack">
+          <img id="s3-mark" src="assets/brand/lockup.png" alt="Ninsho" />
+          <h1 id="s3-head" class="display">Auth that <em>proves</em> it works.</h1>
+          <p id="s3-sub" class="mono"><span class="jp">&#35469;&#35388;</span> &middot; the store is read on every single request</p>
+        </div>
+      </section>
+
+      <!-- ════ S4 · 11.46 → 18.56 — THE DEMO ═════════════════════════ -->
+      <section id="s4" class="clip" data-start="11.46" data-duration="7.1" data-track-index="3">
+        <div id="s4-editor" class="panel">
+          <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">server.ts</span></div>
+          <div class="code">
+            <span class="cl" id="s4-l1"><span class="k">const</span> auth = <span class="k">new</span> <span class="f">Ninsho</span>({ store: <span class="k">new</span> <span class="f">RedisStore</span>(url) });</span>
+            <span class="cl" id="s4-l2">app.<span class="f">get</span>(<span class="s">'/me'</span>, auth.<span class="f">verify</span>(), handler);</span>
+            <span class="cl"><span class="c">// no keys to generate. no algorithm to choose.</span></span>
+            <span id="s4-revoke"><span class="k">await</span> auth.<span class="f">revokeAllForUser</span>(userId);</span>
+          </div>
+        </div>
+
+        <div id="s4-log" class="panel">
+          <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="bar-name">live requests</span></div>
+          <div class="log-body">
+            <p class="log-head">Same token, both times</p>
+            <div class="lrow" id="s4-req1">GET /me<span class="code-ok">200</span></div>
+            <div class="lrow" id="s4-req2">GET /me<span class="code-no">401</span></div>
+            <p id="s4-why">&#8593; revoked &middot; refused on the next request</p>
+          </div>
+        </div>
+
+        <div id="s4-caption">
+          <p class="big">Revocation lands on the next request. Not the next expiry.</p>
+          <p class="cite">verified against real Redis <span>&middot; session.test.ts</span></p>
+        </div>
+      </section>
+
+      <!-- ════ S5 · 18.56 → 24.56 — THE STACK ════════════════════════ -->
+      <section id="s5" class="clip" data-start="18.56" data-duration="6.0" data-track-index="4">
+        <div id="s5-list">
+          <p id="s5-label">And it ships with</p>
+          <div class="frow" id="s5-f1">
+            <svg class="tick" id="s5-t1" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="txt">A stolen token is inert</span>
+            <span class="ev"><span class="l">proof-of-possession &middot; RFC 9449</span><span class="l fn">dpop-integration.test.ts</span></span>
+          </div>
+          <div class="frow" id="s5-f2">
+            <svg class="tick" id="s5-t2" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="txt">Passkeys, all seven formats</span>
+            <span class="ev"><span class="l">WebAuthn L3 attestation</span><span class="l fn">attestation.test.ts</span></span>
+          </div>
+          <div class="frow" id="s5-f3">
+            <svg class="tick" id="s5-t3" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="txt">Six authorization guards</span>
+            <span class="ev"><span class="l">closes OWASP API #1</span><span class="l fn">middleware.test.ts</span></span>
+          </div>
+          <div class="frow" id="s5-f4">
+            <svg class="tick" id="s5-t4" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 11.5l4.6 4.6L18 6.7" fill="none" stroke="#3DDC97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="txt">Express, Fastify, Hono, Koa</span>
+            <span class="ev"><span class="l">zero framework dependencies</span><span class="l fn">fastify.test.ts</span></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ S6 · 24.56 → 27.30 — THE PROOF ════════════════════════ -->
+      <section id="s6" class="clip" data-start="24.56" data-duration="2.74" data-track-index="5">
+        <div class="stack">
+          <p id="s6-count">0</p>
+          <p id="s6-sub" class="mono">tests against real Redis &middot; 0 runtime dependencies in 3 of 4 packages &middot; MIT</p>
+          <p id="s6-line" class="display">Every claim in this ad names its test.</p>
+        </div>
+      </section>
+
+      <!-- ════ S7 · 27.30 → 30.56 — THE OFFER ════════════════════════ -->
+      <section id="s7" class="clip" data-start="27.3" data-duration="3.26" data-track-index="6">
+        <div class="stack">
+          <img id="s7-mark" src="assets/brand/lockup-end.png" alt="Ninsho" />
+          <p><span id="s7-install"><span class="p">$</span> npm i @ninshorg/server</span></p>
+          <p id="s7-line" class="display">Don't take the claims. Run them.</p>
+          <p id="s7-links" class="mono">github.com/NinshoORG/ninsho &middot; npmjs.com/package/@ninshorg/server &middot; MIT</p>
+        </div>
+      </section>
+
+      <!-- ════ AUDIO ══════════════════════════════════════════════════
+           Volume lane follows the ad arc: restrained under the problem,
+           hard lift at the turn (8.74), full through demo and stack,
+           ducked for the counter, then out under the closing line. -->
+      <audio id="bed" src="assets/music/bed.mp3" data-start="0" data-duration="30.56" data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.30},{"t":2.60,"v":0.34},{"t":4.30,"v":0.44},{"t":5.34,"v":0.36},{"t":8.60,"v":0.54},{"t":8.74,"v":0.98},{"t":11.46,"v":0.92},{"t":15.70,"v":0.92},{"t":15.84,"v":1.0},{"t":18.56,"v":1.0},{"t":24.40,"v":1.0},{"t":24.56,"v":0.70},{"t":26.10,"v":0.90},{"t":27.30,"v":0.96},{"t":29.20,"v":0.55},{"t":30.56,"v":0}]}]}'></audio>
+
+      <!-- S1 -->
+      <audio id="x-click" src="assets/sfx/click_003.ogg" data-start="1.64" data-duration="0.01" data-volume="0.7" data-track-index="11"></audio>
+      <audio id="x-toast" src="assets/sfx/drop_001.ogg" data-start="2.19" data-duration="0.11" data-volume="0.55" data-track-index="11"></audio>
+      <audio id="x-swap" src="assets/sfx/card-slide-1.ogg" data-start="2.73" data-duration="0.60" data-volume="0.5" data-track-index="11"></audio>
+      <audio id="x-t1" src="assets/sfx/keypress-004.wav" data-start="3.34" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-t2" src="assets/sfx/keypress-009.wav" data-start="3.56" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-t3" src="assets/sfx/keypress-014.wav" data-start="3.78" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-t4" src="assets/sfx/keypress-004.wav" data-start="4.00" data-duration="0.14" data-volume="0.26" data-track-index="12"></audio>
+      <audio id="x-200" src="assets/sfx/impactMetal_medium_001.ogg" data-start="4.39" data-duration="0.14" data-volume="0.85" data-track-index="11"></audio>
+      <!-- S2 -->
+      <audio id="x-line" src="assets/sfx/impactSoft_heavy_002.ogg" data-start="5.34" data-duration="0.57" data-volume="0.8" data-track-index="11"></audio>
+      <!-- S3 · the kick -->
+      <audio id="x-kick" src="assets/sfx/impactSoft_heavy_000.ogg" data-start="8.74" data-duration="0.50" data-volume="0.95" data-track-index="11"></audio>
+      <!-- S4 -->
+      <audio id="x-ed" src="assets/sfx/card-slide-1.ogg" data-start="11.46" data-duration="0.60" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-c1" src="assets/sfx/click2.ogg" data-start="12.55" data-duration="0.06" data-volume="0.4" data-track-index="12"></audio>
+      <audio id="x-c2" src="assets/sfx/click2.ogg" data-start="13.11" data-duration="0.06" data-volume="0.4" data-track-index="12"></audio>
+      <audio id="x-lg" src="assets/sfx/card-slide-1.ogg" data-start="13.64" data-duration="0.60" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-rev" src="assets/sfx/impactSoft_medium_004.ogg" data-start="14.73" data-duration="0.15" data-volume="0.62" data-track-index="11"></audio>
+      <audio id="x-401" src="assets/sfx/impactSoft_heavy_002.ogg" data-start="15.84" data-duration="0.57" data-volume="0.95" data-track-index="12"></audio>
+      <audio id="x-cap" src="assets/sfx/impactSoft_medium_001.ogg" data-start="16.93" data-duration="0.18" data-volume="0.5" data-track-index="11"></audio>
+      <!-- S5 -->
+      <audio id="x-r1" src="assets/sfx/rollover2.ogg" data-start="18.56" data-duration="0.06" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-r2" src="assets/sfx/rollover2.ogg" data-start="19.66" data-duration="0.06" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-r3" src="assets/sfx/rollover2.ogg" data-start="20.75" data-duration="0.06" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-r4" src="assets/sfx/rollover2.ogg" data-start="21.84" data-duration="0.06" data-volume="0.42" data-track-index="11"></audio>
+      <audio id="x-s1" src="assets/sfx/impactSoft_medium_001.ogg" data-start="22.37" data-duration="0.18" data-volume="0.46" data-track-index="11"></audio>
+      <audio id="x-s2" src="assets/sfx/impactSoft_medium_001.ogg" data-start="22.93" data-duration="0.18" data-volume="0.46" data-track-index="11"></audio>
+      <!-- S6 -->
+      <audio id="x-cnt" src="assets/sfx/bong_001.ogg" data-start="25.65" data-duration="0.12" data-volume="0.5" data-track-index="11"></audio>
+      <!-- S7 -->
+      <audio id="x-end" src="assets/sfx/impactSoft_heavy_004.ogg" data-start="27.30" data-duration="0.50" data-volume="0.72" data-track-index="11"></audio>
+    </div>
+
+    <script>
+      /* ═══════════════════════════════════════════════════════════════════
+         Ninsho — 30.56s sales ad. 1920x1080 @ 30fps.
+
+         Structure is an ad, not a explainer:
+           pain (0) → agitate (5.34) → turn (8.74) → demo (11.46)
+           → stack (18.56) → proof (24.56) → offer (27.30)
+
+         Beat grid from assets/music/bed.cues.json — 109.96 BPM, 0.5457s.
+         Every scene boundary is on a beat. Strong-cue locks marked inline.
+         ═══════════════════════════════════════════════════════════════════ */
+      const tl = gsap.timeline({ paused: true });
+      const E = 'power3.out';
+
+      /* ── S1 · the pain ─────────────────────────────────────────────── */
+      tl.fromTo('#s1-card', { opacity: 0, y: 30, scale: 0.97 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: E }, 0.22);
+      // beat-grid: session rows at 0.56 / 0.70 / 0.84
+      tl.fromTo(['#s1-r1', '#s1-r2', '#s1-r3'], { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.3, ease: E, stagger: 0.14 }, 0.56);
+      // The cursor travels to the button, then the click punches it.
+      tl.fromTo('#s1-cursor', { opacity: 0, x: 210, y: 120 }, { opacity: 1, x: 40, y: 196, duration: 0.55, ease: 'power2.inOut' }, 1.05);
+      tl.to('#s1-btn', { scale: 0.965, duration: 0.09, ease: 'power2.in' }, 1.64);
+      tl.to('#s1-btn', { scale: 1, duration: 0.18, ease: 'power2.out' }, 1.73);
+      tl.to('#s1-cursor', { opacity: 0, duration: 0.2 }, 1.9);
+      tl.fromTo('#s1-toast', { opacity: 0, y: -18 }, { opacity: 1, y: 0, duration: 0.3, ease: E }, 2.19);
+
+      // beat-grid 2.73 — the swap. Settings slides out, the attacker slides in.
+      // This cut is the whole ad: what the user was told, versus what is true.
+      tl.to('#s1-card', { opacity: 0, x: -150, duration: 0.42, ease: 'power2.in' }, 2.73);
+      tl.to('#s1-toast', { opacity: 0, x: -150, duration: 0.42, ease: 'power2.in' }, 2.73);
+      tl.fromTo('#s1-term', { opacity: 0, x: 190 }, { opacity: 1, x: 0, duration: 0.46, ease: E }, 2.86);
+
+      const CURL = 'curl -H "Authorization: Bearer eyJhbGciOi..." /api/me';
+      const curlEl = document.getElementById('s1-curl');
+      const curlT = { i: 0 };
+      tl.set('#s1-status', { opacity: 0 }, 0);
+      tl.set('#s1-payload', { opacity: 0 }, 0);
+      tl.set('#s1-note', { opacity: 0 }, 0);
+      tl.to(curlT, {
+        i: CURL.length, duration: 0.82, ease: 'none',
+        onUpdate: function () { curlEl.textContent = CURL.slice(0, Math.round(curlT.i)); },
+      }, 3.34);
+      // beat-grid 4.39 — the gut punch. 200 OK on a token that was just revoked.
+      tl.fromTo('#s1-status', { opacity: 0, scale: 1.18 }, { opacity: 1, scale: 1, duration: 0.26, ease: 'power4.out' }, 4.39);
+      tl.to('#s1-payload', { opacity: 1, duration: 0.24 }, 4.58);
+      tl.to('#s1-note', { opacity: 1, duration: 0.26 }, 4.76);
+
+      /* ── S2 · agitate ──────────────────────────────────────────────── */
+      tl.fromTo('#s2-head', { opacity: 0, y: 34, scale: 1.04 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: 'power4.out' }, 5.34);
+      tl.fromTo('#s2-sub', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: E }, 6.56);
+      tl.fromTo('#s2-pill', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34, ease: E }, 7.64);
+
+      /* ── S3 · the turn ─────────────────────────────────────────────── */
+      // beat-locked: 8.74s strong cue — this is where the track kicks (bass 0.92)
+      // and where the ad turns from problem to product. Everything lands together.
+      tl.fromTo('#s3-burst', { opacity: 0, scale: 0.5 }, { opacity: 0.9, scale: 1.1, duration: 0.42, ease: 'power3.out' }, 8.74);
+      tl.to('#s3-burst', { opacity: 0, duration: 0.74, ease: 'power2.out' }, 9.16);
+      tl.fromTo('#s3-mark', { opacity: 0, scale: 1.22 }, { opacity: 1, scale: 1, duration: 0.44, ease: 'power4.out' }, 8.74);
+      // beat-locked: 9.29s strong cue
+      tl.fromTo('#s3-head', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.44, ease: E }, 9.29);
+      tl.fromTo('#s3-sub', { opacity: 0 }, { opacity: 1, duration: 0.38, ease: 'power2.out' }, 10.37);
+
+      /* ── S4 · the demo — the product actually working ──────────────── */
+      tl.fromTo('#s4-editor', { opacity: 0, x: -120 }, { opacity: 1, x: 0, duration: 0.46, ease: E }, 11.46);
+      // beat-grid: 12.55 / 13.11 strong cues — the two lines that are the whole setup
+      tl.fromTo('#s4-l1', { backgroundColor: 'rgba(24,172,253,0)' }, { backgroundColor: 'rgba(24,172,253,0.16)', duration: 0.26, ease: 'power2.out' }, 12.55);
+      tl.fromTo('#s4-l2', { backgroundColor: 'rgba(24,172,253,0)' }, { backgroundColor: 'rgba(24,172,253,0.16)', duration: 0.26, ease: 'power2.out' }, 13.11);
+      // beat-locked: 13.64 strong cue — the log panel arrives
+      tl.fromTo('#s4-log', { opacity: 0, x: 120 }, { opacity: 1, x: 0, duration: 0.46, ease: E }, 13.64);
+      tl.set('#s4-req1', { opacity: 0 }, 0);
+      tl.set('#s4-req2', { opacity: 0 }, 0);
+      tl.set('#s4-why', { opacity: 0 }, 0);
+      tl.to('#s4-req1', { opacity: 1, duration: 0.28, ease: 'power2.out' }, 14.2);
+      tl.fromTo('#s4-revoke', { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.3, ease: E }, 14.73);
+      // beat-locked: 15.84 strong cue — the payoff. Same token, now refused.
+      tl.fromTo('#s4-req2', { opacity: 0, scale: 1.1 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power4.out' }, 15.84);
+      tl.to('#s4-why', { opacity: 1, duration: 0.26, ease: 'power2.out' }, 16.38);
+      tl.fromTo('#s4-caption', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.32, ease: E }, 16.93);
+
+      /* ── S5 · the stack ────────────────────────────────────────────── */
+      tl.fromTo('#s5-label', { opacity: 0 }, { opacity: 1, duration: 0.26 }, 18.56);
+      // beat-grid: rows every other beat (1.09s) — they accumulate and stay on
+      // screen, so each line has 3-6s of settled read time even at this pace.
+      const ROWS = [['#s5-f1', 18.56], ['#s5-f2', 19.66], ['#s5-f3', 20.75], ['#s5-f4', 21.84]];
+      ROWS.forEach(function (r) {
+        tl.fromTo(r[0], { opacity: 0, x: 70 }, { opacity: 1, x: 0, duration: 0.38, ease: E }, r[1]);
+      });
+      // The ticks cascade after all four have landed — the set is confirmed as a set.
+      const TICKS = [['#s5-t1', 22.37], ['#s5-t2', 22.65], ['#s5-t3', 22.93], ['#s5-t4', 23.21]];
+      TICKS.forEach(function (t) {
+        tl.fromTo(t[0], { opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1, duration: 0.24, ease: 'back.out(2.4)' }, t[1]);
+      });
+
+      /* ── S6 · proof ────────────────────────────────────────────────── */
+      // beat-locked: 24.56 strong cue
+      const counter = { v: 0 };
+      const countEl = document.getElementById('s6-count');
+      tl.fromTo('#s6-count', { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.28, ease: E }, 24.56);
+      tl.to(counter, {
+        v: 2056, duration: 0.95, ease: 'power2.out',
+        onUpdate: function () { countEl.textContent = Math.round(counter.v).toLocaleString('en-US'); },
+      }, 24.6);
+      tl.fromTo('#s6-sub', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.3, ease: E }, 25.65);
+      tl.fromTo('#s6-line', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.36, ease: E }, 26.2);
+
+      /* ── S7 · the offer ────────────────────────────────────────────── */
+      // beat-locked: 27.30 strong cue — the CTA lands on the hit.
+      tl.fromTo('#s7-mark', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.38, ease: 'power4.out' }, 27.3);
+      tl.fromTo('#s7-install', { opacity: 0, scale: 1.1 }, { opacity: 1, scale: 1, duration: 0.36, ease: 'power4.out' }, 27.52);
+      tl.fromTo('#s7-line', { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.42, ease: E }, 28.37);
+      tl.fromTo('#s7-links', { opacity: 0 }, { opacity: 1, duration: 0.34 }, 28.92);
+
+      /* ── Audio-reactive ────────────────────────────────────────────────
+         Real per-frame band energy extracted from the bed with ffmpeg.
+         Bass breathes the ambient glow. Authored as zero-length `set`s so the
+         values apply on a seek — the renderer seeks every frame, and callbacks
+         are not guaranteed to fire on seek. Subtle by design: no bars, no
+         meters, nothing that reads as "music visualiser". */
+      const AD = window.AUDIO_DATA;
+      const FRAMES = Math.min(AD.totalFrames, Math.ceil(30.56 * AD.fps));
+      for (let f = 0; f < FRAMES; f += 1) {
+        const bass = AD.bass[f];
+        tl.set('#glow', { opacity: 0.06 + bass * 0.3, scale: 1 + bass * 0.1 }, f / AD.fps);
+      }
+
+      window.__timelines['main'] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

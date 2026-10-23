@@ -11,10 +11,13 @@
       <div class="wrap">
         <h1>Ninsho <span class="dim">protocol explorer</span></h1>
         <p class="lede">
-          Every button below runs the <strong>real library</strong> — not a mock, not a
-          re-implementation. What you get back is the actual bytes on the wire, the actual keys
-          written to the store, and the actual audit events. Where a claim is made, the evidence
-          for it is on the screen next to it.
+          Every button runs the real Ninsho library on this server. You see the real tokens, what
+          gets written to the store, and what happens when someone attacks it.
+        </p>
+        <p class="howto">
+          <strong>How to use it:</strong> start with section 1, then go in any order. Green means
+          the library did the right thing. Red means an attack got through, which should never
+          happen.
         </p>
         <div class="actions">
           <button id="reset" class="ghost">Start over</button>
@@ -24,12 +27,24 @@
     </header>
 
     <main class="wrap">
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel">
-        <h2>1 · A session, end to end</h2>
+      <nav class="toc" aria-label="Sections">
+        <a href="#s1">1 Session</a>
+        <a href="#s2">2 Devices</a>
+        <a href="#s3">3 Permissions</a>
+        <a href="#s4">4 Attacks</a>
+        <a href="#s5">5 Rate limits</a>
+        <a href="#s6">6 Browser key</a>
+        <a href="#s7">7 Bytes</a>
+        <a href="#s8">8 Hardware</a>
+        <a href="#s9">9 Store</a>
+        <a href="#s10">10 Audit log</a>
+      </nav>
+
+      <section class="panel" id="s1">
+        <h2>1 · A session from start to finish</h2>
         <p class="explain">
-          Creating a session mints two credentials: a short-lived access token for requests, and a
-          refresh token that rotates. Watch what reaches the store.
+          Signing in gives two tokens: a short-lived one for requests, and a refresh token that is
+          replaced every time it is used. Click the buttons left to right.
         </p>
         <div class="row">
           <button data-post="/api/session/create" data-target="out-session">Create session</button>
@@ -39,239 +54,197 @@
         <div id="out-session" class="out"></div>
       </section>
 
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel">
-        <h2>2 · Devices, and signing them out</h2>
+      <section class="panel" id="s2">
+        <h2>2 · Signed-in devices</h2>
         <p class="explain">
-          The feature every account settings page has — <em>you are signed in on three devices,
-          sign the others out</em> — and the one a self-contained token cannot actually provide,
-          because nothing is consulted when it is presented. Ninsho consults the store on every
-          request. This is what that one read buys.
+          “You are signed in on three devices — sign the others out.” A self-contained token
+          cannot do this, because nothing is checked when it is used. Ninsho checks the store on
+          every request, so it can.
         </p>
         <div class="row">
-          <button data-post="/api/sessions/list" data-target="out-sessions">
-            List this user’s devices
-          </button>
-          <button data-post="/api/sessions/revoke-one" data-target="out-sessions">
-            Sign out one device
-          </button>
+          <button data-post="/api/sessions/list" data-target="out-sessions">List devices</button>
+          <button data-post="/api/sessions/revoke-one" data-target="out-sessions">Sign out one device</button>
           <button data-post="/api/sessions/revoke-all" data-target="out-sessions">
-            Change the password — sign out everywhere
+            Change password: sign out everywhere
           </button>
         </div>
         <div id="out-sessions" class="out"></div>
       </section>
 
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel">
-        <h2>3 · Authorization — who may do what</h2>
+      <section class="panel" id="s3">
+        <h2>3 · Permissions: who may do what</h2>
         <p class="explain">
-          Signing in answers <em>who is this</em>. Every button below answers the harder question:
-          <em>may they do this particular thing</em>. Each row runs a shipped guard behind the
-          shipped <code>verify()</code>, against a request carrying a token this server really
-          minted — nothing here hands the guard a made-up identity, because a demonstration that
-          invents the thing under test proves nothing.
+          Signing in says <em>who</em> you are. These checks decide what you may <em>do</em>. Each
+          one runs a real Ninsho guard on a real token. Every row says what should happen and what
+          did.
         </p>
         <div class="row">
           <button data-post="/api/authz/roles" data-target="out-authz">Roles</button>
           <button data-post="/api/authz/scopes" data-target="out-authz">Scopes</button>
-          <button data-post="/api/authz/ownership" data-target="out-authz">
-            Ownership — OWASP API #1
-          </button>
-          <button data-post="/api/authz/tenant" data-target="out-authz">Tenant isolation</button>
-          <button data-post="/api/authz/step-up" data-target="out-authz">
-            Step-up (waits ~1.3s)
-          </button>
+          <button data-post="/api/authz/ownership" data-target="out-authz">Owner only</button>
+          <button data-post="/api/authz/tenant" data-target="out-authz">Separate customers (tenants)</button>
+          <button data-post="/api/authz/step-up" data-target="out-authz">Recent sign-in (waits ~1.3s)</button>
         </div>
         <div id="out-authz" class="out"></div>
       </section>
 
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel danger">
+      <section class="panel" id="s4">
         <h2>4 · Attacks, and what stops them</h2>
-        <p class="explain">
-          The interesting part of an auth library is not that the happy path works. It is what
-          happens when someone attacks it. Each of these is a real attempt against the running
-          system.
-        </p>
+        <p class="explain">Each button is a real attack on the running system.</p>
 
         <div class="attack">
-          <h3>Replay a rotated refresh token</h3>
+          <h3>Reuse an old refresh token</h3>
           <p class="explain">
-            A thief steals a refresh token, the legitimate client rotates it, and the thief
-            presents the old one. Refresh at least once first, then run this.
+            A thief copies a refresh token; you use it first; the thief tries the old one.
+            Click “Refresh (rotate)” in section 1 first.
           </p>
           <button data-post="/api/attack/replay-refresh" data-target="out-replay" class="attack-btn">
-            Replay the stolen token
+            Try the old token
           </button>
           <div id="out-replay" class="out"></div>
         </div>
 
         <div class="attack">
-          <h3>Tamper with an access token</h3>
-          <p class="explain">Flip a single character and present it.</p>
+          <h3>Change one character of a token</h3>
+          <p class="explain">Edit the token slightly and send it.</p>
           <button data-post="/api/attack/tamper-token" data-target="out-tamper" class="attack-btn">
-            Flip one character
+            Send an edited token
           </button>
           <div id="out-tamper" class="out"></div>
         </div>
 
         <div class="attack">
           <h3>Use a password-reset link twice</h3>
-          <p class="explain">
-            A forwarded email, or a corporate mail scanner that pre-fetches links.
-          </p>
+          <p class="explain">For example a forwarded email, or a mail scanner that opens links.</p>
           <button data-post="/api/attack/replay-reset-link" data-target="out-reset" class="attack-btn">
-            Redeem the same link twice
+            Use the same link twice
           </button>
           <div id="out-reset" class="out"></div>
         </div>
 
         <div class="attack">
-          <h3>Race two reset requests</h3>
+          <h3>Ask for two reset links at the same moment</h3>
           <p class="explain">
-            Asking for a second reset email must invalidate the first — including when both
-            requests arrive at the same instant. This one found a real bug.
+            A new reset link must cancel the old one, even when both are requested at the same
+            instant. This test once found a real bug.
           </p>
           <button data-post="/api/attack/race-reset-links" data-target="out-race" class="attack-btn">
-            Issue two links simultaneously
+            Request two links at once
           </button>
           <div id="out-race" class="out"></div>
         </div>
       </section>
 
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel danger">
-        <h2>5 · Rate limiting, in two dimensions</h2>
+      <section class="panel" id="s5">
+        <h2>5 · Limiting password guesses</h2>
         <p class="explain">
-          A per-address limit alone does not stop credential stuffing: an attacker with a botnet
-          spreads attempts so no single address approaches it. A per-account limit alone punishes
-          shared offices, where one colleague&rsquo;s bad memory signs everyone out. Ninsho keeps
-          both buckets, separately, and each button below runs the real middleware against
-          synthesised requests.
+          Ninsho counts attempts per network address <em>and</em> per account. Per address alone,
+          an attacker spreads guesses over many machines. Per account alone, one person mistyping
+          locks out a whole office. These run the real limiter.
         </p>
         <div class="grid">
           <div>
-            <button data-post="/api/attack/credential-stuffing" data-target="out-ratelimit"
-              class="attack-btn">
-              Stuff one account from twelve addresses
+            <button data-post="/api/attack/credential-stuffing" data-target="out-ratelimit" class="attack-btn">
+              Guess one account from 12 addresses
             </button>
             <button data-post="/api/attack/nat-bystander" data-target="out-ratelimit">
-              Share one office address
+              Many people, one office address
             </button>
           </div>
           <div>
-            <button data-post="/api/attack/forged-forwarded-for" data-target="out-ratelimit"
-              class="attack-btn">
-              Forge X-Forwarded-For
+            <button data-post="/api/attack/forged-forwarded-for" data-target="out-ratelimit" class="attack-btn">
+              Fake the address header
             </button>
-            <button data-post="/api/attack/window-boundary" data-target="out-ratelimit"
-              class="attack-btn">
-              Burst across a window boundary
+            <button data-post="/api/attack/window-boundary" data-target="out-ratelimit" class="attack-btn">
+              Burst at the window edge
             </button>
           </div>
         </div>
         <div id="out-ratelimit" class="out"></div>
       </section>
 
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel live">
+      <section class="panel live" id="s6">
         <h2>6 · Your browser holds the key</h2>
         <p class="explain">
-          Everything above ran on the server. This section does not: the private key is generated
-          <em>in this page</em>, marked non-extractable, and never leaves it. What reaches the
-          server is a signature. It runs <code>@ninshorg/client</code> — the same bundle an
-          application would install, served straight from the package.
+          This section runs in <em>your</em> browser. A private key is made here, marked as
+          impossible to export, and never leaves this page. The server only ever sees signatures.
+          Click 1 to 6 in order.
         </p>
         <div class="row">
-          <button id="dpop-generate">1 · Generate a key here</button>
-          <button id="dpop-export" class="attack-btn">2 · Try to steal it</button>
-          <button id="dpop-bind">3 · Bind a session to it</button>
-          <button id="dpop-call">4 · Call with a proof</button>
-          <button id="dpop-replay" class="attack-btn">5 · Replay that proof</button>
-          <button id="dpop-steal" class="attack-btn">6 · Use the token alone</button>
+          <button id="dpop-generate">1 · Make a key</button>
+          <button id="dpop-export" class="attack-btn">2 · Try to copy it</button>
+          <button id="dpop-bind">3 · Tie a session to it</button>
+          <button id="dpop-call">4 · Call with a signature</button>
+          <button id="dpop-replay" class="attack-btn">5 · Reuse that signature</button>
+          <button id="dpop-steal" class="attack-btn">6 · Use the token without the key</button>
         </div>
         <div id="out-dpop" class="out"></div>
       </section>
 
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel">
-        <h2>7 · Anatomy — the actual bytes</h2>
+      <section class="panel" id="s7">
+        <h2>7 · What the bytes mean</h2>
         <p class="explain">
-          Each of these generates a genuine artefact with the shipped code, then annotates it byte
-          by byte: where each field sits, how wide it is, and why it is there. Nothing below is a
-          hand-written sample — a decoder shown bytes the library never produced would teach the
-          wrong thing.
+          Each button makes a real artefact with the library, then labels it field by field: what
+          it is, how big, and why it is there.
         </p>
         <div class="row">
-          <button data-post="/api/anatomy/webauthn" data-target="out-anatomy">
-            WebAuthn ceremony
-          </button>
+          <button data-post="/api/anatomy/webauthn" data-target="out-anatomy">Passkey sign-in</button>
           <button data-post="/api/anatomy/paseto" data-target="out-anatomy">PASETO token</button>
-          <button data-post="/api/anatomy/dpop" data-target="out-anatomy">DPoP proof</button>
+          <button data-post="/api/anatomy/dpop" data-target="out-anatomy">DPoP signature</button>
         </div>
         <div id="out-anatomy" class="out"></div>
       </section>
 
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel">
-        <h2>8 · Attestation — what the hardware proves</h2>
+      <section class="panel" id="s8">
+        <h2>8 · Proving a key came from real hardware</h2>
         <p class="explain">
-          A passkey ceremony proves someone holds a private key. Attestation proves something
-          else: that the key was generated inside a particular piece of hardware, vouched for by
-          a chain the manufacturer signed. Pick a format and a scenario — every run below is a
-          real ceremony with real keys and real certificates, put through the shipped verifier.
-        </p>
-        <p class="explain">
-          The roots are minted by this process, which is exactly why
-          <em>no trust anchors</em> is the scenario worth trying: a chain checked against no root
-          proves nothing at all, and the verifier refuses rather than reporting success.
+          A passkey proves someone holds a key. <em>Attestation</em> also proves which hardware
+          made the key, using certificates from the manufacturer. Pick a device type and a case,
+          then run it. Try “with no trust anchors”: the check refuses, because a certificate chain
+          checked against nothing proves nothing.
         </p>
         <div class="row">
-          <select id="attest-format">
+          <select id="attest-format" aria-label="Device type">
             <option value="packed">packed — most security keys</option>
             <option value="apple">apple — Touch ID and Face ID</option>
             <option value="tpm">tpm — Windows Hello</option>
-            <option value="fido-u2f">fido-u2f — CTAP1 security keys</option>
-            <option value="android-key">android-key — Android platform keys</option>
+            <option value="fido-u2f">fido-u2f — older security keys</option>
+            <option value="android-key">android-key — Android</option>
             <option value="android-safetynet">android-safetynet — older Android</option>
             <option value="none">none — what passkeys use</option>
-            <option value="appattest">appattest — a name Ninsho does not know</option>
+            <option value="appattest">appattest — a format Ninsho does not know</option>
           </select>
-          <select id="attest-scenario">
-            <option value="genuine">a genuine ceremony</option>
+          <select id="attest-scenario" aria-label="Case">
+            <option value="genuine">a genuine device</option>
             <option value="no-anchors">with no trust anchors</option>
             <option value="wrong-root">against the wrong root</option>
             <option value="tampered">with a tampered signature</option>
           </select>
-          <button id="attest-run">Run the ceremony</button>
+          <button id="attest-run">Run</button>
         </div>
         <div id="out-attestation" class="out"></div>
       </section>
 
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel">
-        <h2>9 · What is actually in the store</h2>
+      <section class="panel" id="s9">
+        <h2>9 · What is in the store</h2>
         <p class="explain">
-          The live keyspace. Paste any token this page has shown you into the box and search for
-          it — the claim is that you will not find it, because only
-          <code>SHA-256(token)</code> is ever written.
+          Everything Ninsho has saved. Paste any token from this page into the box and search: you
+          will not find it, because only a hash of each token is ever saved.
         </p>
         <div class="row">
-          <button data-get="/api/store" data-target="out-store">Show the keyspace</button>
-          <input id="needle" type="text" placeholder="Paste a token to search for…" />
+          <button data-get="/api/store" data-target="out-store">Show the store</button>
+          <input id="needle" type="text" placeholder="Paste a token to search for" aria-label="Token to search for" />
           <button id="search" class="ghost">Search</button>
         </div>
         <div id="search-result"></div>
         <div id="out-store" class="out"></div>
       </section>
 
-      <!-- ─────────────────────────────────────────────────────────────── -->
-      <section class="panel">
-        <h2>10 · The audit trail</h2>
+      <section class="panel" id="s10">
+        <h2>10 · The audit log</h2>
         <p class="explain">
-          Structured security events. The shape is deliberately narrow — there is no free-form
-          payload that could accidentally carry a token, a password, or a request body.
+          Security events in a fixed shape, with no free-text field that could leak a token or a
+          password.
         </p>
         <button data-get="/api/events" data-target="out-events">Show events</button>
         <div id="out-events" class="out"></div>
@@ -280,9 +253,8 @@
 
     <footer class="wrap">
       <p class="dim">
-        Runs <code>@ninshorg/server</code> in-process with <code>MemoryStore</code>. One shared
-        session for everyone on the page, internals exposed over HTTP — a demonstration, not an
-        integration. Copy <code>examples/express-api</code> instead.
+        A demonstration, not an integration: one shared session for everyone on this page, with
+        internals exposed on purpose. To build a real app, copy <code>examples/express-api</code>.
       </p>
     </footer>
 
