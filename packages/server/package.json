@@ -86,10 +86,10 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@koa/router": "^15.7.0",
+    "@koa/router": "^15.7.1",
     "@types/koa": "^3.0.3",
-    "fastify": "^5.2.1",
-    "hono": "^4.13.5",
-    "koa": "^3.2.1"
+    "fastify": "^5.12.8",
+    "hono": "^4.13.16",
+    "koa": "^3.3.0"
   }
 }

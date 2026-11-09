@@ -14,7 +14,7 @@
     "@ninshorg/client": "0.1.1",
     "@ninshorg/server": "0.1.1",
     "@ninshorg/webauthn": "0.1.1",
-    "express": "^5.2.1"
+    "express": "^5.3.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0"
